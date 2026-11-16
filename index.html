@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vento live</title>
+<meta name="robots" content="noindex">
+<style>
+:root{--bg:#f6f5f1;--panel:#fff;--fg:#1d1d1b;--muted:#6b6a65;--line:#e2e0d8;--sea:#e3ecef;--land:#fbfaf6;--ok:#1f8a4c;--bad:#c2412d;--warn:#b7791f}
+@media (prefers-color-scheme:dark){:root{--bg:#171716;--panel:#22221f;--fg:#efeee9;--muted:#a3a19a;--line:#3a3934;--sea:#1d2a2f;--land:#262622;--ok:#4cc27e;--bad:#ef7a64;--warn:#e0a84a}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:980px;margin:0 auto;padding:16px}
+h1{font-weight:500;font-size:26px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 16px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;align-items:start}
+.tiles{display:flex;flex-direction:column;gap:10px}
+.tile{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.tile.on{border-color:var(--ok);box-shadow:inset 0 0 0 2px var(--ok)}
+.head{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+.name{font-weight:600;font-size:16px}
+.st{color:var(--muted);font-size:12px}
+.val{display:flex;align-items:baseline;gap:8px;margin:6px 0 4px;font-variant-numeric:tabular-nums}
+.big{font-size:38px;line-height:1;font-weight:500}
+.arrow{display:inline-block;font-size:26px;line-height:1;color:var(--muted)}
+.small{font-size:12px;color:var(--muted)}
+.pill{display:inline-block;font-size:12px;font-weight:600;padding:1px 9px;border-radius:999px;border:1px solid var(--line);color:var(--muted);margin-right:6px}
+.pill.ok{color:var(--ok);border-color:var(--ok)}.pill.bad{color:var(--bad);border-color:var(--bad)}.pill.warn{color:var(--warn);border-color:var(--warn)}
+.links{margin-top:6px;display:flex;gap:6px;flex-wrap:wrap}
+.links a{font-size:12px;color:var(--fg);text-decoration:none;border:1px solid var(--line);border-radius:999px;padding:2px 10px}
+.mapbox{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px}
+svg{display:block;width:100%;height:auto}
+.sea{fill:var(--sea)}.land{fill:var(--land);stroke:var(--muted);stroke-width:.8}
+.town circle{fill:var(--muted)}.town text{fill:var(--muted);font-size:10px}
+.seaname{fill:var(--muted);font-size:11px;font-style:italic;opacity:.8}
+.lab{font-size:12px;font-weight:600;fill:var(--fg);paint-order:stroke;stroke:var(--bg);stroke-width:3px}
+.kn{font-size:12px;font-weight:700;fill:var(--fg);paint-order:stroke;stroke:var(--bg);stroke-width:3px;font-variant-numeric:tabular-nums}
+.ksub{font-size:9px;fill:var(--muted);paint-order:stroke;stroke:var(--bg);stroke-width:3px}
+.bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 14px}
+button{font:inherit;font-size:14px;background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:6px 14px;cursor:pointer}
+.foot{color:var(--muted);font-size:12px;margin-top:16px;line-height:1.5}
+.foot a{color:inherit}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Vento live</h1>
+  <p class="sub">Vento misurato dalle stazioni, salvato ogni 15 minuti dalle 5 alle 20 circa. Non è in diretta: guarda sempre l'ora della lettura.</p>
+  <div class="bar"><button id="ricarica" type="button">Ricarica</button><span class="small" id="stato">Caricamento…</span></div>
+  <div class="grid">
+    <div class="tiles" id="tiles"></div>
+    <div class="mapbox">
+      <svg viewBox="0 0 400 371" role="img" aria-label="Mappa della costa da Tarquinia a Latina con gli spot e il vento delle stazioni">
+        <rect class="sea" x="0" y="0" width="400" height="371"></rect>
+        <path class="land" fill-rule="evenodd" d="M369.8,365.9L344.8,343.1L317.7,340.3L313.5,343.8L288.0,326.8L276.9,331.3L259.4,301.1L227.6,261.6L207.2,244.0L176.8,228.7L181.7,226.3L173.7,227.3L174.2,206.5L151.7,167.0L128.8,154.2L122.1,144.2L94.5,125.1L73.0,128.2L66.3,110.9L59.1,106.0L55.0,101.9L61.7,107.4L61.4,105.3L60.4,106.0L60.1,104.0L56.3,101.5L56.3,97.0L52.4,96.3L37.7,57.2L19.1,34.7L0.0,23.5L0.0,0.0L400.0,0.0L400.0,370.8L371.9,370.8L369.8,365.9ZM160.8,97.0L172.1,109.2L188.1,104.7L189.7,93.2L183.5,84.9L177.8,83.2L160.8,91.1L160.8,97.0Z"></path>
+        <text class="seaname" x="40" y="300">Mar Tirreno</text>
+        <g class="town"><circle cx="53.2" cy="50.6" r="2"></circle><text x="58" y="47">Tarquinia</text></g>
+        <g class="town"><circle cx="63.7" cy="106.4" r="2"></circle><text x="69" y="104">Civitavecchia</text></g>
+        <g class="town"><circle cx="244.1" cy="172.2" r="2.5"></circle><text x="249" y="170">Roma</text></g>
+        <g class="town"><circle cx="277.9" cy="329.9" r="2"></circle><text x="283" y="326">Anzio</text></g>
+        <g class="town"><circle cx="349.4" cy="323.3" r="2"></circle><text x="344" y="317" text-anchor="end">Latina</text></g>
+        <text class="seaname" x="175" y="99" text-anchor="middle" font-size="8">Bracciano</text>
+        <g id="spots"></g>
+      </svg>
+      <div class="small" style="padding:4px 4px 0">La freccia punta sullo spot dalla direzione da cui arriva il vento. Verde da 15 nodi in su da una direzione buona, rossa se viene da terra, grigia e tratteggiata se la lettura ha più di 30 minuti. Costa © OpenStreetMap contributors.</div>
+    </div>
+  </div>
+  <p class="foot">Previsioni e avvisi: <a href="https://claude.ai/artifact/295q6f8jyRU6Hm5h1nC3xi">Wind Radar su Claude</a>. Dati: <a href="https://stazioni3.soluzionimeteo.it/freekitermsn/">Free Kiter MSN</a>, <a href="https://www.leganavaleostia.it/situazione-attuale/">Lega Navale Ostia</a>, <a href="https://www.rivaditraiano.com/meteo-obs/">Riva di Traiano</a>. Uso personale.</p>
+</div>
+<script>
+(function () {
+  var SOGLIA = 15, FRESCO_MIN = 30;
+  var M = { lon0: 11.55, lat1: 42.40, k: 346.5259, c: 0.744719 };
+  var SPOT = [
+    { id: 'msn', nome: 'Marina di San Nicola', breve: 'San Nicola', lon: 12.12, lat: 41.93, ok: [170, 300], terra: [330, 110], stazione: 'msn', wg: 49027, lab: [11, -9, 'start'] },
+    { id: 'ostia', nome: 'Ostia', breve: 'Ostia', lon: 12.3024, lat: 41.7187, ok: [115, 325], terra: [345, 95], stazione: 'lni_ostia', wg: 1518, lab: [11, -9, 'start'] },
+    { id: 'sag', nome: "Civitavecchia Sant'Agostino", breve: 'Civitavecchia S. Agostino', lon: 11.74, lat: 42.17, ok: [180, 320], terra: [350, 130], stazione: 'rdt_civitavecchia', wg: 49021, lab: [11, -9, 'start'] },
+    { id: 'anzio', nome: 'Anzio Levante', breve: 'Anzio Levante', lon: 12.63, lat: 41.45, ok: [40, 230], terra: [250, 20], stazione: null, wg: 49035, lab: [-11, 18, 'end'] }
+  ];
+  var NS = 'http://www.w3.org/2000/svg';
+  function P(lon, lat) { return [(lon - M.lon0) * M.c * M.k, (M.lat1 - lat) * M.k]; }
+  function classe(s, deg) {
+    if (deg >= s.ok[0] && deg <= s.ok[1]) return 'ok';
+    if (deg >= s.terra[0] || deg <= s.terra[1]) return 'terra';
+    return 'side';
+  }
+  function num(v) { return v == null ? '—' : String(v).replace('.', ','); }
+  function hhmm(d) { return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
+  function el(tag, attrs, txt) { var e = document.createElementNS(NS, tag); for (var k in attrs) e.setAttribute(k, attrs[k]); if (txt != null) e.textContent = txt; return e; }
+  function h(tag, cls, txt) { var e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; }
+  // letto_alle è ora italiana senza fuso: lo leggo come ora di Roma.
+  function quando(s) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})/.exec(s || '');
+    if (!m) return null;
+    var guess = Date.UTC(+m[1], m[2] - 1, +m[3], +m[4], +m[5], +m[6]);
+    var off = romaOffset(new Date(guess));
+    return new Date(guess - off);
+  }
+  function romaOffset(d) {
+    var p = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Rome', hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }).formatToParts(d);
+    var o = {}; p.forEach(function (x) { o[x.type] = x.value; });
+    return Date.UTC(+o.year, o.month - 1, +o.day, +o.hour, +o.minute, +o.second) - d.getTime();
+  }
+  function stato(s, r) {
+    var t = quando(r.letto_alle);
+    var fresco = !!t && (Date.now() - t.getTime()) <= FRESCO_MIN * 60000;
+    var cl = classe(s, Number(r.deg));
+    return { t: t, fresco: fresco, cl: cl, firing: cl !== 'terra' && Number(r.wind_kn) >= SOGLIA, offline: Number(r.offline) === 1 };
+  }
+  function tile(s, r) {
+    var d = h('div', 'tile');
+    var head = h('div', 'head');
+    head.append(h('span', 'name', s.nome), h('span', 'st', r ? r.stazione : 'nessuna stazione'));
+    d.append(head);
+    if (!r) {
+      d.append(h('div', 'small', 'Qui non c’è una stazione: guarda la previsione.'));
+    } else {
+      var st = stato(s, r);
+      var val = h('div', 'val');
+      var a = h('span', 'arrow', '↓'); a.style.transform = 'rotate(' + Number(r.deg) + 'deg)';
+      val.append(a, h('span', 'big', num(r.wind_kn)), h('span', 'small', 'nodi da ' + r.dir + ' · raffica ' + num(r.gust_kn)));
+      d.append(val);
+      var pill;
+      if (st.offline) pill = h('span', 'pill bad', 'Stazione offline');
+      else if (st.cl === 'terra') pill = h('span', 'pill bad', 'Vento da terra');
+      else if (!st.fresco) pill = h('span', 'pill warn', 'Lettura vecchia');
+      else if (st.firing) pill = h('span', 'pill ok', st.cl === 'side' ? 'Firing · side-off' : 'Firing');
+      else pill = h('span', 'pill', 'Sotto soglia');
+      var riga = h('div', 'small');
+      riga.append(pill, document.createTextNode(st.t ? 'letto alle ' + hhmm(st.t) + (st.t.toDateString() === new Date().toDateString() ? '' : ' del ' + st.t.getDate() + '/' + (st.t.getMonth() + 1)) : ''));
+      d.append(riga);
+      if (st.fresco && st.firing && !st.offline) d.classList.add('on');
+    }
+    var links = h('div', 'links');
+    var w = h('a', null, 'Windguru ↗'); w.href = 'https://www.windguru.cz/' + s.wg; w.target = '_blank'; w.rel = 'noopener';
+    var y = h('a', null, 'Windy ↗'); y.href = 'https://www.windy.com/' + s.lat.toFixed(3) + '/' + s.lon.toFixed(3) + '?' + s.lat.toFixed(3) + ',' + s.lon.toFixed(3) + ',11'; y.target = '_blank'; y.rel = 'noopener';
+    links.append(w, y);
+    d.append(links);
+    return d;
+  }
+  function marker(s, r) {
+    var xy = P(s.lon, s.lat), x = xy[0], y = xy[1];
+    var g = el('g', {});
+    var st = r ? stato(s, r) : null;
+    var on = !!(st && st.fresco && st.firing && !st.offline);
+    if (r && !st.offline) {
+      var deg = Number(r.deg);
+      var colore = !st.fresco ? 'var(--muted)' : (st.cl === 'terra' ? 'var(--bad)' : (st.firing ? 'var(--ok)' : 'var(--fg)'));
+      var fr = el('g', { transform: 'translate(' + x + ',' + y + ') rotate(' + deg + ')' });
+      var asta = el('line', { x1: 0, y1: -46, x2: 0, y2: -23, stroke: colore, 'stroke-width': 2.5, 'stroke-linecap': 'round' });
+      if (!st.fresco) asta.setAttribute('stroke-dasharray', '4 3');
+      fr.append(asta, el('path', { d: 'M0,-15L-5.5,-25L5.5,-25Z', fill: colore }));
+      var ux = Math.sin(deg * Math.PI / 180), uy = -Math.cos(deg * Math.PI / 180);
+      var anchor = ux < -0.35 ? 'end' : (ux > 0.35 ? 'start' : 'middle');
+      var dy = uy < -0.35 ? -8 : (uy > 0.35 ? 10 : 0);
+      var minX = anchor === 'end' ? 46 : (anchor === 'middle' ? 24 : 4), maxX = anchor === 'start' ? 354 : (anchor === 'middle' ? 376 : 396);
+      var lx = Math.min(Math.max(x + ux * 54, minX), maxX), ly = Math.min(Math.max(y + uy * 54 + dy, 14), 352);
+      g.append(fr, el('text', { x: lx, y: ly - 1, 'text-anchor': anchor, 'class': 'kn' }, num(r.wind_kn) + ' kn'),
+        el('text', { x: lx, y: ly + 10, 'text-anchor': anchor, 'class': 'ksub' }, r.dir + (st.t ? ' · ' + hhmm(st.t) : '')));
+    }
+    g.append(el('circle', { cx: x, cy: y, r: 14, fill: on ? 'var(--ok)' : 'var(--muted)', opacity: 0.18 }),
+      el('circle', { cx: x, cy: y, r: 7, fill: on ? 'var(--ok)' : 'var(--panel)', stroke: on ? 'var(--ok)' : 'var(--fg)', 'stroke-width': 2 }),
+      el('text', { x: x + s.lab[0], y: y + s.lab[1], 'text-anchor': s.lab[2], 'class': 'lab' }, s.breve + (on ? ' · firing' : '')));
+    return g;
+  }
+  var ultimo = null;
+  function disegna() {
+    var righe = (ultimo && ultimo.rows) || [];
+    var per = {}; righe.forEach(function (r) { per[r.id] = r; });
+    var tiles = document.getElementById('tiles'); tiles.replaceChildren();
+    var spots = document.getElementById('spots'); spots.replaceChildren();
+    SPOT.forEach(function (s) {
+      var r = s.stazione ? per[s.stazione] : null;
+      tiles.append(tile(s, r));
+      spots.append(marker(s, r));
+    });
+  }
+  function carica() {
+    var stEl = document.getElementById('stato');
+    fetch('stazioni.json?t=' + Date.now(), { cache: 'no-store' })
+      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function (j) {
+        ultimo = j; disegna();
+        var letto = (j.meta || []).filter(function (m) { return m.label === 'Letto'; })[0];
+        var t = letto ? quando(letto.value) : null;
+        stEl.textContent = 'File salvato alle ' + (t ? hhmm(t) : '?') + ' · pagina aggiornata alle ' + hhmm(new Date());
+      })
+      .catch(function (e) { stEl.textContent = 'Non riesco a leggere i dati (' + e.message + '). Riprova tra poco.'; disegna(); });
+  }
+  document.getElementById('ricarica').addEventListener('click', carica);
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) carica(); });
+  setInterval(carica, 3 * 60 * 1000);
+  setInterval(disegna, 60 * 1000);
+  carica();
+})();
+</script>
+</body>
+</html>
