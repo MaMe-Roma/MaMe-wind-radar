@@ -1,0 +1,35 @@
+name: Stazioni vento
+
+# Ogni 15 minuti tra le 5 e le 18:45 UTC (6:00–19:45 d'inverno, 7:00–20:45 d'estate in Italia).
+# GitHub può far partire le esecuzioni programmate con qualche minuto di ritardo.
+on:
+  schedule:
+    - cron: "*/15 5-18 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: stazioni
+  cancel-in-progress: false
+
+jobs:
+  leggi:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Leggi le stazioni
+        run: python3 stazioni.py stazioni.json
+
+      - name: Salva
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add stazioni.json
+          git diff --cached --quiet && exit 0
+          git commit -m "Stazioni $(TZ=Europe/Rome date +'%d/%m %H:%M')"
+          git pull --rebase --quiet
+          git push
