@@ -155,7 +155,9 @@ button{font:inherit;font-size:14px;background:var(--panel);color:var(--fg);borde
       var ux = Math.sin(deg * Math.PI / 180), uy = -Math.cos(deg * Math.PI / 180);
       var anchor = ux < -0.35 ? 'end' : (ux > 0.35 ? 'start' : 'middle');
       var dy = uy < -0.35 ? -8 : (uy > 0.35 ? 10 : 0);
-      var minX = anchor === 'end' ? 46 : (anchor === 'middle' ? 24 : 4), maxX = anchor === 'start' ? 354 : (anchor === 'middle' ? 376 : 396);
+      var knT = num(r.wind_kn) + ' kn', subT = r.dir + (st.t ? ' · ' + hhmm(st.t) : '');
+      var larg = Math.max(knT.length * 7.2, subT.length * 5.4) + 4;
+      var minX = anchor === 'end' ? larg : (anchor === 'middle' ? larg / 2 : 4), maxX = anchor === 'start' ? 400 - larg : (anchor === 'middle' ? 400 - larg / 2 : 396);
       var lx = Math.min(Math.max(x + ux * 54, minX), maxX), ly = Math.min(Math.max(y + uy * 54 + dy, 14), 352);
       g.append(fr, el('text', { x: lx, y: ly - 1, 'text-anchor': anchor, 'class': 'kn' }, num(r.wind_kn) + ' kn'),
         el('text', { x: lx, y: ly + 10, 'text-anchor': anchor, 'class': 'ksub' }, r.dir + (st.t ? ' · ' + hhmm(st.t) : '')));
