@@ -1,10 +1,11 @@
 name: Stazioni vento
 
 # Ogni 15 minuti tra le 4 e le 18:45 UTC (5:00–19:45 d'inverno, 6:00–20:45 d'estate in Italia).
+# Minuti sfalsati (7, 22, 37, 52): allo scoccare dell'ora GitHub è più carico e a volte salta le esecuzioni.
 # GitHub può far partire le esecuzioni programmate con qualche minuto di ritardo.
 on:
   schedule:
-    - cron: "*/15 4-18 * * *"
+    - cron: "7,22,37,52 4-18 * * *"
   workflow_dispatch: {}
 
 permissions:
