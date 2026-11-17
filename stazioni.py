@@ -6,6 +6,7 @@ Formato di uscita uguale al dataset "stazioni" della dashboard Wind Radar:
 """
 import json
 import sys
+import time
 import urllib.request
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
@@ -24,10 +25,16 @@ def comp(deg):
     return PUNTI[round((float(deg) % 360) / 22.5) % 16]
 
 
-def get(url, referer):
+def get(url, referer, tentativi=3):
     req = urllib.request.Request(url, headers={"User-Agent": UA, "Referer": referer, "Cache-Control": "no-cache"})
-    with urllib.request.urlopen(req, timeout=20) as r:
-        return r.read().decode("utf-8", "replace")
+    for n in range(tentativi):
+        try:
+            with urllib.request.urlopen(req, timeout=30) as r:
+                return r.read().decode("utf-8", "replace")
+        except Exception:
+            if n == tentativi - 1:
+                raise
+            time.sleep(10)
 
 
 def iso(dt):
