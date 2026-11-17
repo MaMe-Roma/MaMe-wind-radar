@@ -63,10 +63,10 @@ button{font:inherit;font-size:14px;background:var(--panel);color:var(--fg);borde
         <text class="seaname" x="183" y="99" text-anchor="middle" font-size="8">Bracciano</text>
         <g id="spots"></g>
       </svg>
-      <div class="small" style="padding:4px 4px 0">La freccia punta sullo spot dalla direzione da cui arriva il vento. Verde da 15 nodi in su da una direzione buona, rossa se viene da terra, grigia e tratteggiata se la lettura ha più di 30 minuti. Costa © OpenStreetMap contributors.</div>
+      <div class="small" style="padding:4px 4px 0">La freccia punta sullo spot dalla direzione da cui arriva il vento. Verde da 15 nodi in su da una direzione buona, rossa se viene da terra, grigia e tratteggiata se la lettura ha più di 30 minuti (60 per Anzio, che pubblica in ritardo). Costa © OpenStreetMap contributors.</div>
     </div>
   </div>
-  <p class="foot">Previsioni e avvisi: <a href="https://claude.ai/artifact/295q6f8jyRU6Hm5h1nC3xi">Wind Radar su Claude</a>. Dati: <a href="https://stazioni3.soluzionimeteo.it/freekitermsn/">Free Kiter MSN</a>, <a href="https://www.leganavaleostia.it/situazione-attuale/">Lega Navale Ostia</a>, <a href="https://www.rivaditraiano.com/meteo-obs/">Riva di Traiano</a>. Uso personale.</p>
+  <p class="foot">Previsioni e avvisi: <a href="https://claude.ai/artifact/295q6f8jyRU6Hm5h1nC3xi">Wind Radar su Claude</a>. Dati: <a href="https://stazioni3.soluzionimeteo.it/freekitermsn/">Free Kiter MSN</a>, <a href="https://www.leganavaleostia.it/situazione-attuale/">Lega Navale Ostia</a>, <a href="https://www.rivaditraiano.com/meteo-obs/">Riva di Traiano</a>, <a href="https://www.meteoregionelazio.it/rete/stazione.php?id=RM-050">Meteo Lazio Anzio Porto</a>. Uso personale.</p>
 </div>
 <script>
 (function () {
@@ -76,7 +76,7 @@ button{font:inherit;font-size:14px;background:var(--panel);color:var(--fg);borde
     { id: 'msn', nome: 'Marina di San Nicola', breve: 'San Nicola', lon: 12.12, lat: 41.93, ok: [170, 300], terra: [330, 110], stazione: 'msn', wg: 49027, lab: [11, -9, 'start'] },
     { id: 'ostia', nome: 'Ostia', breve: 'Ostia', lon: 12.3024, lat: 41.7187, ok: [115, 325], terra: [345, 95], stazione: 'lni_ostia', wg: 1518, lab: [11, -9, 'start'] },
     { id: 'sag', nome: "Civitavecchia Sant'Agostino", breve: 'Civitavecchia S. Agostino', lon: 11.74, lat: 42.17, ok: [180, 320], terra: [350, 130], stazione: 'rdt_civitavecchia', wg: 49021, lab: [11, -9, 'start'] },
-    { id: 'anzio', nome: 'Anzio Levante', breve: 'Anzio Levante', lon: 12.63, lat: 41.45, ok: [40, 230], terra: [250, 20], stazione: null, wg: 49035, lab: [-11, 18, 'end'] }
+    { id: 'anzio', nome: 'Anzio Levante', breve: 'Anzio Levante', lon: 12.63, lat: 41.45, ok: [40, 230], terra: [250, 20], stazione: 'anzio_porto', fresco: 60, wg: 49035, lab: [-11, 18, 'end'] }
   ];
   var NS = 'http://www.w3.org/2000/svg';
   function P(lon, lat) { return [(lon - M.lon0) * M.c * M.k, (M.lat1 - lat) * M.k]; }
@@ -104,7 +104,7 @@ button{font:inherit;font-size:14px;background:var(--panel);color:var(--fg);borde
   }
   function stato(s, r) {
     var t = quando(r.letto_alle);
-    var fresco = !!t && (Date.now() - t.getTime()) <= FRESCO_MIN * 60000;
+    var fresco = !!t && (Date.now() - t.getTime()) <= (s.fresco || FRESCO_MIN) * 60000;
     var cl = classe(s, Number(r.deg));
     return { t: t, fresco: fresco, cl: cl, firing: cl !== 'terra' && Number(r.wind_kn) >= SOGLIA, offline: Number(r.offline) === 1 };
   }
