@@ -4,11 +4,11 @@
    "id": "msn",
    "stazione": "Free Kiter MSN",
    "spot": "Marina di San Nicola",
-   "letto_alle": "2026-11-17T06:51:39",
-   "wind_kn": 3.1,
-   "gust_kn": 3.9,
-   "dir": "ENE",
-   "deg": 60.0,
+   "letto_alle": "2026-11-17T06:52:39",
+   "wind_kn": 3.7,
+   "gust_kn": 5.1,
+   "dir": "NNE",
+   "deg": 25.0,
    "offline": 0,
    "fonte": "https://stazioni3.soluzionimeteo.it/freekitermsn/"
   },
@@ -16,11 +16,11 @@
    "id": "lni_ostia",
    "stazione": "Lega Navale Ostia",
    "spot": "Ostia",
-   "letto_alle": "2026-11-16T23:50:28",
-   "wind_kn": 14.0,
-   "gust_kn": 14.8,
-   "dir": "WSW",
-   "deg": 252.0,
+   "letto_alle": "2026-11-17T06:52:52",
+   "wind_kn": 14.8,
+   "gust_kn": 15.6,
+   "dir": "SW",
+   "deg": 236.0,
    "offline": 0,
    "fonte": "https://www.leganavaleostia.it/situazione-attuale/"
   },
@@ -40,19 +40,15 @@
  "meta": [
   {
    "label": "Come",
-   "value": "Letto in automatico da GitHub Actions (MaMe-Roma/mame-wind-radar) alle 06:51 del 17/11/2026: lettura salvata, non in diretta."
+   "value": "Letto in automatico da GitHub Actions (MaMe-Roma/mame-wind-radar) alle 06:52 del 17/11/2026: lettura salvata, non in diretta."
   },
   {
    "label": "Letto",
-   "value": "2026-11-17T06:51:43"
+   "value": "2026-11-17T06:52:52"
   },
   {
    "label": "Raffica",
    "value": "MSN e Lega Navale: raffica attuale. Riva di Traiano: raffica dell'ultima osservazione."
-  },
-  {
-   "label": "Errori",
-   "value": "Lega Navale Ostia: URLError: <urlopen error timed out>"
   }
  ]
 }
