@@ -94,7 +94,8 @@ def anzio(testo):
     agg = cerca(r"Aggiornamento:\s*<strong>([^<]+)</strong>")
     letto = datetime.strptime(agg, "%d/%m/%y %H:%M")
     kmh = float(cerca(r"mrl-primary-label\">Velocit[^<]*</span>\s*<strong[^>]*>([\d.,]+)\s*km/h").replace(",", "."))
-    sigla = cerca(r"Direzione<br>\s*<strong>([A-Z]{1,3})</strong>")
+    # La pagina usa le sigle italiane (O = ovest): OSO -> WSW, NO -> NW.
+    sigla = cerca(r"Direzione<br>\s*<strong>([A-Z]{1,3})</strong>").replace("O", "W")
     if sigla not in PUNTI:
         raise ValueError("direzione non riconosciuta: " + sigla)
     raffica = None
