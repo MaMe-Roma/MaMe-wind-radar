@@ -4,11 +4,11 @@
    "id": "msn",
    "stazione": "Free Kiter MSN",
    "spot": "Marina di San Nicola",
-   "letto_alle": "2026-11-17T19:46:59",
-   "wind_kn": 9.1,
-   "gust_kn": 9.9,
+   "letto_alle": "2026-11-17T20:13:30",
+   "wind_kn": 12.0,
+   "gust_kn": 13.8,
    "dir": "S",
-   "deg": 173.0,
+   "deg": 177.0,
    "offline": 0,
    "fonte": "https://stazioni3.soluzionimeteo.it/freekitermsn/"
   },
@@ -28,11 +28,11 @@
    "id": "rdt_civitavecchia",
    "stazione": "Riva di Traiano",
    "spot": "Civitavecchia Sant'Agostino",
-   "letto_alle": "2026-11-17T19:43:00",
-   "wind_kn": 9.0,
-   "gust_kn": 9.0,
-   "dir": "SSW",
-   "deg": 201.0,
+   "letto_alle": "2026-11-17T19:57:00",
+   "wind_kn": 8.0,
+   "gust_kn": 7.0,
+   "dir": "SW",
+   "deg": 214.0,
    "offline": 0,
    "fonte": "https://www.rivaditraiano.com/meteo-obs/"
   },
@@ -40,8 +40,8 @@
    "id": "anzio_porto",
    "stazione": "Meteo Lazio Anzio Porto",
    "spot": "Anzio Levante",
-   "letto_alle": "2026-11-17T19:20:00",
-   "wind_kn": 7.6,
+   "letto_alle": "2026-11-17T19:40:00",
+   "wind_kn": 6.2,
    "gust_kn": null,
    "dir": "SSE",
    "deg": 157.5,
@@ -52,11 +52,11 @@
  "meta": [
   {
    "label": "Come",
-   "value": "Letto in automatico da GitHub Actions (MaMe-Roma/mame-wind-radar) alle 19:47 del 17/11/2026: lettura salvata, non in diretta."
+   "value": "Letto in automatico da GitHub Actions (MaMe-Roma/mame-wind-radar) alle 20:13 del 17/11/2026: lettura salvata, non in diretta."
   },
   {
    "label": "Letto",
-   "value": "2026-11-17T19:47:25"
+   "value": "2026-11-17T20:13:45"
   },
   {
    "label": "Raffica",
