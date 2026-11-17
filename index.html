@@ -47,6 +47,7 @@ button{font:inherit;font-size:14px;background:var(--panel);color:var(--fg);borde
   <h1>Vento live</h1>
   <p class="sub">Vento misurato dalle stazioni, salvato ogni 15 minuti dalle 5 alle 20 circa. Non è in diretta: guarda sempre l'ora della lettura.</p>
   <div class="bar"><button id="ricarica" type="button">Ricarica</button><span class="small" id="stato">Caricamento…</span></div>
+  <p class="sub" id="sole"></p>
   <div class="grid">
     <div class="tiles" id="tiles"></div>
     <div class="mapbox">
@@ -135,6 +136,7 @@ button{font:inherit;font-size:14px;background:var(--panel);color:var(--fg);borde
     var w = h('a', null, 'Windguru ↗'); w.href = 'https://www.windguru.cz/' + s.wg; w.target = '_blank'; w.rel = 'noopener';
     var y = h('a', null, 'Windy ↗'); y.href = 'https://www.windy.com/' + s.lat.toFixed(3) + '/' + s.lon.toFixed(3) + '?' + s.lat.toFixed(3) + ',' + s.lon.toFixed(3) + ',11'; y.target = '_blank'; y.rel = 'noopener';
     links.append(w, y);
+    if (r && r.fonte) { var st2 = h('a', null, 'Stazione ' + r.stazione + ' ↗'); st2.href = r.fonte; st2.target = '_blank'; st2.rel = 'noopener'; links.append(st2); }
     d.append(links);
     return d;
   }
@@ -163,6 +165,30 @@ button{font:inherit;font-size:14px;background:var(--panel);color:var(--fg);borde
       el('text', { x: x + s.lab[0], y: y + s.lab[1], 'text-anchor': s.lab[2], 'class': 'lab' }, s.breve + (on ? ' · firing' : '')));
     return g;
   }
+  // Alba e tramonto (algoritmo NOAA semplificato, circa un minuto di precisione).
+  function soleUTC(lat, lon, giorno, alba) {
+    var rad = Math.PI / 180, inizio = Date.UTC(giorno.getFullYear(), 0, 0);
+    var n = Math.floor((Date.UTC(giorno.getFullYear(), giorno.getMonth(), giorno.getDate()) - inizio) / 86400000);
+    var lng = lon / 15, t = n + ((alba ? 6 : 18) - lng) / 24;
+    var m = 0.9856 * t - 3.289;
+    var l = ((m + 1.916 * Math.sin(m * rad) + 0.020 * Math.sin(2 * m * rad) + 282.634) % 360 + 360) % 360;
+    var ra = ((Math.atan(0.91764 * Math.tan(l * rad)) / rad) % 360 + 360) % 360;
+    ra = (ra + (Math.floor(l / 90) * 90 - Math.floor(ra / 90) * 90)) / 15;
+    var sinDec = 0.39782 * Math.sin(l * rad), cosDec = Math.cos(Math.asin(sinDec));
+    var cosH = (Math.cos(90.833 * rad) - sinDec * Math.sin(lat * rad)) / (cosDec * Math.cos(lat * rad));
+    var hh = alba ? 360 - Math.acos(cosH) / rad : Math.acos(cosH) / rad;
+    var ut = ((hh / 15 + ra - 0.06571 * t - 6.622 - lng) % 24 + 24) % 24;
+    return new Date(Date.UTC(giorno.getFullYear(), giorno.getMonth(), giorno.getDate()) + ut * 3600000);
+  }
+  function oraRoma(d) { return new Intl.DateTimeFormat('it-IT', { timeZone: 'Europe/Rome', hour: '2-digit', minute: '2-digit' }).format(d); }
+  function sole() {
+    var oggi = new Date();
+    var tr = soleUTC(41.7187, 12.3024, oggi, false), al = soleUTC(41.7187, 12.3024, oggi, true);
+    var resta = Math.round((tr.getTime() - Date.now()) / 60000);
+    var testo = 'Oggi alba ' + oraRoma(al) + ' · tramonto ' + oraRoma(tr);
+    if (resta > 0 && resta < 180) testo += ' (tra ' + (resta >= 60 ? Math.floor(resta / 60) + ' h ' : '') + (resta % 60) + ' min)';
+    document.getElementById('sole').textContent = testo + '.';
+  }
   var ultimo = null;
   function disegna() {
     var righe = (ultimo && ultimo.rows) || [];
@@ -190,7 +216,8 @@ button{font:inherit;font-size:14px;background:var(--panel);color:var(--fg);borde
   document.getElementById('ricarica').addEventListener('click', carica);
   document.addEventListener('visibilitychange', function () { if (!document.hidden) carica(); });
   setInterval(carica, 3 * 60 * 1000);
-  setInterval(disegna, 60 * 1000);
+  setInterval(function () { disegna(); sole(); }, 60 * 1000);
+  sole();
   carica();
 })();
 </script>
