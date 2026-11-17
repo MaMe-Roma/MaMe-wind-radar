@@ -10,10 +10,10 @@
 @media (prefers-color-scheme:dark){:root{--bg:#171716;--panel:#22221f;--fg:#efeee9;--muted:#a3a19a;--line:#3a3934;--sea:#1d2a2f;--land:#262622;--ok:#4cc27e;--bad:#ef7a64;--warn:#e0a84a}}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
-.wrap{max-width:980px;margin:0 auto;padding:16px}
+.wrap{max-width:1100px;margin:0 auto;padding:16px}
 h1{font-weight:500;font-size:26px;margin:0 0 4px}
 .sub{color:var(--muted);font-size:13px;margin:0 0 16px}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;align-items:start}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;align-items:start}
 .tiles{display:flex;flex-direction:column;gap:10px}
 .tile{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
 .tile.on{border-color:var(--ok);box-shadow:inset 0 0 0 2px var(--ok)}
@@ -51,16 +51,16 @@ button{font:inherit;font-size:14px;background:var(--panel);color:var(--fg);borde
   <div class="grid">
     <div class="tiles" id="tiles"></div>
     <div class="mapbox">
-      <svg viewBox="0 0 400 371" role="img" aria-label="Mappa della costa da Tarquinia a Latina con gli spot e il vento delle stazioni">
-        <rect class="sea" x="0" y="0" width="400" height="371"></rect>
-        <path class="land" fill-rule="evenodd" d="M369.8,365.9L344.8,343.1L317.7,340.3L313.5,343.8L288.0,326.8L276.9,331.3L259.4,301.1L227.6,261.6L207.2,244.0L176.8,228.7L181.7,226.3L173.7,227.3L174.2,206.5L151.7,167.0L128.8,154.2L122.1,144.2L94.5,125.1L73.0,128.2L66.3,110.9L59.1,106.0L55.0,101.9L61.7,107.4L61.4,105.3L60.4,106.0L60.1,104.0L56.3,101.5L56.3,97.0L52.4,96.3L37.7,57.2L19.1,34.7L0.0,23.5L0.0,0.0L400.0,0.0L400.0,370.8L371.9,370.8L369.8,365.9ZM160.8,97.0L172.1,109.2L188.1,104.7L189.7,93.2L183.5,84.9L177.8,83.2L160.8,91.1L160.8,97.0Z"></path>
-        <text class="seaname" x="40" y="300">Mar Tirreno</text>
-        <g class="town"><circle cx="53.2" cy="50.6" r="2"></circle><text x="58" y="47">Tarquinia</text></g>
-        <g class="town"><circle cx="63.7" cy="106.4" r="2"></circle><text x="69" y="104">Civitavecchia</text></g>
-        <g class="town"><circle cx="244.1" cy="172.2" r="2.5"></circle><text x="249" y="170">Roma</text></g>
-        <g class="town"><circle cx="277.9" cy="329.9" r="2"></circle><text x="283" y="326">Anzio</text></g>
-        <g class="town"><circle cx="349.4" cy="323.3" r="2"></circle><text x="344" y="317" text-anchor="end">Latina</text></g>
-        <text class="seaname" x="175" y="99" text-anchor="middle" font-size="8">Bracciano</text>
+      <svg viewBox="0 0 400 379" role="img" aria-label="Mappa della costa da Tarquinia a Latina con gli spot e il vento delle stazioni">
+        <rect class="sea" x="0" y="0" width="400" height="379"></rect>
+        <path class="land" fill-rule="evenodd" d="M387.3,377.6L380.7,378.2L372.7,372.2L376.9,367.8L376.9,355.5L370.1,361.5L360.7,339.7L337.9,318.9L313.2,316.4L309.4,319.5L286.1,304.0L276.0,308.2L260.0,280.7L231.1,244.7L212.5,228.6L184.7,214.7L189.2,212.5L181.9,213.4L182.4,194.5L161.9,158.5L140.9,146.8L134.8,137.7L109.6,120.3L90.1,123.1L84.0,107.3L77.4,102.9L73.6,99.1L79.8,104.2L79.5,102.3L78.6,102.9L78.4,101.0L74.8,98.8L74.8,94.7L71.3,94.1L57.9,58.4L40.9,37.9L0.0,14.1L0.0,0.0L400.0,0.0L400.0,366.2L387.3,377.6ZM170.1,94.7L180.5,105.8L195.1,101.7L196.5,91.2L190.8,83.7L185.6,82.1L170.1,89.4L170.1,94.7Z"></path>
+        <text class="seaname" x="30" y="330">Mar Tirreno</text>
+        <g class="town"><circle cx="72.0" cy="52.4" r="2"></circle><text x="77" y="49">Tarquinia</text></g>
+        <g class="town"><circle cx="81.6" cy="103.2" r="2"></circle><text x="87" y="101">Civitavecchia</text></g>
+        <g class="town"><circle cx="246.1" cy="163.2" r="2.5"></circle><text x="251" y="161">Roma</text></g>
+        <g class="town"><circle cx="276.9" cy="306.9" r="2"></circle><text x="282" y="303">Anzio</text></g>
+        <g class="town"><circle cx="342.1" cy="300.9" r="2"></circle><text x="337" y="295" text-anchor="end">Latina</text></g>
+        <text class="seaname" x="183" y="99" text-anchor="middle" font-size="8">Bracciano</text>
         <g id="spots"></g>
       </svg>
       <div class="small" style="padding:4px 4px 0">La freccia punta sullo spot dalla direzione da cui arriva il vento. Verde da 15 nodi in su da una direzione buona, rossa se viene da terra, grigia e tratteggiata se la lettura ha più di 30 minuti. Costa © OpenStreetMap contributors.</div>
@@ -71,7 +71,7 @@ button{font:inherit;font-size:14px;background:var(--panel);color:var(--fg);borde
 <script>
 (function () {
   var SOGLIA = 15, FRESCO_MIN = 30;
-  var M = { lon0: 11.55, lat1: 42.40, k: 346.5259, c: 0.744719 };
+  var M = { lon0: 11.45, lat1: 42.42, k: 315.7279, c: 0.745243 };
   var SPOT = [
     { id: 'msn', nome: 'Marina di San Nicola', breve: 'San Nicola', lon: 12.12, lat: 41.93, ok: [170, 300], terra: [330, 110], stazione: 'msn', wg: 49027, lab: [11, -9, 'start'] },
     { id: 'ostia', nome: 'Ostia', breve: 'Ostia', lon: 12.3024, lat: 41.7187, ok: [115, 325], terra: [345, 95], stazione: 'lni_ostia', wg: 1518, lab: [11, -9, 'start'] },
@@ -149,16 +149,16 @@ button{font:inherit;font-size:14px;background:var(--panel);color:var(--fg);borde
       var deg = Number(r.deg);
       var colore = !st.fresco ? 'var(--muted)' : (st.cl === 'terra' ? 'var(--bad)' : (st.firing ? 'var(--ok)' : 'var(--fg)'));
       var fr = el('g', { transform: 'translate(' + x + ',' + y + ') rotate(' + deg + ')' });
-      var asta = el('line', { x1: 0, y1: -46, x2: 0, y2: -23, stroke: colore, 'stroke-width': 2.5, 'stroke-linecap': 'round' });
+      var asta = el('line', { x1: 0, y1: -36, x2: 0, y2: -21, stroke: colore, 'stroke-width': 2.5, 'stroke-linecap': 'round' });
       if (!st.fresco) asta.setAttribute('stroke-dasharray', '4 3');
-      fr.append(asta, el('path', { d: 'M0,-15L-5.5,-25L5.5,-25Z', fill: colore }));
+      fr.append(asta, el('path', { d: 'M0,-13L-5,-22L5,-22Z', fill: colore }));
       var ux = Math.sin(deg * Math.PI / 180), uy = -Math.cos(deg * Math.PI / 180);
       var anchor = ux < -0.35 ? 'end' : (ux > 0.35 ? 'start' : 'middle');
       var dy = uy < -0.35 ? -8 : (uy > 0.35 ? 10 : 0);
       var knT = num(r.wind_kn) + ' kn', subT = r.dir + (st.t ? ' · ' + hhmm(st.t) : '');
       var larg = Math.max(knT.length * 7.2, subT.length * 5.4) + 4;
       var minX = anchor === 'end' ? larg : (anchor === 'middle' ? larg / 2 : 4), maxX = anchor === 'start' ? 400 - larg : (anchor === 'middle' ? 400 - larg / 2 : 396);
-      var lx = Math.min(Math.max(x + ux * 54, minX), maxX), ly = Math.min(Math.max(y + uy * 54 + dy, 14), 352);
+      var lx = Math.min(Math.max(x + ux * 44, minX), maxX), ly = Math.min(Math.max(y + uy * 44 + dy, 14), 362);
       g.append(fr, el('text', { x: lx, y: ly - 1, 'text-anchor': anchor, 'class': 'kn' }, num(r.wind_kn) + ' kn'),
         el('text', { x: lx, y: ly + 10, 'text-anchor': anchor, 'class': 'ksub' }, r.dir + (st.t ? ' · ' + hhmm(st.t) : '')));
     }
