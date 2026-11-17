@@ -4,11 +4,11 @@
    "id": "msn",
    "stazione": "Free Kiter MSN",
    "spot": "Marina di San Nicola",
-   "letto_alle": "2026-11-17T14:54:22",
-   "wind_kn": 15.2,
-   "gust_kn": 15.9,
-   "dir": "SSE",
-   "deg": 166.0,
+   "letto_alle": "2026-11-17T18:06:27",
+   "wind_kn": 12.0,
+   "gust_kn": 12.9,
+   "dir": "S",
+   "deg": 175.0,
    "offline": 0,
    "fonte": "https://stazioni3.soluzionimeteo.it/freekitermsn/"
   },
@@ -16,11 +16,11 @@
    "id": "lni_ostia",
    "stazione": "Lega Navale Ostia",
    "spot": "Ostia",
-   "letto_alle": "2026-11-17T06:52:52",
-   "wind_kn": 14.8,
-   "gust_kn": 15.6,
-   "dir": "SW",
-   "deg": 236.0,
+   "letto_alle": "2026-11-17T18:06:21",
+   "wind_kn": 15.6,
+   "gust_kn": 17.3,
+   "dir": "SSW",
+   "deg": 193.0,
    "offline": 0,
    "fonte": "https://www.leganavaleostia.it/situazione-attuale/"
   },
@@ -28,11 +28,11 @@
    "id": "rdt_civitavecchia",
    "stazione": "Riva di Traiano",
    "spot": "Civitavecchia Sant'Agostino",
-   "letto_alle": "2026-11-17T14:42:00",
-   "wind_kn": 13.0,
-   "gust_kn": 18.0,
-   "dir": "SSE",
-   "deg": 159.0,
+   "letto_alle": "2026-11-17T17:58:00",
+   "wind_kn": 8.0,
+   "gust_kn": 9.0,
+   "dir": "SSW",
+   "deg": 192.0,
    "offline": 0,
    "fonte": "https://www.rivaditraiano.com/meteo-obs/"
   }
@@ -40,19 +40,15 @@
  "meta": [
   {
    "label": "Come",
-   "value": "Letto in automatico da GitHub Actions (MaMe-Roma/mame-wind-radar) alle 14:54 del 17/11/2026: lettura salvata, non in diretta."
+   "value": "Letto in automatico da GitHub Actions (MaMe-Roma/mame-wind-radar) alle 18:06 del 17/11/2026: lettura salvata, non in diretta."
   },
   {
    "label": "Letto",
-   "value": "2026-11-17T14:54:40"
+   "value": "2026-11-17T18:06:28"
   },
   {
    "label": "Raffica",
    "value": "MSN e Lega Navale: raffica attuale. Riva di Traiano: raffica dell'ultima osservazione."
-  },
-  {
-   "label": "Errori",
-   "value": "Lega Navale Ostia: URLError: <urlopen error timed out>"
   }
  ]
 }
