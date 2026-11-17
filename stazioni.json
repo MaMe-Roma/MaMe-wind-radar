@@ -4,11 +4,11 @@
    "id": "msn",
    "stazione": "Free Kiter MSN",
    "spot": "Marina di San Nicola",
-   "letto_alle": "2026-11-17T08:44:42",
-   "wind_kn": 13.4,
-   "gust_kn": 15.0,
-   "dir": "SW",
-   "deg": 215.0,
+   "letto_alle": "2026-11-17T08:56:42",
+   "wind_kn": 16.3,
+   "gust_kn": 16.9,
+   "dir": "SSW",
+   "deg": 210.0,
    "offline": 0,
    "fonte": "https://stazioni3.soluzionimeteo.it/freekitermsn/"
   },
@@ -40,11 +40,11 @@
  "meta": [
   {
    "label": "Come",
-   "value": "Letto in automatico da GitHub Actions (MaMe-Roma/mame-wind-radar) alle 08:44 del 17/11/2026: lettura salvata, non in diretta."
+   "value": "Letto in automatico da GitHub Actions (MaMe-Roma/mame-wind-radar) alle 08:57 del 17/11/2026: lettura salvata, non in diretta."
   },
   {
    "label": "Letto",
-   "value": "2026-11-17T08:44:48"
+   "value": "2026-11-17T08:57:12"
   },
   {
    "label": "Raffica",
