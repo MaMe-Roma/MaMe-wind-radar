@@ -10,7 +10,7 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-$VERSIONE = '1.8'
+$VERSIONE = '1.9'
 $DATA_VERSIONE = '18/11/2026'
 $AUTORE = '@MadHatterMatt'
 
@@ -25,8 +25,11 @@ $VIAGGIO_ORE = 1      # per oggi conta solo il vento da un'ora dopo l'avvio
 $SPOT = @(
   @{ id = 'sag'; nome = "Civitavecchia Sant'Agostino"; breve = 'S. Agostino'; lon = 11.74; lat = 42.17; lab = @(11, -9, 'start'); wg = 49021; ok = @(180, 320); terra = @(350, 130); stazioni = @('rdt_civitavecchia'); webcam = ''
      ideali = @(); attenzione = @() },
-  @{ id = 'msn'; nome = 'Marina di San Nicola'; breve = 'San Nicola'; lon = 12.12; lat = 41.93; lab = @(11, -9, 'start'); wg = 49027; ok = @(170, 300); terra = @(330, 110); stazioni = @('msn'); webcam = ''
+  @{ id = 'msn'; nome = 'Marina di San Nicola'; breve = 'San Nicola'; lon = 12.12; lat = 41.93; lab = @(11, -9, 'start'); wg = 49027; ok = @(170, 300); terra = @(330, 110); stazioni = @('msn', 'passoscuro'); webcam = ''
      ideali = @(@{ n = 'ponente'; d = 270 }); attenzione = @(@{ n = 'libeccio: lavatrice, onde ~2 m'; d = 225 }) },
+  # Fregene: stazione del Vela Sporting Club (su Weathercloud e Weather Underground IFIUMI2), webcam sulla loro pagina.
+  @{ id = 'fregene'; nome = 'Fregene'; breve = 'Fregene'; lon = 12.195; lat = 41.85; lab = @(11, 4, 'start'); wg = 49029; ok = @(165, 320); terra = @(340, 130); stazioni = @('fregene'); webcam = 'https://www.velasportingclub.it/pages/la-nostra-stazione-meteo'
+     ideali = @(); attenzione = @() },
   @{ id = 'ostia'; nome = 'Ostia'; breve = 'Ostia'; lon = 12.3024; lat = 41.7187; lab = @(11, -9, 'start'); wg = 1518; ok = @(115, 325); terra = @(345, 95); stazioni = @('lni_ostia'); webcam = ''
      ideali = @(@{ n = 'scirocco'; d = 135 }, @{ n = 'ponente'; d = 270 }); attenzione = @() },
   @{ id = 'torva'; nome = 'Torvaianica'; breve = 'Torvaianica'; lon = 12.4346; lat = 41.6401; lab = @(11, 4, 'start'); wg = 49033; ok = @(115, 325); terra = @(345, 95); stazioni = @('torvaianica'); webcam = ''
@@ -44,6 +47,8 @@ $SPOT = @(
 $STAZIONI = @(
   @{ id = 'rdt_civitavecchia'; tipo = 'rdt'; nome = 'Riva di Traiano'; etichetta = 'Stazione'; url = 'https://www.teoxonline.com/teox-utils/netsense-staz-ptrt/api/summary_01.php'; ref = 'https://www.rivaditraiano.com/meteo-obs/'; pagina = 'https://www.rivaditraiano.com/meteo-obs/'; fresco = 30 },
   @{ id = 'msn'; tipo = 'msn'; nome = 'Free Kiter MSN'; etichetta = 'Stazione'; url = 'https://stazioni3.soluzionimeteo.it/freekitermsn/homepage/blocks/gauges/updater.php'; ref = 'https://stazioni3.soluzionimeteo.it/freekitermsn/'; pagina = 'https://stazioni3.soluzionimeteo.it/freekitermsn/'; fresco = 30 },
+  @{ id = 'passoscuro'; tipo = 'wind24'; nome = 'Passoscuro (Wind24)'; etichetta = 'Wind24 Passoscuro'; url = 'https://www.wind24.it/passoscuro'; ref = 'https://www.wind24.it/'; pagina = 'https://www.wind24.it/passoscuro'; fresco = 30 },
+  @{ id = 'fregene'; tipo = 'weathercloud'; nome = 'Vela Sporting Club Fregene'; etichetta = 'Stazione'; url = 'https://app.weathercloud.net/device/values?code=3042235486'; ref = 'https://app.weathercloud.net/device/sticker/3042235486'; pagina = 'https://www.velasportingclub.it/pages/la-nostra-stazione-meteo'; fresco = 30 },
   @{ id = 'lni_ostia'; tipo = 'lni'; nome = 'Lega Navale Ostia'; etichetta = 'Stazione'; url = 'https://anemometro.leganavaleostia.it:8080/data/clientraw.txt'; ref = 'https://www.leganavaleostia.it/situazione-attuale/'; pagina = 'https://www.leganavaleostia.it/situazione-attuale/'; fresco = 30 },
   @{ id = 'torvaianica'; tipo = 'wind24'; nome = 'Torvaianica (Wind24)'; etichetta = 'Wind24'; url = 'https://www.wind24.it/torvaianica'; ref = 'https://www.wind24.it/'; pagina = 'https://www.wind24.it/torvaianica'; fresco = 30 },
   @{ id = 'anzio_levante'; tipo = 'vedetta'; nome = 'Anzio Riviera di Levante (Vedetta)'; etichetta = 'Stazione Levante'; url = 'https://vedetta.org/image-client/marina-di-nettuno/meteo/dati_meteo.html'; ref = 'https://vedetta.org/webcam/italia/lazio/roma/anzio-levante/'; pagina = 'https://vedetta.org/webcam/italia/lazio/roma/anzio-levante/'; fresco = 30 },
@@ -80,10 +85,12 @@ function Register-LinkAggiorna {
 Register-LinkAggiorna
 if ($Link) { $NonAprire = $true }   # avviato dal pulsante: la pagina gia' aperta si ricarica da sola
 
-function Get-Testo([string]$url, [string]$referer) {
+function Get-Testo([string]$url, [string]$referer, [switch]$Xhr) {
+  $intestazioni = @{ Referer = $referer; 'Cache-Control' = 'no-cache' }
+  if ($Xhr) { $intestazioni['X-Requested-With'] = 'XMLHttpRequest' }
   for ($n = 1; ; $n++) {
     try {
-      $r = Invoke-WebRequest -Uri $url -UseBasicParsing -UserAgent $UA -Headers @{ Referer = $referer; 'Cache-Control' = 'no-cache' } -TimeoutSec 20
+      $r = Invoke-WebRequest -Uri $url -UseBasicParsing -UserAgent $UA -Headers $intestazioni -TimeoutSec 20
       break
     } catch {
       if ($n -ge 2) { throw }
@@ -213,13 +220,21 @@ function Get-Giorni($s, $righe) {
 
 # ---------------- Stazioni ----------------
 function Read-Stazione($st) {
-  $testo = (Get-Testo $st.url $st.ref).TrimStart([char]0xFEFF)
+  $testo = (Get-Testo $st.url $st.ref -Xhr:($st.tipo -eq 'weathercloud')).TrimStart([char]0xFEFF)
   if ($SalvaGrezzi) { [IO.File]::WriteAllText((Join-Path $SalvaGrezzi "stazione_$($st.id).txt"), $testo) }
   switch ($st.tipo) {
     'msn' {
       $j = $testo | ConvertFrom-Json
       $t = [DateTimeOffset]::FromUnixTimeSeconds([int64]$j.DateTime).LocalDateTime
       return @{ t = $t; wind = [double]$j.W; gust = [double]$j.G; deg = [double]$j.B; offline = ([string]$j.offline -eq '1') }
+    }
+    'weathercloud' {
+      # Weathercloud: JSON con vento medio e raffica in m/s, gradi e ora (epoch).
+      $j = $testo | ConvertFrom-Json
+      if ($j.epoch -eq $null -or $j.wspd -eq $null) { throw 'dati non trovati' }
+      $t = [DateTimeOffset]::FromUnixTimeSeconds([int64]$j.epoch).LocalDateTime
+      $g = if ($j.wspdhi -ne $null) { [Math]::Round([double]$j.wspdhi * 1.943844, 1) } else { $null }
+      return @{ t = $t; wind = [Math]::Round([double]$j.wspd * 1.943844, 1); gust = $g; deg = [double]$j.wdir; offline = $false }
     }
     'meteotemplate' {
       # Blocco "modernWind" di Meteotemplate: JSON con velocita', raffica, gradi, ora (epoch) e unita' di misura.
