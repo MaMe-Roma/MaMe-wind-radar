@@ -12,6 +12,10 @@ jobs:
         run: |
           mkdir grezzi
           powershell -NoProfile -ExecutionPolicy Bypass -Command "$PSVersionTable.PSVersion; & '.\radarkite\radar-kite.ps1' -NonAprire -SalvaGrezzi (Resolve-Path grezzi).Path"
+      - name: Testo grezzo Windguru (prime righe)
+        if: always()
+        shell: powershell
+        run: Get-ChildItem grezzi | ForEach-Object { "== $($_.Name)"; Get-Content $_.FullName -TotalCount 14 }
       - uses: actions/upload-artifact@v4
         if: always()
         with:
