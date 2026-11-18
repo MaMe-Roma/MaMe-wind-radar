@@ -17,13 +17,13 @@ $GIORNI = 5           # oggi + 4 giorni
 $VIAGGIO_ORE = 1      # per oggi conta solo il vento da un'ora dopo l'avvio
 
 $SPOT = @(
-  @{ id = 'msn'; nome = 'Marina di San Nicola'; wg = 49027; ok = @(170, 300); terra = @(330, 110); stazione = 'msn'
+  @{ id = 'msn'; nome = 'Marina di San Nicola'; breve = 'San Nicola'; lon = 12.12; lat = 41.93; lab = @(11, -9, 'start'); wg = 49027; ok = @(170, 300); terra = @(330, 110); stazione = 'msn'
      ideali = @(@{ n = 'ponente'; d = 270 }); attenzione = @(@{ n = 'libeccio: effetto lavatrice, onde ~2 m'; d = 225 }) },
-  @{ id = 'ostia'; nome = 'Ostia'; wg = 1518; ok = @(115, 325); terra = @(345, 95); stazione = 'lni_ostia'
+  @{ id = 'ostia'; nome = 'Ostia'; breve = 'Ostia'; lon = 12.3024; lat = 41.7187; lab = @(11, -9, 'start'); wg = 1518; ok = @(115, 325); terra = @(345, 95); stazione = 'lni_ostia'
      ideali = @(@{ n = 'scirocco'; d = 135 }, @{ n = 'ponente'; d = 270 }); attenzione = @() },
-  @{ id = 'sag'; nome = "Civitavecchia Sant'Agostino"; wg = 49021; ok = @(180, 320); terra = @(350, 130); stazione = 'rdt_civitavecchia'
+  @{ id = 'sag'; nome = "Civitavecchia Sant'Agostino"; breve = 'S. Agostino'; lon = 11.74; lat = 42.17; lab = @(11, -9, 'start'); wg = 49021; ok = @(180, 320); terra = @(350, 130); stazione = 'rdt_civitavecchia'
      ideali = @(); attenzione = @() },
-  @{ id = 'anzio'; nome = 'Anzio Levante'; wg = 49035; ok = @(40, 230); terra = @(250, 20); stazione = 'anzio_porto'
+  @{ id = 'anzio'; nome = 'Anzio Levante'; breve = 'Anzio Levante'; lon = 12.63; lat = 41.45; lab = @(11, 4, 'start'); wg = 49035; ok = @(40, 230); terra = @(250, 20); stazione = 'anzio_porto'
      ideali = @(@{ n = 'libeccio'; d = 225 }, @{ n = 'grecale'; d = 45 }); attenzione = @() }
 )
 
@@ -36,6 +36,7 @@ $STAZIONI = @(
 
 $PUNTI = @('N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW')
 $GG = @('dom', 'lun', 'mar', 'mer', 'gio', 'ven', 'sab')
+$INV = [Globalization.CultureInfo]::InvariantCulture
 $UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) RadarKite/1.0'
 $cartella = Split-Path -Parent $MyInvocation.MyCommand.Path
 $adesso = Get-Date
@@ -133,23 +134,34 @@ function Get-Giorni($s, $righe) {
       $run = @()
     }
     $res = [ordered]@{ data = $giorno; nome = "$($GG[[int]$giorno.DayOfWeek]) $($giorno.Day)"; oggi = ($k -eq 0); fascia = "$($fascia[0])-$($fascia[1])"
-      max = $(if ($utili.Count) { ($utili | Measure-Object wind -Maximum).Maximum } else { $null }); firing = $false }
+      max = $null; maxRaff = $null; maxDir = ''; firing = $false }
+    if ($utili.Count) {
+      $top = $utili | Sort-Object wind -Descending | Select-Object -First 1
+      $res.max = $top.wind; $res.maxDir = $top.dir
+      $rr = @($utili | Where-Object { $_.gust -ne $null })
+      if ($rr.Count) { $res.maxRaff = ($rr | Measure-Object gust -Maximum).Maximum }
+    }
     if ($migliore) {
       $gradi = @($migliore | ForEach-Object { $_.deg })
       $raff = @($migliore | Where-Object { $_.gust -ne $null })
       $res.firing = $true
       $res.ore = "$($migliore[0].hour)-$($migliore[-1].hour)"
+      $res.durata = $migliore[-1].hour - $migliore[0].hour + $passo
       $res.min = ($migliore | Measure-Object wind -Minimum).Minimum
       $res.maxf = ($migliore | Measure-Object wind -Maximum).Maximum
       $res.raffica = $(if ($raff.Count) { ($raff | Measure-Object gust -Maximum).Maximum } else { $null })
       $res.dir = (@($migliore | ForEach-Object { $_.dir } | Select-Object -Unique)) -join '/'
       $note = @()
-      if ($res.raffica -ne $null -and $res.raffica -gt 35) { $note += 'raffiche pericolose' }
-      elseif (@($raff | Where-Object { $_.gust - $_.wind -gt 10 }).Count) { $note += 'rafficato' }
-      if (@($migliore | Where-Object { (Get-Classe $s $_.deg) -eq 'side' }).Count) { $note += 'side-off' }
-      $id = Get-Vicini -lista $s.ideali -gradi $gradi -SoloBuoni -s $s
-      if ($id.Count) { $note += 'ideale con ' + ($id -join ' e ') }
-      $at = Get-Vicini -lista $s.attenzione -gradi $gradi -s $s
+      $res.pericolose = ($res.raffica -ne $null -and $res.raffica -gt 35)
+      $res.rafficato = (-not $res.pericolose) -and [bool]@($raff | Where-Object { $_.gust - $_.wind -gt 10 }).Count
+      $res.sideoff = [bool]@($migliore | Where-Object { (Get-Classe $s $_.deg) -eq 'side' }).Count
+      if ($res.pericolose) { $note += 'raffiche pericolose' } elseif ($res.rafficato) { $note += 'rafficato' }
+      if ($res.sideoff) { $note += 'side-off' }
+      $id = @(Get-Vicini -lista $s.ideali -gradi $gradi -SoloBuoni -s $s)
+      $res.ideale = $(if ($id.Count) { 'ideale con ' + ($id -join ' e ') } else { '' })
+      if ($res.ideale) { $note += $res.ideale }
+      $at = @(Get-Vicini -lista $s.attenzione -gradi $gradi -s $s)
+      $res.attenzione = ($at -join ', ')
       if ($at.Count) { $note += $at }
       $res.note = $note
     }
@@ -171,7 +183,7 @@ function Read-Stazione($st) {
     'lni_ostia' {
       $f = $testo.Trim() -split '\s+'
       if ($f.Count -lt 75 -or $f[0] -ne '12345') { throw 'clientraw.txt non riconosciuto' }
-      $t = [datetime]::ParseExact("$($f[74]) $($f[29]):$($f[30]):$($f[31])", 'd/M/yyyy H:m:s', $null)
+      $t = [datetime]::ParseExact("$($f[74]) $($f[29]):$($f[30]):$($f[31])", 'd/M/yyyy H:m:s', $INV)
       return @{ t = $t; wind = [double]$f[1]; gust = [double]$f[2]; deg = [double]$f[3]; offline = $false }
     }
     'rdt_civitavecchia' {
@@ -180,12 +192,12 @@ function Read-Stazione($st) {
       $v = $voci | Where-Object { $_.label -like 'Velocit*vento' } | Select-Object -First 1
       $g = $voci | Where-Object { $_.label -eq 'Raffica vento' } | Select-Object -First 1
       $d = $voci | Where-Object { $_.label -eq 'Direzione vento' } | Select-Object -First 1
-      $t = [datetime]::ParseExact($v.time, 'dd/MM/yyyy HH:mm', $null)
+      $t = [datetime]::ParseExact($v.time, 'dd/MM/yyyy HH:mm', $INV)
       return @{ t = $t; wind = [double]$v.value; gust = [double]$g.value; deg = [double]$d.value; offline = $false }
     }
     'anzio_porto' {
       if ($testo -notmatch 'Aggiornamento:\s*<strong>([^<]+)</strong>') { throw 'ora non trovata' }
-      $t = [datetime]::ParseExact($Matches[1].Trim(), 'dd/MM/yy HH:mm', $null)
+      $t = [datetime]::ParseExact($Matches[1].Trim(), 'dd/MM/yy HH:mm', $INV)
       if ($testo -notmatch 'mrl-primary-label">Velocit[^<]*</span>\s*<strong[^>]*>([\d.,]+)\s*km/h') { throw 'vento non trovato' }
       $kmh = [double]($Matches[1] -replace ',', '.')
       if ($testo -notmatch 'Direzione<br>\s*<strong>([A-Z]{1,3})</strong>') { throw 'direzione non trovata' }
@@ -199,7 +211,7 @@ function Read-Stazione($st) {
 }
 
 # ---------------- Esecuzione ----------------
-Write-Host "Radar kite - $($adesso.ToString('dd/MM/yyyy HH:mm'))" -ForegroundColor Cyan
+Write-Host "Radar kite - $($adesso.ToString('dd/MM/yyyy HH:mm', $INV))" -ForegroundColor Cyan
 $spotRes = @()
 foreach ($s in $SPOT) {
   Write-Host "  Windguru $($s.nome)... " -NoNewline
@@ -221,7 +233,7 @@ foreach ($st in $STAZIONI) {
     $eta = ($adesso - $l.t).TotalMinutes
     $l.fresca = (-not $l.offline) -and $eta -le $st.fresco -and $eta -ge -15
     $stRes[$st.id] = $l
-    Write-Host ("{0} nodi da {1} alle {2}{3}" -f $l.wind, (Get-Comp $l.deg), $l.t.ToString('HH:mm'), $(if ($l.fresca) { '' } else { ' (vecchia)' })) -ForegroundColor Green
+    Write-Host ("{0} nodi da {1} alle {2}{3}" -f $l.wind, (Get-Comp $l.deg), $l.t.ToString('HH:mm', $INV), $(if ($l.fresca) { '' } else { ' (vecchia)' })) -ForegroundColor Green
   } catch {
     $stRes[$st.id] = @{ errore = $_.Exception.Message }
     Write-Host "ERRORE: $($_.Exception.Message) (riga $($_.InvocationInfo.ScriptLineNumber))" -ForegroundColor Red
@@ -252,61 +264,55 @@ if ($righeFiring.Count) {
 }
 
 # ---------------- Report HTML ----------------
-function Enc([string]$x) { return [Net.WebUtility]::HtmlEncode($x) }
-$sb = New-Object Text.StringBuilder
-[void]$sb.Append(@"
-<!DOCTYPE html><html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Radar kite</title><style>
-body{margin:0;background:#f6f5f1;color:#1d1d1b;font:15px/1.45 system-ui,'Segoe UI',sans-serif}
-.w{max-width:980px;margin:0 auto;padding:18px}h1{font-weight:500;margin:0}h2{font-weight:500;font-size:19px;margin:22px 0 8px}
-.sub{color:#6b6a65;font-size:13px;margin:2px 0 14px}.box{background:#fff;border:1px solid #e2e0d8;border-radius:10px;padding:12px 14px;margin-bottom:10px}
-.f{border-color:#1f8a4c;box-shadow:inset 0 0 0 2px #1f8a4c}.f li{margin:4px 0}.danger{color:#c2412d;font-weight:600}
-.days{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;margin-top:8px}
-.d{border:1px solid #e2e0d8;border-radius:8px;padding:8px}.d.ok{background:#e6f4ec;border-color:#1f8a4c}
-.big{font-size:22px}.m{color:#6b6a65;font-size:12px}a{color:inherit}table{border-collapse:collapse;width:100%}td,th{text-align:left;padding:6px;border-bottom:1px solid #e2e0d8;font-size:14px}
-</style></head><body><div class="w">
-<h1>Radar kite</h1><p class="sub">Report del $(Enc $adesso.ToString('dd/MM/yyyy HH:mm')) &middot; firing = almeno $SOGLIA nodi per $ORE_MIN ore di fila, da una direzione buona, nella fascia oraria utile.</p>
-"@)
-if ($righeFiring.Count) {
-  [void]$sb.Append('<div class="box f"><b>&#x1F7E2; Firing</b><ul>')
-  foreach ($f in $righeFiring) { $cls = if ($f.pericolo) { ' class="danger"' } else { '' }; [void]$sb.Append("<li$cls>$(Enc $f.testo)</li>") }
-  [void]$sb.Append('</ul></div>')
-} else {
-  [void]$sb.Append('<div class="box"><b>Nessuna finestra di vento</b> nei prossimi giorni.</div>')
+# I dati vanno dentro report-modello.html (grafica e calcoli di pagina), che diventa report.html.
+function Num($x) { if ($x -eq $null) { return $null } return [Math]::Round([double]$x, 1) }
+$datiGiorni = @()
+for ($k = 0; $k -lt $GIORNI; $k++) {
+  $d = $adesso.Date.AddDays($k)
+  $f = Get-Fascia $d
+  $datiGiorni += [ordered]@{ data = $d.ToString('yyyy-MM-dd', $INV); nome = "$($GG[[int]$d.DayOfWeek]) $($d.Day)"; oggi = ($k -eq 0); fascia = "$($f[0])-$($f[1])" }
 }
-[void]$sb.Append('<h2>Stazioni adesso</h2><div class="box"><table><tr><th>Stazione</th><th>Vento</th><th>Raffica</th><th>Lettura</th></tr>')
-foreach ($st in $STAZIONI) {
-  $l = $stRes[$st.id]
-  if ($l.errore) { [void]$sb.Append("<tr><td><a href='$($st.pagina)'>$(Enc $st.nome)</a></td><td colspan='3' class='m'>non raggiungibile: $(Enc $l.errore)</td></tr>"); continue }
-  $stato = if ($l.offline) { 'offline' } elseif ($l.fresca) { 'aggiornata' } else { 'vecchia' }
-  $raff = if ($l.gust -ne $null) { "$($l.gust)" } else { '&mdash;' }
-  $spotSt = $SPOT | Where-Object { $_.stazione -eq $st.id } | Select-Object -First 1
-  if ($l.fresca -and $l.wind -ge $SOGLIA -and (Get-Classe $spotSt $l.deg) -ne 'terra') { $stato += ' &middot; <b style="color:#1f8a4c">vento adesso</b>' }
-  [void]$sb.Append("<tr><td><a href='$($st.pagina)'>$(Enc $st.nome)</a></td><td><b>$($l.wind)</b> nodi da $(Get-Comp $l.deg) ($([int]$l.deg)&deg;)</td><td>$raff</td><td>$($l.t.ToString('HH:mm')) &middot; $stato</td></tr>")
-}
-[void]$sb.Append('</table></div><h2>Spot</h2>')
+$datiSpot = @()
 foreach ($r in $spotRes) {
   $s = $r.s
-  [void]$sb.Append("<div class='box'><b>$(Enc $s.nome)</b> <span class='m'>&middot; <a href='https://www.windguru.cz/$($s.wg)'>Windguru</a>")
-  if ($r.errore) { [void]$sb.Append("</span><div class='danger'>Previsione non letta: $(Enc $r.errore)</div></div>"); continue }
-  [void]$sb.Append(" &middot; $(Enc $r.wg.spot), GFS init $(Enc $r.wg.init) UTC</span><div class='days'>")
-  foreach ($g in $r.giorni) {
-    $nome = if ($g.oggi) { 'oggi' } else { $g.nome }
-    if ($g.firing) {
-      $raff = if ($g.raffica -ne $null) { " &middot; raffiche $($g.raffica)" } else { '' }
-      $note = if ($g.note.Count) { "<div class='m'>$(Enc ($g.note -join ', '))</div>" } else { '' }
-      [void]$sb.Append("<div class='d ok'><div class='m'>$nome</div><div class='big'>$($g.min)&ndash;$($g.maxf)</div><div class='m'>ore $($g.ore) &middot; $($g.dir)$raff</div>$note</div>")
-    } else {
-      $mx = if ($g.max -ne $null) { $g.max } else { '&mdash;' }
-      [void]$sb.Append("<div class='d'><div class='m'>$nome</div><div class='big'>$mx</div><div class='m'>max, no firing</div></div>")
-    }
+  # Vento adesso: stazione aggiornata, altrimenti previsione dell'ora, altrimenti stazione vecchia.
+  $l = $stRes[$s.stazione]; $ad = $null
+  if ($l -and -not $l.errore -and $l.fresca) {
+    $ad = [ordered]@{ fonte = 'stazione'; wind = (Num $l.wind); gust = (Num $l.gust); deg = $l.deg; dir = (Get-Comp $l.deg); ora = $l.t.ToString('HH:mm', $INV) }
+  } elseif ($r.wg -and @($r.wg.righe).Count) {
+    $row = $r.wg.righe | Sort-Object { [Math]::Abs(($_.t - $adesso).TotalMinutes) } | Select-Object -First 1
+    $ad = [ordered]@{ fonte = 'previsione'; wind = $row.wind; gust = $row.gust; deg = $row.deg; dir = $row.dir; ora = $row.t.ToString('HH:mm', $INV) }
+  } elseif ($l -and -not $l.errore -and -not $l.offline) {
+    $ad = [ordered]@{ fonte = 'vecchia'; wind = (Num $l.wind); gust = (Num $l.gust); deg = $l.deg; dir = (Get-Comp $l.deg); ora = $l.t.ToString('HH:mm', $INV) }
   }
-  [void]$sb.Append('</div></div>')
+  $gg = @()
+  foreach ($g in $r.giorni) {
+    $o = [ordered]@{ firing = $g.firing; max = $g.max; maxRaff = $g.maxRaff; maxDir = $g.maxDir }
+    if ($g.firing) {
+      $o.ore = $g.ore; $o.durata = $g.durata; $o.min = $g.min; $o.maxf = $g.maxf; $o.raffica = $g.raffica; $o.dir = $g.dir
+      $o.pericolose = $g.pericolose; $o.rafficato = $g.rafficato; $o.sideoff = $g.sideoff; $o.ideale = $g.ideale; $o.attenzione = $g.attenzione
+    }
+    $gg += $o
+  }
+  $staz = $STAZIONI | Where-Object { $_.id -eq $s.stazione } | Select-Object -First 1
+  $datiSpot += [ordered]@{ id = $s.id; nome = $s.nome; breve = $s.breve; lon = $s.lon; lat = $s.lat; lab = $s.lab; wg = $s.wg
+    ok = $s.ok; terra = $s.terra; stazione = $staz.nome; paginaStazione = $staz.pagina; errore = $r.errore
+    wgSpot = $(if ($r.wg) { $r.wg.spot } else { '' }); init = $(if ($r.wg) { $r.wg.init } else { '' }); adesso = $ad; giorni = $gg }
 }
-[void]$sb.Append("<p class='m'>Previsioni: Windguru (pagine micro). Stazioni lette direttamente dai siti. Vento live: <a href='https://mame-roma.github.io/MaMe-wind-radar/'>mame-roma.github.io/MaMe-wind-radar</a></p></div></body></html>")
+$datiStazioni = @()
+foreach ($st in $STAZIONI) {
+  $l = $stRes[$st.id]
+  if ($l.errore) { $datiStazioni += [ordered]@{ id = $st.id; nome = $st.nome; pagina = $st.pagina; errore = $l.errore }; continue }
+  $stato = if ($l.offline) { 'offline' } elseif ($l.fresca) { 'aggiornata' } else { 'vecchia' }
+  $datiStazioni += [ordered]@{ id = $st.id; nome = $st.nome; pagina = $st.pagina; wind = (Num $l.wind); gust = (Num $l.gust); deg = $l.deg; dir = (Get-Comp $l.deg); ora = $l.t.ToString('HH:mm', $INV); stato = $stato }
+}
+$dati = [ordered]@{ creato = $adesso.ToString("yyyy-MM-dd'T'HH:mm", $INV); soglia = $SOGLIA; oreMin = $ORE_MIN; giorni = $datiGiorni; spot = $datiSpot; stazioni = $datiStazioni }
+$json = ConvertTo-Json -InputObject $dati -Depth 8 -Compress
+$modello = [IO.File]::ReadAllText((Join-Path $cartella 'report-modello.html'), [Text.Encoding]::UTF8)
+$html = $modello.Replace('/*DATI*/null', $json)
 
 $file = Join-Path $cartella 'report.html'
-[IO.File]::WriteAllText($file, $sb.ToString(), (New-Object Text.UTF8Encoding($true)))
+[IO.File]::WriteAllText($file, $html, (New-Object Text.UTF8Encoding($true)))
 Write-Host ''
 Write-Host "Report: $file"
 if (-not $NonAprire) { Start-Process $file }
