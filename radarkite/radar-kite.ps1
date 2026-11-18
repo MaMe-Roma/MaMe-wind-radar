@@ -33,7 +33,7 @@ $SPOT = @(
      ideali = @(@{ n = 'scirocco'; d = 135 }, @{ n = 'ponente'; d = 270 }); attenzione = @() },
   @{ id = 'torva'; nome = 'Torvaianica'; breve = 'Torvaianica'; lon = 12.4346; lat = 41.6401; lab = @(11, 4, 'start'); wg = 49033; ok = @(115, 325); terra = @(345, 95); stazioni = @('torvaianica'); webcam = ''
      ideali = @(); attenzione = @() },
-  @{ id = 'anzio'; nome = 'Anzio Levante'; breve = 'Anzio Levante'; lon = 12.63; lat = 41.45; lab = @(11, 4, 'start'); wg = 49035; ok = @(40, 230); terra = @(250, 20); stazioni = @('anzio_levante', 'anzio_porto'); webcam = 'https://vedetta.org/webcam/italia/lazio/roma/anzio-levante/'
+  @{ id = 'anzio'; nome = 'Anzio Levante'; breve = 'Anzio Levante'; lon = 12.63; lat = 41.45; lab = @(8, -12, 'start'); wg = 49035; ok = @(40, 230); terra = @(250, 20); stazioni = @('anzio_levante', 'anzio_porto'); webcam = 'https://vedetta.org/webcam/italia/lazio/roma/anzio-levante/'
      ideali = @(@{ n = 'libeccio'; d = 225 }, @{ n = 'grecale'; d = 45 }); attenzione = @() },
   # Lido di Latina: tra Foce Verde e Capo Portiere (scuola Ultimate Kiteboarding). Windguru non ha uno spot qui: uso Foce Verde, stessa baia.
   @{ id = 'latina'; nome = 'Lido di Latina'; breve = 'Lido di Latina'; lon = 12.8759; lat = 41.4042; lab = @(11, 4, 'start'); wg = 49036; ok = @(120, 315); terra = @(335, 100); stazioni = @('latina_lido', 'latina_sud'); webcam = 'https://vedetta.org/webcam/italia/lazio/latina/lido-di-latina/'
@@ -169,8 +169,8 @@ function Get-Giorni($s, $righe) {
     foreach ($r in ($utili + @($null))) {
       if ($r -and $r.wind -ge $SOGLIA -and (Get-Classe $s $r.deg) -ne 'terra') { $run += $r; continue }
       if ($run.Count -gt 0) {
-        $durata = $run[-1].hour - $run[0].hour + $passo
-        $dm = if ($migliore) { $migliore[-1].hour - $migliore[0].hour + $passo } else { -1 }
+        $durata = [Math]::Min($run[-1].hour + $passo, $fascia[1] + 1) - $run[0].hour
+        $dm = if ($migliore) { [Math]::Min($migliore[-1].hour + $passo, $fascia[1] + 1) - $migliore[0].hour } else { -1 }
         if ($durata -ge $ORE_MIN -and $durata -gt $dm) { $migliore = $run }
       }
       $run = @()
@@ -190,7 +190,7 @@ function Get-Giorni($s, $righe) {
       # Con la previsione ogni 3 ore l'ultima riga copre anche le ore dopo: 13-13 diventa 13-16.
       $fineOre = [Math]::Min($migliore[-1].hour + $(if ($passo -gt 1) { $passo } else { 0 }), $fascia[1])
       $res.ore = $(if ($fineOre -gt $migliore[0].hour) { "$($migliore[0].hour)-$fineOre" } else { "$($migliore[0].hour)" })
-      $res.durata = $migliore[-1].hour - $migliore[0].hour + $passo
+      $res.durata = [Math]::Min($migliore[-1].hour + $passo, $fascia[1] + 1) - $migliore[0].hour
       $res.min = ($migliore | Measure-Object wind -Minimum).Minimum
       $res.maxf = ($migliore | Measure-Object wind -Maximum).Maximum
       $res.raffica = $(if ($raff.Count) { ($raff | Measure-Object gust -Maximum).Maximum } else { $null })
