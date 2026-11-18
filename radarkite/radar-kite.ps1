@@ -10,7 +10,7 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-$VERSIONE = '1.7'
+$VERSIONE = '1.8'
 $DATA_VERSIONE = '18/11/2026'
 $AUTORE = '@MadHatterMatt'
 
@@ -21,24 +21,22 @@ $GIORNI = 8           # oggi + 7 giorni (fino allo stesso giorno della settimana
 $VIAGGIO_ORE = 1      # per oggi conta solo il vento da un'ora dopo l'avvio
 
 # Spot da nord a sud. ok = direzioni buone (gradi da cui arriva il vento), terra = vento da terra (mai firing);
-# tutto il resto e' side-off. Passoscuro e Salto di Fondi: direzioni stimate dalla costa, da confermare.
+# tutto il resto e' side-off. Salto di Fondi e Lido di Latina: direzioni stimate dalla costa, da confermare.
 $SPOT = @(
   @{ id = 'sag'; nome = "Civitavecchia Sant'Agostino"; breve = 'S. Agostino'; lon = 11.74; lat = 42.17; lab = @(11, -9, 'start'); wg = 49021; ok = @(180, 320); terra = @(350, 130); stazioni = @('rdt_civitavecchia'); webcam = ''
      ideali = @(); attenzione = @() },
   @{ id = 'msn'; nome = 'Marina di San Nicola'; breve = 'San Nicola'; lon = 12.12; lat = 41.93; lab = @(11, -9, 'start'); wg = 49027; ok = @(170, 300); terra = @(330, 110); stazioni = @('msn'); webcam = ''
      ideali = @(@{ n = 'ponente'; d = 270 }); attenzione = @(@{ n = 'libeccio: lavatrice, onde ~2 m'; d = 225 }) },
-  @{ id = 'pass'; nome = 'Passoscuro'; breve = 'Passoscuro'; lon = 12.157; lat = 41.904; lab = @(11, 10, 'start'); wg = 49028; ok = @(170, 300); terra = @(330, 110); stazioni = @('passoscuro'); webcam = ''
-     ideali = @(); attenzione = @() },
   @{ id = 'ostia'; nome = 'Ostia'; breve = 'Ostia'; lon = 12.3024; lat = 41.7187; lab = @(11, -9, 'start'); wg = 1518; ok = @(115, 325); terra = @(345, 95); stazioni = @('lni_ostia'); webcam = ''
      ideali = @(@{ n = 'scirocco'; d = 135 }, @{ n = 'ponente'; d = 270 }); attenzione = @() },
   @{ id = 'torva'; nome = 'Torvaianica'; breve = 'Torvaianica'; lon = 12.4346; lat = 41.6401; lab = @(11, 4, 'start'); wg = 49033; ok = @(115, 325); terra = @(345, 95); stazioni = @('torvaianica'); webcam = ''
      ideali = @(); attenzione = @() },
-  @{ id = 'anzio'; nome = 'Anzio Levante'; breve = 'Anzio Levante'; lon = 12.63; lat = 41.45; lab = @(8, -12, 'start'); wg = 49035; ok = @(40, 230); terra = @(250, 20); stazioni = @('anzio_levante', 'anzio_porto'); webcam = 'https://vedetta.org/webcam/italia/lazio/roma/anzio-levante/'
+  @{ id = 'anzio'; nome = 'Anzio Levante'; breve = 'Anzio Levante'; mappa = 'Anzio'; lon = 12.63; lat = 41.45; lab = @(8, -12, 'start'); wg = 49035; ok = @(40, 230); terra = @(250, 20); stazioni = @('anzio_levante', 'anzio_porto'); webcam = 'https://vedetta.org/webcam/italia/lazio/roma/anzio-levante/'
      ideali = @(@{ n = 'libeccio'; d = 225 }, @{ n = 'grecale'; d = 45 }); attenzione = @() },
   # Lido di Latina: tra Foce Verde e Capo Portiere (scuola Ultimate Kiteboarding). Windguru non ha uno spot qui: uso Foce Verde, stessa baia.
-  @{ id = 'latina'; nome = 'Lido di Latina'; breve = 'Lido di Latina'; lon = 12.8759; lat = 41.4042; lab = @(11, 4, 'start'); wg = 49036; ok = @(120, 315); terra = @(335, 100); stazioni = @('latina_lido', 'latina_sud'); webcam = 'https://vedetta.org/webcam/italia/lazio/latina/lido-di-latina/'
+  @{ id = 'latina'; nome = 'Lido di Latina'; breve = 'Lido di Latina'; mappa = 'Latina'; lon = 12.8759; lat = 41.4042; lab = @(11, 4, 'start'); wg = 49036; ok = @(120, 315); terra = @(335, 100); stazioni = @('latina_lido', 'latina_sud'); webcam = 'https://vedetta.org/webcam/italia/lazio/latina/lido-di-latina/'
      ideali = @(); attenzione = @() },
-  @{ id = 'fondi'; nome = 'Salto di Fondi'; breve = 'Salto di Fondi'; lon = 13.3122; lat = 41.2908; lab = @(-6, -14, 'end'); wg = 49042; ok = @(110, 280); terra = @(300, 80); stazioni = @('saltodifondi'); webcam = ''
+  @{ id = 'fondi'; nome = 'Salto di Fondi'; breve = 'Salto di Fondi'; lon = 13.3122; lat = 41.2908; lab = @(11, 4, 'start'); wg = 49042; ok = @(110, 280); terra = @(300, 80); stazioni = @('saltodifondi'); webcam = ''
      ideali = @(); attenzione = @() }
 )
 
@@ -46,7 +44,6 @@ $SPOT = @(
 $STAZIONI = @(
   @{ id = 'rdt_civitavecchia'; tipo = 'rdt'; nome = 'Riva di Traiano'; etichetta = 'Stazione'; url = 'https://www.teoxonline.com/teox-utils/netsense-staz-ptrt/api/summary_01.php'; ref = 'https://www.rivaditraiano.com/meteo-obs/'; pagina = 'https://www.rivaditraiano.com/meteo-obs/'; fresco = 30 },
   @{ id = 'msn'; tipo = 'msn'; nome = 'Free Kiter MSN'; etichetta = 'Stazione'; url = 'https://stazioni3.soluzionimeteo.it/freekitermsn/homepage/blocks/gauges/updater.php'; ref = 'https://stazioni3.soluzionimeteo.it/freekitermsn/'; pagina = 'https://stazioni3.soluzionimeteo.it/freekitermsn/'; fresco = 30 },
-  @{ id = 'passoscuro'; tipo = 'wind24'; nome = 'Passoscuro (Wind24)'; etichetta = 'Wind24'; url = 'https://www.wind24.it/passoscuro'; ref = 'https://www.wind24.it/'; pagina = 'https://www.wind24.it/passoscuro'; fresco = 30 },
   @{ id = 'lni_ostia'; tipo = 'lni'; nome = 'Lega Navale Ostia'; etichetta = 'Stazione'; url = 'https://anemometro.leganavaleostia.it:8080/data/clientraw.txt'; ref = 'https://www.leganavaleostia.it/situazione-attuale/'; pagina = 'https://www.leganavaleostia.it/situazione-attuale/'; fresco = 30 },
   @{ id = 'torvaianica'; tipo = 'wind24'; nome = 'Torvaianica (Wind24)'; etichetta = 'Wind24'; url = 'https://www.wind24.it/torvaianica'; ref = 'https://www.wind24.it/'; pagina = 'https://www.wind24.it/torvaianica'; fresco = 30 },
   @{ id = 'anzio_levante'; tipo = 'vedetta'; nome = 'Anzio Riviera di Levante (Vedetta)'; etichetta = 'Stazione Levante'; url = 'https://vedetta.org/image-client/marina-di-nettuno/meteo/dati_meteo.html'; ref = 'https://vedetta.org/webcam/italia/lazio/roma/anzio-levante/'; pagina = 'https://vedetta.org/webcam/italia/lazio/roma/anzio-levante/'; fresco = 30 },
@@ -424,7 +421,7 @@ foreach ($r in $spotRes) {
     $gg += $o
   }
   $staz = @(foreach ($sid in $s.stazioni) { $x = $STAZIONI | Where-Object { $_.id -eq $sid } | Select-Object -First 1; [ordered]@{ id = $x.id; nome = $x.nome; etichetta = $x.etichetta; pagina = $x.pagina } })
-  $datiSpot += [ordered]@{ id = $s.id; nome = $s.nome; breve = $s.breve; lon = $s.lon; lat = $s.lat; lab = $s.lab; wg = $s.wg; webcam = $s.webcam
+  $datiSpot += [ordered]@{ id = $s.id; nome = $s.nome; breve = $s.breve; mappa = $(if ($s.mappa) { $s.mappa } else { $s.breve }); lon = $s.lon; lat = $s.lat; lab = $s.lab; wg = $s.wg; webcam = $s.webcam
     ok = $s.ok; terra = $s.terra; stazioni = $staz; errore = $r.errore
     wgSpot = $(if ($r.wg) { $r.wg.spot } else { '' }); init = $(if ($r.wg) { $r.wg.init } else { '' }); adesso = $ad; giorni = $gg }
 }
