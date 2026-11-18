@@ -15,7 +15,7 @@ jobs:
       - name: Testo grezzo Windguru (prime righe)
         if: always()
         shell: powershell
-        run: Get-ChildItem grezzi | ForEach-Object { "== $($_.Name)"; Get-Content $_.FullName -TotalCount 14 }
+        run: Get-ChildItem grezzi\stazione_* | ForEach-Object { "== $($_.Name)"; (Get-Content $_.FullName -Raw).Substring(0, [Math]::Min(300, (Get-Content $_.FullName -Raw).Length)) }
       - uses: actions/upload-artifact@v4
         if: always()
         with:
