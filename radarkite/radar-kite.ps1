@@ -204,12 +204,12 @@ foreach ($s in $SPOT) {
   Write-Host "  Windguru $($s.nome)... " -NoNewline
   try {
     $wg = Read-Windguru $s
-    $giorni = Get-Giorni $s $wg.righe
-    $spotRes += [pscustomobject]@{ s = $s; wg = $wg; giorni = $giorni; errore = $null }
+    $esito = Get-Giorni $s $wg.righe
+    $spotRes += [pscustomobject]@{ s = $s; wg = $wg; giorni = $esito; errore = $null }
     Write-Host "ok ($($wg.spot), init $($wg.init) UTC)" -ForegroundColor Green
   } catch {
     $spotRes += [pscustomobject]@{ s = $s; wg = $null; giorni = @(); errore = $_.Exception.Message }
-    Write-Host "ERRORE: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "ERRORE: $($_.Exception.Message) (riga $($_.InvocationInfo.ScriptLineNumber))" -ForegroundColor Red
   }
 }
 $stRes = @{}
@@ -223,17 +223,14 @@ foreach ($st in $STAZIONI) {
     Write-Host ("{0} nodi da {1} alle {2}{3}" -f $l.wind, (Get-Comp $l.deg), $l.t.ToString('HH:mm'), $(if ($l.fresca) { '' } else { ' (vecchia)' })) -ForegroundColor Green
   } catch {
     $stRes[$st.id] = @{ errore = $_.Exception.Message }
-    Write-Host "ERRORE: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "ERRORE: $($_.Exception.Message) (riga $($_.InvocationInfo.ScriptLineNumber))" -ForegroundColor Red
   }
 }
 
 # Righe firing (previsione + stazione che segna gia' firing adesso)
 $righeFiring = @()
 foreach ($r in $spotRes) {
-  $s = $r.s; $l = $stRes[$s.stazione]
-  if ($l -and $l.fresca -and $l.wind -ge $SOGLIA -and (Get-Classe $s $l.deg) -ne 'terra') {
-    $righeFiring += [pscustomobject]@{ ordine = 0; testo = ("{0} - ADESSO dalla stazione: {1} nodi da {2} alle {3}" -f $s.nome, $l.wind, (Get-Comp $l.deg), $l.t.ToString('HH:mm')); ideale = $false; pericolo = $false }
-  }
+  $s = $r.s
   foreach ($g in $r.giorni) {
     if (-not $g.firing) { continue }
     $raff = if ($g.raffica -ne $null) { ", raffiche $($g.raffica)" } else { '' }
@@ -254,7 +251,7 @@ if ($righeFiring.Count) {
 }
 
 # ---------------- Report HTML ----------------
-function H([string]$x) { return [Net.WebUtility]::HtmlEncode($x) }
+function Enc([string]$x) { return [Net.WebUtility]::HtmlEncode($x) }
 $sb = New-Object Text.StringBuilder
 [void]$sb.Append(@"
 <!DOCTYPE html><html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
@@ -267,11 +264,11 @@ body{margin:0;background:#f6f5f1;color:#1d1d1b;font:15px/1.45 system-ui,'Segoe U
 .d{border:1px solid #e2e0d8;border-radius:8px;padding:8px}.d.ok{background:#e6f4ec;border-color:#1f8a4c}
 .big{font-size:22px}.m{color:#6b6a65;font-size:12px}a{color:inherit}table{border-collapse:collapse;width:100%}td,th{text-align:left;padding:6px;border-bottom:1px solid #e2e0d8;font-size:14px}
 </style></head><body><div class="w">
-<h1>Radar kite</h1><p class="sub">Report del $(H $adesso.ToString('dd/MM/yyyy HH:mm')) &middot; firing = almeno $SOGLIA nodi per $ORE_MIN ore di fila, da una direzione buona, nella fascia oraria utile.</p>
+<h1>Radar kite</h1><p class="sub">Report del $(Enc $adesso.ToString('dd/MM/yyyy HH:mm')) &middot; firing = almeno $SOGLIA nodi per $ORE_MIN ore di fila, da una direzione buona, nella fascia oraria utile.</p>
 "@)
 if ($righeFiring.Count) {
   [void]$sb.Append('<div class="box f"><b>&#x1F7E2; Firing</b><ul>')
-  foreach ($f in $righeFiring) { $cls = if ($f.pericolo) { ' class="danger"' } else { '' }; [void]$sb.Append("<li$cls>$(H $f.testo)</li>") }
+  foreach ($f in $righeFiring) { $cls = if ($f.pericolo) { ' class="danger"' } else { '' }; [void]$sb.Append("<li$cls>$(Enc $f.testo)</li>") }
   [void]$sb.Append('</ul></div>')
 } else {
   [void]$sb.Append('<div class="box"><b>Nessuna finestra di vento</b> nei prossimi giorni.</div>')
@@ -279,22 +276,24 @@ if ($righeFiring.Count) {
 [void]$sb.Append('<h2>Stazioni adesso</h2><div class="box"><table><tr><th>Stazione</th><th>Vento</th><th>Raffica</th><th>Lettura</th></tr>')
 foreach ($st in $STAZIONI) {
   $l = $stRes[$st.id]
-  if ($l.errore) { [void]$sb.Append("<tr><td><a href='$($st.pagina)'>$(H $st.nome)</a></td><td colspan='3' class='m'>non raggiungibile: $(H $l.errore)</td></tr>"); continue }
+  if ($l.errore) { [void]$sb.Append("<tr><td><a href='$($st.pagina)'>$(Enc $st.nome)</a></td><td colspan='3' class='m'>non raggiungibile: $(Enc $l.errore)</td></tr>"); continue }
   $stato = if ($l.offline) { 'offline' } elseif ($l.fresca) { 'aggiornata' } else { 'vecchia' }
   $raff = if ($l.gust -ne $null) { "$($l.gust)" } else { '&mdash;' }
-  [void]$sb.Append("<tr><td><a href='$($st.pagina)'>$(H $st.nome)</a></td><td><b>$($l.wind)</b> nodi da $(Get-Comp $l.deg) ($([int]$l.deg)&deg;)</td><td>$raff</td><td>$($l.t.ToString('HH:mm')) &middot; $stato</td></tr>")
+  $spotSt = $SPOT | Where-Object { $_.stazione -eq $st.id } | Select-Object -First 1
+  if ($l.fresca -and $l.wind -ge $SOGLIA -and (Get-Classe $spotSt $l.deg) -ne 'terra') { $stato += ' &middot; <b style="color:#1f8a4c">vento adesso</b>' }
+  [void]$sb.Append("<tr><td><a href='$($st.pagina)'>$(Enc $st.nome)</a></td><td><b>$($l.wind)</b> nodi da $(Get-Comp $l.deg) ($([int]$l.deg)&deg;)</td><td>$raff</td><td>$($l.t.ToString('HH:mm')) &middot; $stato</td></tr>")
 }
 [void]$sb.Append('</table></div><h2>Spot</h2>')
 foreach ($r in $spotRes) {
   $s = $r.s
-  [void]$sb.Append("<div class='box'><b>$(H $s.nome)</b> <span class='m'>&middot; <a href='https://www.windguru.cz/$($s.wg)'>Windguru</a>")
-  if ($r.errore) { [void]$sb.Append("</span><div class='danger'>Previsione non letta: $(H $r.errore)</div></div>"); continue }
-  [void]$sb.Append(" &middot; $(H $r.wg.spot), GFS init $(H $r.wg.init) UTC</span><div class='days'>")
+  [void]$sb.Append("<div class='box'><b>$(Enc $s.nome)</b> <span class='m'>&middot; <a href='https://www.windguru.cz/$($s.wg)'>Windguru</a>")
+  if ($r.errore) { [void]$sb.Append("</span><div class='danger'>Previsione non letta: $(Enc $r.errore)</div></div>"); continue }
+  [void]$sb.Append(" &middot; $(Enc $r.wg.spot), GFS init $(Enc $r.wg.init) UTC</span><div class='days'>")
   foreach ($g in $r.giorni) {
     $nome = if ($g.oggi) { 'oggi' } else { $g.nome }
     if ($g.firing) {
       $raff = if ($g.raffica -ne $null) { " &middot; raffiche $($g.raffica)" } else { '' }
-      $note = if ($g.note.Count) { "<div class='m'>$(H ($g.note -join ', '))</div>" } else { '' }
+      $note = if ($g.note.Count) { "<div class='m'>$(Enc ($g.note -join ', '))</div>" } else { '' }
       [void]$sb.Append("<div class='d ok'><div class='m'>$nome</div><div class='big'>$($g.min)&ndash;$($g.maxf)</div><div class='m'>ore $($g.ore) &middot; $($g.dir)$raff</div>$note</div>")
     } else {
       $mx = if ($g.max -ne $null) { $g.max } else { '&mdash;' }
