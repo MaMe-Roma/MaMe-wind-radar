@@ -4,14 +4,15 @@
   applica le regole firing di ogni spot e apre un report nel browser.
   Avvio: doppio clic su "Avvia Radar kite.bat" nella stessa cartella.
 #>
-param([switch]$NonAprire, [string]$SalvaGrezzi = '')
+param([switch]$NonAprire, [string]$SalvaGrezzi = '', [string]$Link = '')
 
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-$VERSIONE = '1.3'
+$VERSIONE = '1.5'
 $DATA_VERSIONE = '18/11/2026'
+$AUTORE = '@MadHatterMatt'
 
 # ---------------- Regole (modificabili) ----------------
 $SOGLIA = 15          # nodi medi minimi
@@ -42,12 +43,12 @@ $SPOT = @(
 $STAZIONI = @(
   @{ id = 'rdt_civitavecchia'; tipo = 'rdt'; nome = 'Riva di Traiano'; etichetta = 'Stazione'; url = 'https://www.teoxonline.com/teox-utils/netsense-staz-ptrt/api/summary_01.php'; ref = 'https://www.rivaditraiano.com/meteo-obs/'; pagina = 'https://www.rivaditraiano.com/meteo-obs/'; fresco = 30 },
   @{ id = 'msn'; tipo = 'msn'; nome = 'Free Kiter MSN'; etichetta = 'Stazione'; url = 'https://stazioni3.soluzionimeteo.it/freekitermsn/homepage/blocks/gauges/updater.php'; ref = 'https://stazioni3.soluzionimeteo.it/freekitermsn/'; pagina = 'https://stazioni3.soluzionimeteo.it/freekitermsn/'; fresco = 30 },
-  @{ id = 'passoscuro'; tipo = 'wind24'; nome = 'Passoscuro (Wind24)'; etichetta = 'Stazione'; url = 'https://www.wind24.it/passoscuro'; ref = 'https://www.wind24.it/'; pagina = 'https://www.wind24.it/passoscuro'; fresco = 30 },
+  @{ id = 'passoscuro'; tipo = 'wind24'; nome = 'Passoscuro (Wind24)'; etichetta = 'Wind24'; url = 'https://www.wind24.it/passoscuro'; ref = 'https://www.wind24.it/'; pagina = 'https://www.wind24.it/passoscuro'; fresco = 30 },
   @{ id = 'lni_ostia'; tipo = 'lni'; nome = 'Lega Navale Ostia'; etichetta = 'Stazione'; url = 'https://anemometro.leganavaleostia.it:8080/data/clientraw.txt'; ref = 'https://www.leganavaleostia.it/situazione-attuale/'; pagina = 'https://www.leganavaleostia.it/situazione-attuale/'; fresco = 30 },
-  @{ id = 'torvaianica'; tipo = 'wind24'; nome = 'Torvaianica (Wind24)'; etichetta = 'Stazione'; url = 'https://www.wind24.it/torvaianica'; ref = 'https://www.wind24.it/'; pagina = 'https://www.wind24.it/torvaianica'; fresco = 30 },
+  @{ id = 'torvaianica'; tipo = 'wind24'; nome = 'Torvaianica (Wind24)'; etichetta = 'Wind24'; url = 'https://www.wind24.it/torvaianica'; ref = 'https://www.wind24.it/'; pagina = 'https://www.wind24.it/torvaianica'; fresco = 30 },
   @{ id = 'anzio_levante'; tipo = 'vedetta'; nome = 'Anzio Riviera di Levante (Vedetta)'; etichetta = 'Stazione Levante'; url = 'https://vedetta.org/image-client/marina-di-nettuno/meteo/dati_meteo.html'; ref = 'https://vedetta.org/webcam/italia/lazio/roma/anzio-levante/'; pagina = 'https://vedetta.org/webcam/italia/lazio/roma/anzio-levante/'; fresco = 30 },
   @{ id = 'anzio_porto'; tipo = 'meteolazio'; nome = 'Anzio Porto (Meteo Lazio)'; etichetta = 'Stazione porto'; url = 'https://www.meteoregionelazio.it/rete/stazione.php?id=RM-050'; ref = 'https://www.meteoregionelazio.it/rete/'; pagina = 'https://www.meteoregionelazio.it/rete/stazione.php?id=RM-050'; fresco = 60 },
-  @{ id = 'saltodifondi'; tipo = 'wind24'; nome = 'Salto di Fondi (Wind24)'; etichetta = 'Stazione'; url = 'https://www.wind24.it/saltodifondi'; ref = 'https://www.wind24.it/'; pagina = 'https://www.wind24.it/saltodifondi'; fresco = 30 }
+  @{ id = 'saltodifondi'; tipo = 'wind24'; nome = 'Salto di Fondi (Wind24)'; etichetta = 'Wind24'; url = 'https://www.wind24.it/saltodifondi'; ref = 'https://www.wind24.it/'; pagina = 'https://www.wind24.it/saltodifondi'; fresco = 30 }
 )
 
 $PUNTI = @('N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW')
@@ -56,6 +57,26 @@ $INV = [Globalization.CultureInfo]::InvariantCulture
 $UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) RadarKite/1.0'
 $cartella = Split-Path -Parent $MyInvocation.MyCommand.Path
 $adesso = Get-Date
+
+# Pulsante "Aggiorna" del report: registra per l'utente (non serve essere amministratore) il link radarkite://
+# che riavvia questo programma. Se la cartella cambia posto, al prossimo avvio il link si aggiorna da solo.
+# Per toglierlo: chiave HKEY_CURRENT_USER\Software\Classes\radarkite nel Registro di sistema.
+function Register-LinkAggiorna {
+  try {
+    $base = 'HKCU:\Software\Classes\radarkite'
+    $ps = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+    $cmd = '"' + $ps + '" -NoProfile -ExecutionPolicy Bypass -File "' + $PSCommandPath + '" -Link "%1"'
+    $ora = (Get-ItemProperty -Path "$base\shell\open\command" -ErrorAction SilentlyContinue).'(default)'
+    if ($ora -eq $cmd) { return }
+    New-Item -Path $base -Value 'URL:Radar kite' -Force | Out-Null
+    New-ItemProperty -Path $base -Name 'URL Protocol' -Value '' -PropertyType String -Force | Out-Null
+    New-Item -Path "$base\shell\open\command" -Value $cmd -Force | Out-Null
+  } catch {
+    Write-Host "  (pulsante Aggiorna non attivo: $($_.Exception.Message))" -ForegroundColor Yellow
+  }
+}
+Register-LinkAggiorna
+if ($Link) { $NonAprire = $true }   # avviato dal pulsante: la pagina gia' aperta si ricarica da sola
 
 function Get-Testo([string]$url, [string]$referer) {
   for ($n = 1; ; $n++) {
@@ -254,7 +275,7 @@ function Read-Stazione($st) {
 }
 
 # ---------------- Esecuzione ----------------
-Write-Host "Radar kite $VERSIONE ($DATA_VERSIONE) - $($adesso.ToString('dd/MM/yyyy HH:mm', $INV))" -ForegroundColor Cyan
+Write-Host "Radar kite $VERSIONE ($DATA_VERSIONE) di $AUTORE - $($adesso.ToString('dd/MM/yyyy HH:mm', $INV))" -ForegroundColor Cyan
 $spotRes = @()
 foreach ($s in $SPOT) {
   Write-Host "  Windguru $($s.nome)... " -NoNewline
@@ -354,7 +375,7 @@ foreach ($st in $STAZIONI) {
   $stato = if ($l.offline) { 'offline' } elseif ($l.fresca) { 'aggiornata' } else { 'vecchia' }
   $datiStazioni += [ordered]@{ id = $st.id; nome = $st.nome; pagina = $st.pagina; spot = $suo.id; data = $l.t.ToString('dd/MM', $INV); giorni = [int][Math]::Floor(($adesso - $l.t).TotalDays); wind = (Num $l.wind); gust = (Num $l.gust); deg = $l.deg; dir = (Get-Comp $l.deg); ora = $l.t.ToString('HH:mm', $INV); stato = $stato }
 }
-$dati = [ordered]@{ versione = $VERSIONE; dataVersione = $DATA_VERSIONE; creato = $adesso.ToString("yyyy-MM-dd'T'HH:mm", $INV); soglia = $SOGLIA; oreMin = $ORE_MIN; giorni = $datiGiorni; spot = $datiSpot; stazioni = $datiStazioni }
+$dati = [ordered]@{ versione = $VERSIONE; dataVersione = $DATA_VERSIONE; autore = $AUTORE; creato = $adesso.ToString("yyyy-MM-dd'T'HH:mm:ss", $INV); soglia = $SOGLIA; oreMin = $ORE_MIN; giorni = $datiGiorni; spot = $datiSpot; stazioni = $datiStazioni }
 $json = ConvertTo-Json -InputObject $dati -Depth 8 -Compress
 $modello = [IO.File]::ReadAllText((Join-Path $cartella 'report-modello.html'), [Text.Encoding]::UTF8)
 $html = $modello.Replace('/*DATI*/null', $json)
@@ -364,3 +385,4 @@ $file = Join-Path $cartella 'report.html'
 Write-Host ''
 Write-Host "Report: $file"
 if (-not $NonAprire) { Start-Process $file }
+if ($Link) { Start-Sleep -Seconds 2 }
