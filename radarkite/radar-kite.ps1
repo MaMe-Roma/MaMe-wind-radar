@@ -10,6 +10,9 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
+$VERSIONE = '1.2'
+$DATA_VERSIONE = '18/11/2026'
+
 # ---------------- Regole (modificabili) ----------------
 $SOGLIA = 15          # nodi medi minimi
 $ORE_MIN = 2          # ore di fila sopra soglia
@@ -17,21 +20,26 @@ $GIORNI = 5           # oggi + 4 giorni
 $VIAGGIO_ORE = 1      # per oggi conta solo il vento da un'ora dopo l'avvio
 
 $SPOT = @(
-  @{ id = 'msn'; nome = 'Marina di San Nicola'; breve = 'San Nicola'; lon = 12.12; lat = 41.93; lab = @(11, -9, 'start'); wg = 49027; ok = @(170, 300); terra = @(330, 110); stazione = 'msn'
+  @{ id = 'msn'; nome = 'Marina di San Nicola'; breve = 'San Nicola'; lon = 12.12; lat = 41.93; lab = @(11, -9, 'start'); wg = 49027; ok = @(170, 300); terra = @(330, 110); stazioni = @('msn'); webcam = ''
      ideali = @(@{ n = 'ponente'; d = 270 }); attenzione = @(@{ n = 'libeccio: effetto lavatrice, onde ~2 m'; d = 225 }) },
-  @{ id = 'ostia'; nome = 'Ostia'; breve = 'Ostia'; lon = 12.3024; lat = 41.7187; lab = @(11, -9, 'start'); wg = 1518; ok = @(115, 325); terra = @(345, 95); stazione = 'lni_ostia'
+  @{ id = 'ostia'; nome = 'Ostia'; breve = 'Ostia'; lon = 12.3024; lat = 41.7187; lab = @(11, -9, 'start'); wg = 1518; ok = @(115, 325); terra = @(345, 95); stazioni = @('lni_ostia'); webcam = ''
      ideali = @(@{ n = 'scirocco'; d = 135 }, @{ n = 'ponente'; d = 270 }); attenzione = @() },
-  @{ id = 'sag'; nome = "Civitavecchia Sant'Agostino"; breve = 'S. Agostino'; lon = 11.74; lat = 42.17; lab = @(11, -9, 'start'); wg = 49021; ok = @(180, 320); terra = @(350, 130); stazione = 'rdt_civitavecchia'
+  # Torvaianica: stessa esposizione di Ostia (costa verso SW); direzioni da confermare con Mattia.
+  @{ id = 'torva'; nome = 'Torvaianica'; breve = 'Torvaianica'; lon = 12.4346; lat = 41.6401; lab = @(11, 4, 'start'); wg = 49033; ok = @(115, 325); terra = @(345, 95); stazioni = @('torvaianica'); webcam = ''
      ideali = @(); attenzione = @() },
-  @{ id = 'anzio'; nome = 'Anzio Levante'; breve = 'Anzio Levante'; lon = 12.63; lat = 41.45; lab = @(11, 4, 'start'); wg = 49035; ok = @(40, 230); terra = @(250, 20); stazione = 'anzio_porto'
+  @{ id = 'sag'; nome = "Civitavecchia Sant'Agostino"; breve = 'S. Agostino'; lon = 11.74; lat = 42.17; lab = @(11, -9, 'start'); wg = 49021; ok = @(180, 320); terra = @(350, 130); stazioni = @('rdt_civitavecchia'); webcam = ''
+     ideali = @(); attenzione = @() },
+  @{ id = 'anzio'; nome = 'Anzio Levante'; breve = 'Anzio Levante'; lon = 12.63; lat = 41.45; lab = @(11, 4, 'start'); wg = 49035; ok = @(40, 230); terra = @(250, 20); stazioni = @('anzio_levante', 'anzio_porto'); webcam = 'https://vedetta.org/webcam/italia/lazio/roma/anzio-levante/'
      ideali = @(@{ n = 'libeccio'; d = 225 }, @{ n = 'grecale'; d = 45 }); attenzione = @() }
 )
 
 $STAZIONI = @(
-  @{ id = 'msn'; nome = 'Free Kiter MSN'; url = 'https://stazioni3.soluzionimeteo.it/freekitermsn/homepage/blocks/gauges/updater.php'; ref = 'https://stazioni3.soluzionimeteo.it/freekitermsn/'; pagina = 'https://stazioni3.soluzionimeteo.it/freekitermsn/'; fresco = 30 },
-  @{ id = 'lni_ostia'; nome = 'Lega Navale Ostia'; url = 'https://anemometro.leganavaleostia.it:8080/data/clientraw.txt'; ref = 'https://www.leganavaleostia.it/situazione-attuale/'; pagina = 'https://www.leganavaleostia.it/situazione-attuale/'; fresco = 30 },
-  @{ id = 'rdt_civitavecchia'; nome = 'Riva di Traiano'; url = 'https://www.teoxonline.com/teox-utils/netsense-staz-ptrt/api/summary_01.php'; ref = 'https://www.rivaditraiano.com/meteo-obs/'; pagina = 'https://www.rivaditraiano.com/meteo-obs/'; fresco = 30 },
-  @{ id = 'anzio_porto'; nome = 'Anzio Porto (Meteo Lazio)'; url = 'https://www.meteoregionelazio.it/rete/stazione.php?id=RM-050'; ref = 'https://www.meteoregionelazio.it/rete/'; pagina = 'https://www.meteoregionelazio.it/rete/stazione.php?id=RM-050'; fresco = 60 }
+  @{ id = 'msn'; nome = 'Free Kiter MSN'; etichetta = 'Stazione'; url = 'https://stazioni3.soluzionimeteo.it/freekitermsn/homepage/blocks/gauges/updater.php'; ref = 'https://stazioni3.soluzionimeteo.it/freekitermsn/'; pagina = 'https://stazioni3.soluzionimeteo.it/freekitermsn/'; fresco = 30 },
+  @{ id = 'lni_ostia'; nome = 'Lega Navale Ostia'; etichetta = 'Stazione'; url = 'https://anemometro.leganavaleostia.it:8080/data/clientraw.txt'; ref = 'https://www.leganavaleostia.it/situazione-attuale/'; pagina = 'https://www.leganavaleostia.it/situazione-attuale/'; fresco = 30 },
+  @{ id = 'torvaianica'; nome = 'Torvaianica (Wind24)'; etichetta = 'Stazione'; url = 'https://www.wind24.it/torvaianica'; ref = 'https://www.wind24.it/'; pagina = 'https://www.wind24.it/torvaianica'; fresco = 30 },
+  @{ id = 'rdt_civitavecchia'; nome = 'Riva di Traiano'; etichetta = 'Stazione'; url = 'https://www.teoxonline.com/teox-utils/netsense-staz-ptrt/api/summary_01.php'; ref = 'https://www.rivaditraiano.com/meteo-obs/'; pagina = 'https://www.rivaditraiano.com/meteo-obs/'; fresco = 30 },
+  @{ id = 'anzio_levante'; nome = 'Anzio Riviera di Levante (Vedetta)'; etichetta = 'Stazione Levante'; url = 'https://vedetta.org/image-client/marina-di-nettuno/meteo/dati_meteo.html'; ref = 'https://vedetta.org/webcam/italia/lazio/roma/anzio-levante/'; pagina = 'https://vedetta.org/webcam/italia/lazio/roma/anzio-levante/'; fresco = 30 },
+  @{ id = 'anzio_porto'; nome = 'Anzio Porto (Meteo Lazio)'; etichetta = 'Stazione porto'; url = 'https://www.meteoregionelazio.it/rete/stazione.php?id=RM-050'; ref = 'https://www.meteoregionelazio.it/rete/'; pagina = 'https://www.meteoregionelazio.it/rete/stazione.php?id=RM-050'; fresco = 60 }
 )
 
 $PUNTI = @('N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW')
@@ -195,6 +203,32 @@ function Read-Stazione($st) {
       $t = [datetime]::ParseExact($v.time, 'dd/MM/yyyy HH:mm', $INV)
       return @{ t = $t; wind = [double]$v.value; gust = [double]$g.value; deg = [double]$d.value; offline = $false }
     }
+    'anzio_levante' {
+      # Widget della webcam Vedetta (stessa centralina mostrata come "Anzio Riviera di Levante"); valori gia' in nodi.
+      if ($testo -notmatch '(\d{1,2}:\d{2}:\d{2})\s+(\d{1,2}/\d{1,2}/\d{4})') { throw 'ora non trovata' }
+      $t = [datetime]::ParseExact("$($Matches[2]) $($Matches[1])", 'd/M/yyyy H:mm:ss', $INV)
+      if ($testo -notmatch 'Vento Attuale:[\s\S]*?<big>\s*([\d.,]+)\s*kts') { throw 'vento non trovato' }
+      $w = [double]($Matches[1] -replace ',', '.')
+      if ($testo -notmatch 'Direzione:\s*<strong>\s*<big>\s*([A-Z]{1,3})\s*</big>') { throw 'direzione non trovata' }
+      $sigla = $Matches[1] -replace 'O', 'W'
+      if ([array]::IndexOf($PUNTI, $sigla) -lt 0) { throw "direzione non riconosciuta: $sigla" }
+      $g = $null
+      if ($testo -match 'Raffica MAX:\s*<strong>\s*<big>\s*([\d.,]+)\s*kts') { $g = [double]($Matches[1] -replace ',', '.') }
+      return @{ t = $t; wind = $w; gust = $g; deg = [array]::IndexOf($PUNTI, $sigla) * 22.5; offline = $false }
+    }
+    'torvaianica' {
+      # Pagina Wind24: velocita' media e raffiche in nodi, direzione in gradi nel disegno della bussola.
+      if ($testo -notmatch 'Meteo del\s*(\d{1,2}/\d{1,2}/\d{4})\s*ore\s*(\d{1,2}:\d{2})') { throw 'ora non trovata' }
+      $t = [datetime]::ParseExact("$($Matches[1]) $($Matches[2])", 'd/M/yyyy H:mm', $INV)
+      if ($testo -notmatch 'Velocit[^<]{0,14}media(?:&nbsp;|\s)*<font[^>]*>\s*([\d.,]+)') { throw 'vento non trovato' }
+      $w = [double]($Matches[1] -replace ',', '.')
+      $g = $null
+      if ($testo -match 'Raffiche(?:&nbsp;|\s)*<font[^>]*>\s*([\d.,]+)') { $g = [double]($Matches[1] -replace ',', '.') }
+      if ($testo -match "createMarker\('odoMap',\s*'(\d+(?:\.\d+)?)',\s*'http") { $deg = [double]$Matches[1] }
+      elseif ($testo -match "createMarker\('odoMap',\s*'(\d+(?:\.\d+)?)'") { $deg = [double]$Matches[1] }
+      else { throw 'direzione non trovata' }
+      return @{ t = $t; wind = $w; gust = $g; deg = $deg; offline = $false }
+    }
     'anzio_porto' {
       if ($testo -notmatch 'Aggiornamento:\s*<strong>([^<]+)</strong>') { throw 'ora non trovata' }
       $t = [datetime]::ParseExact($Matches[1].Trim(), 'dd/MM/yy HH:mm', $INV)
@@ -211,7 +245,7 @@ function Read-Stazione($st) {
 }
 
 # ---------------- Esecuzione ----------------
-Write-Host "Radar kite - $($adesso.ToString('dd/MM/yyyy HH:mm', $INV))" -ForegroundColor Cyan
+Write-Host "Radar kite $VERSIONE ($DATA_VERSIONE) - $($adesso.ToString('dd/MM/yyyy HH:mm', $INV))" -ForegroundColor Cyan
 $spotRes = @()
 foreach ($s in $SPOT) {
   Write-Host "  Windguru $($s.nome)... " -NoNewline
@@ -276,14 +310,18 @@ $datiSpot = @()
 foreach ($r in $spotRes) {
   $s = $r.s
   # Vento adesso: stazione aggiornata, altrimenti previsione dell'ora, altrimenti stazione vecchia.
-  $l = $stRes[$s.stazione]; $ad = $null
-  if ($l -and -not $l.errore -and $l.fresca) {
-    $ad = [ordered]@{ fonte = 'stazione'; wind = (Num $l.wind); gust = (Num $l.gust); deg = $l.deg; dir = (Get-Comp $l.deg); ora = $l.t.ToString('HH:mm', $INV) }
+  $letture = @(foreach ($sid in $s.stazioni) { $x = $stRes[$sid]; if ($x -and -not $x.errore) { $x.id = $sid; $x } })
+  $fresche = @($letture | Where-Object { $_.fresca } | Sort-Object { $_.t } -Descending)
+  $l = $null; $ad = $null
+  if ($fresche.Count) { $l = $fresche[0] } else { $l = @($letture | Where-Object { -not $_.offline } | Sort-Object { $_.t } -Descending) | Select-Object -First 1 }
+  $nomeSt = if ($l) { ($STAZIONI | Where-Object { $_.id -eq $l.id } | Select-Object -First 1).etichetta } else { '' }
+  if ($l -and $l.fresca) {
+    $ad = [ordered]@{ fonte = 'stazione'; wind = (Num $l.wind); gust = (Num $l.gust); deg = $l.deg; dir = (Get-Comp $l.deg); ora = $l.t.ToString('HH:mm', $INV); nome = $nomeSt }
   } elseif ($r.wg -and @($r.wg.righe).Count) {
     $row = $r.wg.righe | Sort-Object { [Math]::Abs(($_.t - $adesso).TotalMinutes) } | Select-Object -First 1
     $ad = [ordered]@{ fonte = 'previsione'; wind = $row.wind; gust = $row.gust; deg = $row.deg; dir = $row.dir; ora = $row.t.ToString('HH:mm', $INV) }
-  } elseif ($l -and -not $l.errore -and -not $l.offline) {
-    $ad = [ordered]@{ fonte = 'vecchia'; wind = (Num $l.wind); gust = (Num $l.gust); deg = $l.deg; dir = (Get-Comp $l.deg); ora = $l.t.ToString('HH:mm', $INV) }
+  } elseif ($l) {
+    $ad = [ordered]@{ fonte = 'vecchia'; wind = (Num $l.wind); gust = (Num $l.gust); deg = $l.deg; dir = (Get-Comp $l.deg); ora = $l.t.ToString('HH:mm', $INV); nome = $nomeSt }
   }
   $gg = @()
   foreach ($g in $r.giorni) {
@@ -294,19 +332,20 @@ foreach ($r in $spotRes) {
     }
     $gg += $o
   }
-  $staz = $STAZIONI | Where-Object { $_.id -eq $s.stazione } | Select-Object -First 1
-  $datiSpot += [ordered]@{ id = $s.id; nome = $s.nome; breve = $s.breve; lon = $s.lon; lat = $s.lat; lab = $s.lab; wg = $s.wg
-    ok = $s.ok; terra = $s.terra; stazione = $staz.nome; paginaStazione = $staz.pagina; errore = $r.errore
+  $staz = @(foreach ($sid in $s.stazioni) { $x = $STAZIONI | Where-Object { $_.id -eq $sid } | Select-Object -First 1; [ordered]@{ id = $x.id; nome = $x.nome; etichetta = $x.etichetta; pagina = $x.pagina } })
+  $datiSpot += [ordered]@{ id = $s.id; nome = $s.nome; breve = $s.breve; lon = $s.lon; lat = $s.lat; lab = $s.lab; wg = $s.wg; webcam = $s.webcam
+    ok = $s.ok; terra = $s.terra; stazioni = $staz; errore = $r.errore
     wgSpot = $(if ($r.wg) { $r.wg.spot } else { '' }); init = $(if ($r.wg) { $r.wg.init } else { '' }); adesso = $ad; giorni = $gg }
 }
 $datiStazioni = @()
 foreach ($st in $STAZIONI) {
   $l = $stRes[$st.id]
-  if ($l.errore) { $datiStazioni += [ordered]@{ id = $st.id; nome = $st.nome; pagina = $st.pagina; errore = $l.errore }; continue }
+  $suo = $SPOT | Where-Object { $_.stazioni -contains $st.id } | Select-Object -First 1
+  if ($l.errore) { $datiStazioni += [ordered]@{ id = $st.id; nome = $st.nome; pagina = $st.pagina; spot = $suo.id; errore = $l.errore }; continue }
   $stato = if ($l.offline) { 'offline' } elseif ($l.fresca) { 'aggiornata' } else { 'vecchia' }
-  $datiStazioni += [ordered]@{ id = $st.id; nome = $st.nome; pagina = $st.pagina; wind = (Num $l.wind); gust = (Num $l.gust); deg = $l.deg; dir = (Get-Comp $l.deg); ora = $l.t.ToString('HH:mm', $INV); stato = $stato }
+  $datiStazioni += [ordered]@{ id = $st.id; nome = $st.nome; pagina = $st.pagina; spot = $suo.id; wind = (Num $l.wind); gust = (Num $l.gust); deg = $l.deg; dir = (Get-Comp $l.deg); ora = $l.t.ToString('HH:mm', $INV); stato = $stato }
 }
-$dati = [ordered]@{ creato = $adesso.ToString("yyyy-MM-dd'T'HH:mm", $INV); soglia = $SOGLIA; oreMin = $ORE_MIN; giorni = $datiGiorni; spot = $datiSpot; stazioni = $datiStazioni }
+$dati = [ordered]@{ versione = $VERSIONE; dataVersione = $DATA_VERSIONE; creato = $adesso.ToString("yyyy-MM-dd'T'HH:mm", $INV); soglia = $SOGLIA; oreMin = $ORE_MIN; giorni = $datiGiorni; spot = $datiSpot; stazioni = $datiStazioni }
 $json = ConvertTo-Json -InputObject $dati -Depth 8 -Compress
 $modello = [IO.File]::ReadAllText((Join-Path $cartella 'report-modello.html'), [Text.Encoding]::UTF8)
 $html = $modello.Replace('/*DATI*/null', $json)

@@ -14,6 +14,7 @@ body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.4 system-ui,-appl
 h1{font-weight:500;font-size:26px;margin:0 0 4px}
 h2{font-weight:500;font-size:19px;margin:26px 0 10px}
 .sub{color:var(--muted);font-size:13px;margin:0}
+.ver{font-size:13px;color:var(--muted);font-weight:400;margin-left:6px}
 .small{font-size:12px;color:var(--muted)}
 a{color:inherit}
 .u{font-size:12px;color:var(--muted);margin-left:3px}
@@ -87,7 +88,7 @@ svg{display:block;width:100%;height:auto}
 </head>
 <body>
 <div class="wrap">
-  <h1>Radar kite</h1>
+  <h1>Radar kite <span class="ver" id="ver"></span></h1>
   <p class="sub" id="sub"></p>
 
   <h2>Settimana</h2>
@@ -115,7 +116,7 @@ svg{display:block;width:100%;height:auto}
   <h2>Spot</h2>
   <div id="spotlist"></div>
 
-  <p class="foot">Previsioni: Windguru (modello GFS, pagine micro). Stazioni lette direttamente dai siti. Per aggiornare rilancia «Avvia Radar kite». Vento live: <a href="https://mame-roma.github.io/MaMe-wind-radar/">mame-roma.github.io/MaMe-wind-radar</a></p>
+  <p class="foot">Previsioni: Windguru (modello GFS, pagine micro). Stazioni lette direttamente dai siti. Per aggiornare rilancia «Avvia Radar kite». Radar kite <span id="ver2"></span>. Vento live: <a href="https://mame-roma.github.io/MaMe-wind-radar/">mame-roma.github.io/MaMe-wind-radar</a></p>
 </div>
 <script>
 var D = /*DATI*/null;
@@ -184,6 +185,8 @@ var D = /*DATI*/null;
   }
   function hhmm(d) { return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
   var creato = new Date(D.creato);
+  document.getElementById('ver').textContent = 'v' + (D.versione || '?') + ' · ' + (D.dataVersione || '');
+  document.getElementById('ver2').textContent = 'versione ' + (D.versione || '?') + ' del ' + (D.dataVersione || '');
   document.getElementById('sub').textContent = 'Aggiornato ' + GG[creato.getDay()] + ' ' + creato.getDate() + ' ' + MESI[creato.getMonth()] + ' alle ' + hhmm(creato) +
     ' · firing = almeno ' + D.soglia + ' kts per ' + D.oreMin + ' ore di fila da una direzione buona, nella fascia oraria utile · oggi tramonto ' + hhmm(soleUTC(41.7187, 12.3024, creato, false)) + '.';
 
@@ -245,6 +248,9 @@ var D = /*DATI*/null;
         var larg = Math.max(knT.length * 7.2 + gT.length * 6 + 4, subT.length * 5.4) + 4;
         var minX = anchor === 'end' ? larg : (anchor === 'middle' ? larg / 2 : 4), maxX = anchor === 'start' ? 400 - larg : (anchor === 'middle' ? 400 - larg / 2 : 396);
         var lx = Math.min(Math.max(x + ux * 44, minX), maxX), ly = Math.min(Math.max(y + uy * 44 + dy, 14), 362);
+        // Vicino al bordo della mappa l'etichetta finirebbe sopra lo spot: la sposto sotto la freccia.
+        if (anchor === 'end' && x + ux * 44 < larg - 8) { anchor = 'start'; lx = 4; ly = Math.min(y + Math.max(uy * 36, 0) + 20, 362); }
+        else if (anchor === 'start' && x + ux * 44 > 400 - larg + 8) { anchor = 'end'; lx = 396; ly = Math.min(y + Math.max(uy * 36, 0) + 20, 362); }
         var t = el('text', { x: lx, y: ly - 1, 'text-anchor': anchor, 'class': 'kn' });
         t.append(el('tspan', {}, knT));
         if (gT) t.append(el('tspan', { 'class': 'kg', dx: 4 }, gT));
@@ -262,7 +268,7 @@ var D = /*DATI*/null;
   (function () {
     var box = document.getElementById('stazioni');
     D.stazioni.forEach(function (st) {
-      var spot = D.spot.filter(function (s) { return s.stazione === st.nome; })[0];
+      var spot = D.spot.filter(function (s) { return s.id === st.spot; })[0];
       var t = h('div', 'sta');
       var top = h('div', 'top'); var a = link(st.nome, st.pagina); a.className = 'nm';
       top.append(a, h('span', 'small', spot ? spot.breve : ''));
@@ -288,11 +294,15 @@ var D = /*DATI*/null;
       if (a) {
         var ad = h('span', 'small', '  ·  adesso ' + n(a.wind) + ' kts');
         if (a.gust != null) ad.append(h('span', 'g', n(a.gust) + ' kts'));
-        ad.append(document.createTextNode(' ' + a.dir + ' · ' + (a.fonte === 'stazione' ? 'stazione ' : a.fonte === 'previsione' ? 'previsione ' : 'stazione vecchia ') + a.ora));
+        var fonte = a.fonte === 'previsione' ? 'previsione ' : ((a.nome || 'stazione').toLowerCase() + (a.fonte === 'vecchia' ? ' (vecchia) ' : ' '));
+        ad.append(document.createTextNode(' ' + a.dir + ' · ' + fonte + a.ora));
         sx.append(ad);
       }
       var links = h('div', 'links');
-      links.append(link('Windguru', 'https://www.windguru.cz/' + s.wg), link('Stazione', s.paginaStazione),
+      if (s.webcam) links.append(link('Webcam', s.webcam));
+      links.append(link('Windguru', 'https://www.windguru.cz/' + s.wg));
+      (s.stazioni || []).forEach(function (st) { links.append(link(st.etichetta || 'Stazione', st.pagina)); });
+      links.append(
         link('Windy', 'https://www.windy.com/' + s.lat.toFixed(3) + '/' + s.lon.toFixed(3) + '?' + s.lat.toFixed(3) + ',' + s.lon.toFixed(3) + ',11'));
       head.append(sx, links);
       sec.append(head);
@@ -322,7 +332,8 @@ var D = /*DATI*/null;
         }
         days.append(t);
       });
-      sec.append(days, h('div', 'small', 'Windguru: ' + s.wgSpot + ' · GFS ' + s.init + ' UTC · stazione: ' + s.stazione));
+      var nomi = (s.stazioni || []).map(function (st) { return st.nome; }).join(' + ');
+      sec.append(days, h('div', 'small', 'Windguru: ' + s.wgSpot + ' · GFS ' + s.init + ' UTC · ' + ((s.stazioni || []).length > 1 ? 'stazioni: ' : 'stazione: ') + nomi));
       box.append(sec);
     });
   })();
