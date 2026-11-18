@@ -26,7 +26,7 @@ $SPOT = @(
   @{ id = 'sag'; nome = "Civitavecchia Sant'Agostino"; breve = 'S. Agostino'; lon = 11.74; lat = 42.17; lab = @(11, -9, 'start'); wg = 49021; ok = @(180, 320); terra = @(350, 130); stazioni = @('rdt_civitavecchia'); webcam = ''
      ideali = @(); attenzione = @() },
   @{ id = 'msn'; nome = 'Marina di San Nicola'; breve = 'San Nicola'; lon = 12.12; lat = 41.93; lab = @(11, -9, 'start'); wg = 49027; ok = @(170, 300); terra = @(330, 110); stazioni = @('msn'); webcam = ''
-     ideali = @(@{ n = 'ponente'; d = 270 }); attenzione = @(@{ n = 'libeccio: effetto lavatrice, onde ~2 m'; d = 225 }) },
+     ideali = @(@{ n = 'ponente'; d = 270 }); attenzione = @(@{ n = 'libeccio: lavatrice, onde ~2 m'; d = 225 }) },
   @{ id = 'pass'; nome = 'Passoscuro'; breve = 'Passoscuro'; lon = 12.157; lat = 41.904; lab = @(11, 10, 'start'); wg = 49028; ok = @(170, 300); terra = @(330, 110); stazioni = @('passoscuro'); webcam = ''
      ideali = @(); attenzione = @() },
   @{ id = 'ostia'; nome = 'Ostia'; breve = 'Ostia'; lon = 12.3024; lat = 41.7187; lab = @(11, -9, 'start'); wg = 1518; ok = @(115, 325); terra = @(345, 95); stazioni = @('lni_ostia'); webcam = ''
@@ -182,7 +182,9 @@ function Get-Giorni($s, $righe) {
       $gradi = @($migliore | ForEach-Object { $_.deg })
       $raff = @($migliore | Where-Object { $_.gust -ne $null })
       $res.firing = $true
-      $res.ore = "$($migliore[0].hour)-$($migliore[-1].hour)"
+      # Con la previsione ogni 3 ore l'ultima riga copre anche le ore dopo: 13-13 diventa 13-16.
+      $fineOre = [Math]::Min($migliore[-1].hour + $(if ($passo -gt 1) { $passo } else { 0 }), $fascia[1])
+      $res.ore = $(if ($fineOre -gt $migliore[0].hour) { "$($migliore[0].hour)-$fineOre" } else { "$($migliore[0].hour)" })
       $res.durata = $migliore[-1].hour - $migliore[0].hour + $passo
       $res.min = ($migliore | Measure-Object wind -Minimum).Minimum
       $res.maxf = ($migliore | Measure-Object wind -Maximum).Maximum
