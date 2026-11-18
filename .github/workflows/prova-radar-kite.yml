@@ -1,0 +1,21 @@
+name: Prova Radar kite (Windows)
+on: push
+jobs:
+  prova:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fuso orario di Roma
+        run: tzutil /s "W. Europe Standard Time"
+      - name: Avvia Radar kite con PowerShell 5.1
+        shell: cmd
+        run: |
+          mkdir grezzi
+          powershell -NoProfile -ExecutionPolicy Bypass -Command "$PSVersionTable.PSVersion; & '.\radarkite\radar-kite.ps1' -NonAprire -SalvaGrezzi (Resolve-Path grezzi).Path"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: report
+          path: |
+            radarkite/report.html
+            grezzi
