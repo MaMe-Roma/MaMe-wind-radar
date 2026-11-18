@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Radar kite</title>
+<style>
+:root{--bg:#f6f5f1;--panel:#fff;--fg:#1d1d1b;--muted:#6b6a65;--line:#e2e0d8;--sea:#e3ecef;--land:#fbfaf6;--ok:#1f8a4c;--okbg:#e6f4ec;--bad:#c2412d;--warn:#b7791f;--warnbg:#fbf1de;--gust:#c2412d}
+@media (prefers-color-scheme:dark){:root{--bg:#171716;--panel:#22221f;--fg:#efeee9;--muted:#a3a19a;--line:#3a3934;--sea:#1d2a2f;--land:#262622;--ok:#4cc27e;--okbg:#1d3326;--bad:#ef7a64;--warn:#e0a84a;--warnbg:#3a2f1c;--gust:#ef7a64}}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:1100px;margin:0 auto;padding:16px 16px 32px}
+h1{font-weight:500;font-size:26px;margin:0 0 4px}
+h2{font-weight:500;font-size:19px;margin:26px 0 10px}
+.sub{color:var(--muted);font-size:13px;margin:0}
+.small{font-size:12px;color:var(--muted)}
+a{color:inherit}
+.u{font-size:12px;color:var(--muted);margin-left:3px}
+.g{font-size:12px;font-weight:600;color:var(--gust);margin-left:7px;white-space:nowrap}
+/* Calendario */
+.calwrap{overflow-x:auto}
+.cal{display:grid;grid-template-columns:repeat(7,minmax(118px,1fr));gap:8px;min-width:860px}
+.cal .wd{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;padding:0 2px}
+.cg{font:inherit;color:inherit;text-align:left;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:9px 10px;min-height:112px;display:flex;flex-direction:column;gap:2px}
+.cg.fuori{background:transparent;border-style:dashed;opacity:.45}
+.cg.calm .cgspot{color:var(--muted)}
+.cg.fire{background:var(--okbg);border-color:var(--ok);box-shadow:inset 0 0 0 1px var(--ok);cursor:pointer}
+.cg.risk{background:var(--warnbg);border-color:var(--warn);box-shadow:inset 0 0 0 1px var(--warn);cursor:pointer}
+.cg.fire:hover,.cg.risk:hover{transform:translateY(-1px)}
+.cg.sel{box-shadow:inset 0 0 0 3px var(--fg)}
+.cgtop{display:flex;justify-content:space-between;align-items:baseline}
+.cgn{font-size:20px;font-weight:500}
+.cgm{font-size:11px;color:var(--muted)}
+.cg.oggi .cgm{color:var(--fg);font-weight:700}
+.cgspot{font-weight:600;font-size:14px;margin-top:4px}
+.cgv b{font-size:17px;font-weight:600}
+.cgx{font-size:11px;color:var(--muted)}
+.legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:8px}
+.legend .l1::before,.legend .l2::before,.legend .l3::before{content:"";display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px;border:1px solid var(--line)}
+.legend .l1::before{background:var(--okbg);border-color:var(--ok)}
+.legend .l2::before{background:var(--warnbg);border-color:var(--warn)}
+.legend .l3::before{background:var(--panel)}
+/* Mappa e stazioni */
+.grid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:16px;align-items:start}
+@media (max-width:760px){.grid{grid-template-columns:1fr}}
+.mapbox{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px}
+svg{display:block;width:100%;height:auto}
+.sea{fill:var(--sea)}.land{fill:var(--land);stroke:var(--muted);stroke-width:.8}
+.town circle{fill:var(--muted)}.town text{fill:var(--muted);font-size:10px}
+.seaname{fill:var(--muted);font-size:11px;font-style:italic;opacity:.8}
+.lab{font-size:12px;font-weight:600;fill:var(--fg);paint-order:stroke;stroke:var(--bg);stroke-width:3px}
+.kn{font-size:12px;font-weight:700;fill:var(--fg);paint-order:stroke;stroke:var(--bg);stroke-width:3px;font-variant-numeric:tabular-nums}
+.kg{font-size:10px;font-weight:700;fill:var(--gust)}
+.ksub{font-size:9px;fill:var(--muted);paint-order:stroke;stroke:var(--bg);stroke-width:3px}
+.spotmk{cursor:pointer}
+.stlist{display:flex;flex-direction:column;gap:8px}
+.sta{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.sta.on{border-color:var(--ok);box-shadow:inset 0 0 0 2px var(--ok)}
+.sta .top{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+.sta .nm{font-weight:600;font-size:14px;text-decoration:none}
+.sta .nm:hover{text-decoration:underline}
+.big2{font-size:26px;font-weight:500;line-height:1.1;font-variant-numeric:tabular-nums}
+/* Spot */
+.spot{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:12px;scroll-margin-top:12px}
+.shead{display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap}
+.sname{font-weight:600;font-size:17px}
+.links{display:flex;gap:6px;flex-wrap:wrap}
+.links a{font-size:12px;text-decoration:none;border:1px solid var(--line);border-radius:999px;padding:2px 10px}
+.links a:hover{border-color:var(--muted)}
+.days{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin:10px 0 6px}
+@media (max-width:760px){.days{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.d{border:1px solid var(--line);border-radius:8px;padding:8px 9px;transition:box-shadow .3s}
+.d.fire{background:var(--okbg);border-color:var(--ok)}
+.d.risk{background:var(--warnbg);border-color:var(--warn)}
+.d.flash{box-shadow:0 0 0 3px var(--fg)}
+.dtop{display:flex;justify-content:space-between;align-items:baseline;gap:4px;font-size:12px;color:var(--muted)}
+.best{font-size:10px;font-weight:700;color:var(--fg);text-transform:uppercase;letter-spacing:.04em}
+.dv{display:flex;align-items:baseline;flex-wrap:wrap;margin:3px 0 2px;font-variant-numeric:tabular-nums}
+.dv .big{font-size:24px;font-weight:500;line-height:1.1}
+.chips{display:flex;gap:4px;flex-wrap:wrap;margin-top:5px}
+.chip{font-size:11px;font-weight:600;border:1px solid var(--line);border-radius:999px;padding:0 7px;color:var(--muted);background:var(--panel)}
+.chip.ok{color:var(--ok);border-color:var(--ok)}.chip.bad{color:var(--bad);border-color:var(--bad)}.chip.warn{color:var(--warn);border-color:var(--warn)}
+.err{color:var(--bad);font-size:13px;margin-top:6px}
+.foot{color:var(--muted);font-size:12px;margin-top:20px;line-height:1.5}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Radar kite</h1>
+  <p class="sub" id="sub"></p>
+
+  <h2>Settimana</h2>
+  <div class="calwrap"><div class="cal" id="cal"></div></div>
+  <div class="legend small"><span class="l1">firing</span><span class="l2">firing ma con raffiche oltre 35 kts</span><span class="l3">niente vento utile</span><span>Clicca un giorno per andare allo spot migliore.</span></div>
+
+  <h2>Adesso</h2>
+  <div class="grid">
+    <div class="mapbox">
+      <svg viewBox="0 0 400 379" role="img" aria-label="Mappa della costa da Tarquinia a Latina con il vento adesso negli spot">
+        <rect class="sea" x="0" y="0" width="400" height="379"></rect>
+        <path class="land" fill-rule="evenodd" d="M387.3,377.6L380.7,378.2L372.7,372.2L376.9,367.8L376.9,355.5L370.1,361.5L360.7,339.7L337.9,318.9L313.2,316.4L309.4,319.5L286.1,304.0L276.0,308.2L260.0,280.7L231.1,244.7L212.5,228.6L184.7,214.7L189.2,212.5L181.9,213.4L182.4,194.5L161.9,158.5L140.9,146.8L134.8,137.7L109.6,120.3L90.1,123.1L84.0,107.3L77.4,102.9L73.6,99.1L79.8,104.2L79.5,102.3L78.6,102.9L78.4,101.0L74.8,98.8L74.8,94.7L71.3,94.1L57.9,58.4L40.9,37.9L0.0,14.1L0.0,0.0L400.0,0.0L400.0,366.2L387.3,377.6ZM170.1,94.7L180.5,105.8L195.1,101.7L196.5,91.2L190.8,83.7L185.6,82.1L170.1,89.4L170.1,94.7Z"></path>
+        <text class="seaname" x="30" y="330">Mar Tirreno</text>
+        <g class="town"><circle cx="72.0" cy="52.4" r="2"></circle><text x="77" y="49">Tarquinia</text></g>
+        <g class="town"><circle cx="246.1" cy="163.2" r="2.5"></circle><text x="251" y="161">Roma</text></g>
+        <g class="town"><circle cx="342.1" cy="300.9" r="2"></circle><text x="347" y="298">Latina</text></g>
+        <text class="seaname" x="183" y="99" text-anchor="middle" font-size="8">Bracciano</text>
+        <g id="spots"></g>
+      </svg>
+      <div class="small" style="padding:4px 4px 0">La freccia punta sullo spot dalla direzione da cui arriva il vento: verde da 15 kts in su da una direzione buona, rossa se viene da terra, tratteggiata se è la previsione dell'ora (stazione non aggiornata). In rosso le raffiche. Costa © OpenStreetMap contributors.</div>
+    </div>
+    <div class="stlist" id="stazioni"></div>
+  </div>
+
+  <h2>Spot</h2>
+  <div id="spotlist"></div>
+
+  <p class="foot">Previsioni: Windguru (modello GFS, pagine micro). Stazioni lette direttamente dai siti. Per aggiornare rilancia «Avvia Radar kite». Vento live: <a href="https://mame-roma.github.io/MaMe-wind-radar/">mame-roma.github.io/MaMe-wind-radar</a></p>
+</div>
+<script>
+var D = /*DATI*/null;
+(function () {
+  var NS = 'http://www.w3.org/2000/svg';
+  var M = { lon0: 11.45, lat1: 42.42, k: 315.7279, c: 0.745243 };
+  var MESI = ['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic'];
+  var GG = ['dom', 'lun', 'mar', 'mer', 'gio', 'ven', 'sab'];
+
+  function P(lon, lat) { return [(lon - M.lon0) * M.c * M.k, (M.lat1 - lat) * M.k]; }
+  function classe(s, deg) {
+    if (deg >= s.ok[0] && deg <= s.ok[1]) return 'ok';
+    if (deg >= s.terra[0] || deg <= s.terra[1]) return 'terra';
+    return 'side';
+  }
+  function n(v) { return v == null ? '—' : String(Math.round(v * 10) / 10).replace('.', ','); }
+  function h(tag, cls, txt) { var e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; }
+  function el(tag, attrs, txt) { var e = document.createElementNS(NS, tag); for (var k in attrs) e.setAttribute(k, attrs[k]); if (txt != null) e.textContent = txt; return e; }
+  function link(testo, url) { var a = h('a', null, testo + ' ↗'); a.href = url; a.target = '_blank'; a.rel = 'noopener'; return a; }
+  function dataLoc(s) { var p = s.split('-'); return new Date(+p[0], +p[1] - 1, +p[2]); }
+  function iso(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+  function ore(o) { return o ? o.replace('-', '–') : ''; }
+  function direzioni(t) { var x = (t || '').split('/'); return x.length > 2 ? x[0] + '→' + x[x.length - 1] : x.join('/'); }
+  function vento(base, raffica) {
+    var f = document.createDocumentFragment();
+    f.append(h('span', 'big', base), h('span', 'u', 'kts'));
+    if (raffica != null) f.append(h('span', 'g', n(raffica) + ' kts'));
+    return f;
+  }
+
+  // Spot migliore del giorno: prima senza raffiche pericolose, poi direzione ideale,
+  // poi senza avvisi (es. lavatrice), poi non side-off, poi finestra piu' lunga, poi piu' vento minimo.
+  function chiave(g) { return [g.pericolose ? 1 : 0, g.ideale ? 0 : 1, g.attenzione ? 1 : 0, g.sideoff ? 1 : 0, -(g.durata || 0), -(g.min || 0)]; }
+  function classifica(k) {
+    var lista = [];
+    D.spot.forEach(function (s) { var g = s.giorni[k]; if (g && g.firing) lista.push({ s: s, g: g }); });
+    lista.sort(function (a, b) { var x = chiave(a.g), y = chiave(b.g); for (var i = 0; i < x.length; i++) if (x[i] !== y[i]) return x[i] - y[i]; return 0; });
+    return lista;
+  }
+
+  function vai(k) {
+    var lista = classifica(k);
+    if (!lista.length) return;
+    document.querySelectorAll('.cg.sel').forEach(function (c) { c.classList.remove('sel'); });
+    var cella = document.querySelector('.cg[data-k="' + k + '"]'); if (cella) cella.classList.add('sel');
+    var s = lista[0].s;
+    document.getElementById('spot-' + s.id).scrollIntoView({ block: 'start' });
+    var t = document.getElementById('t-' + s.id + '-' + k);
+    if (t) { t.classList.add('flash'); setTimeout(function () { t.classList.remove('flash'); }, 2500); }
+  }
+
+  // ---- Intestazione e tramonto (algoritmo NOAA semplificato) ----
+  function soleUTC(lat, lon, giorno, alba) {
+    var rad = Math.PI / 180, inizio = Date.UTC(giorno.getFullYear(), 0, 0);
+    var nn = Math.floor((Date.UTC(giorno.getFullYear(), giorno.getMonth(), giorno.getDate()) - inizio) / 86400000);
+    var lng = lon / 15, t = nn + ((alba ? 6 : 18) - lng) / 24;
+    var m = 0.9856 * t - 3.289;
+    var l = ((m + 1.916 * Math.sin(m * rad) + 0.020 * Math.sin(2 * m * rad) + 282.634) % 360 + 360) % 360;
+    var ra = ((Math.atan(0.91764 * Math.tan(l * rad)) / rad) % 360 + 360) % 360;
+    ra = (ra + (Math.floor(l / 90) * 90 - Math.floor(ra / 90) * 90)) / 15;
+    var sinDec = 0.39782 * Math.sin(l * rad), cosDec = Math.cos(Math.asin(sinDec));
+    var cosH = (Math.cos(90.833 * rad) - sinDec * Math.sin(lat * rad)) / (cosDec * Math.cos(lat * rad));
+    var hh = alba ? 360 - Math.acos(cosH) / rad : Math.acos(cosH) / rad;
+    var ut = ((hh / 15 + ra - 0.06571 * t - 6.622 - lng) % 24 + 24) % 24;
+    return new Date(Date.UTC(giorno.getFullYear(), giorno.getMonth(), giorno.getDate()) + ut * 3600000);
+  }
+  function hhmm(d) { return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
+  var creato = new Date(D.creato);
+  document.getElementById('sub').textContent = 'Aggiornato ' + GG[creato.getDay()] + ' ' + creato.getDate() + ' ' + MESI[creato.getMonth()] + ' alle ' + hhmm(creato) +
+    ' · firing = almeno ' + D.soglia + ' kts per ' + D.oreMin + ' ore di fila da una direzione buona, nella fascia oraria utile · oggi tramonto ' + hhmm(soleUTC(41.7187, 12.3024, creato, false)) + '.';
+
+  // ---- Calendario ----
+  (function () {
+    var cal = document.getElementById('cal');
+    ['lun', 'mar', 'mer', 'gio', 'ven', 'sab', 'dom'].forEach(function (w) { cal.append(h('div', 'wd', w)); });
+    var indice = {}; D.giorni.forEach(function (g, k) { indice[g.data] = k; });
+    var d0 = dataLoc(D.giorni[0].data), dN = dataLoc(D.giorni[D.giorni.length - 1].data);
+    var d = new Date(d0); d.setDate(d.getDate() - (d.getDay() + 6) % 7);
+    var fine = new Date(dN); fine.setDate(fine.getDate() + (7 - dN.getDay()) % 7);
+    for (; d <= fine; d.setDate(d.getDate() + 1)) {
+      var k = indice[iso(d)];
+      var lista = k == null ? [] : classifica(k);
+      var c = h(lista.length ? 'button' : 'div', 'cg');
+      var top = h('div', 'cgtop'); top.append(h('span', 'cgn', d.getDate()), h('span', 'cgm', k === 0 ? 'oggi' : MESI[d.getMonth()]));
+      c.append(top);
+      if (k == null) { c.classList.add('fuori'); }
+      else if (!lista.length) {
+        c.classList.add('calm');
+        c.append(h('div', 'cgspot', 'niente'), h('div', 'cgx', 'fascia ' + ore(D.giorni[k].fascia)));
+      } else {
+        var b = lista[0], g = b.g;
+        c.type = 'button';
+        c.setAttribute('data-k', k);
+        c.classList.add(g.pericolose ? 'risk' : 'fire');
+        var v = h('div', 'cgv'); v.append(h('b', null, g.min + '–' + g.maxf), h('span', 'u', 'kts'));
+        if (g.raffica != null) v.append(h('span', 'g', g.raffica + ' kts'));
+        var extra = 'ore ' + ore(g.ore) + ' · ' + direzioni(g.dir) + (lista.length > 1 ? ' · +' + (lista.length - 1) + ' spot' : '');
+        c.append(h('div', 'cgspot', b.s.breve), v, h('div', 'cgx', extra));
+        c.title = lista.map(function (o) { return o.s.nome + ': ' + o.g.min + '–' + o.g.maxf + ' kts, ore ' + o.g.ore; }).join('\n');
+        c.addEventListener('click', vai.bind(null, k));
+      }
+      if (k === 0) c.classList.add('oggi');
+      cal.append(c);
+    }
+  })();
+
+  // ---- Mappa: vento adesso ----
+  (function () {
+    var box = document.getElementById('spots');
+    D.spot.forEach(function (s) {
+      var xy = P(s.lon, s.lat), x = xy[0], y = xy[1], a = s.adesso;
+      var g = el('g', { 'class': 'spotmk' });
+      var on = false;
+      if (a) {
+        var deg = Number(a.deg), cl = classe(s, deg);
+        on = a.fonte !== 'vecchia' && a.wind >= D.soglia && cl !== 'terra';
+        var colore = a.fonte === 'vecchia' ? 'var(--muted)' : (cl === 'terra' ? 'var(--bad)' : (on ? 'var(--ok)' : 'var(--fg)'));
+        var fr = el('g', { transform: 'translate(' + x + ',' + y + ') rotate(' + deg + ')' });
+        var asta = el('line', { x1: 0, y1: -36, x2: 0, y2: -21, stroke: colore, 'stroke-width': 2.5, 'stroke-linecap': 'round' });
+        if (a.fonte !== 'stazione') asta.setAttribute('stroke-dasharray', '4 3');
+        fr.append(asta, el('path', { d: 'M0,-13L-5,-22L5,-22Z', fill: colore }));
+        var ux = Math.sin(deg * Math.PI / 180), uy = -Math.cos(deg * Math.PI / 180);
+        var anchor = ux < -0.35 ? 'end' : (ux > 0.35 ? 'start' : 'middle');
+        var dy = uy < -0.35 ? -8 : (uy > 0.35 ? 10 : 0);
+        var knT = n(a.wind) + ' kts', gT = a.gust != null ? n(a.gust) + ' kts' : '';
+        var subT = a.dir + ' · ' + (a.fonte === 'stazione' ? a.ora : (a.fonte === 'previsione' ? 'prev. ' + a.ora : 'vecchia ' + a.ora));
+        var larg = Math.max(knT.length * 7.2 + gT.length * 6 + 4, subT.length * 5.4) + 4;
+        var minX = anchor === 'end' ? larg : (anchor === 'middle' ? larg / 2 : 4), maxX = anchor === 'start' ? 400 - larg : (anchor === 'middle' ? 400 - larg / 2 : 396);
+        var lx = Math.min(Math.max(x + ux * 44, minX), maxX), ly = Math.min(Math.max(y + uy * 44 + dy, 14), 362);
+        var t = el('text', { x: lx, y: ly - 1, 'text-anchor': anchor, 'class': 'kn' });
+        t.append(el('tspan', {}, knT));
+        if (gT) t.append(el('tspan', { 'class': 'kg', dx: 4 }, gT));
+        g.append(fr, t, el('text', { x: lx, y: ly + 10, 'text-anchor': anchor, 'class': 'ksub' }, subT));
+      }
+      g.append(el('circle', { cx: x, cy: y, r: 14, fill: on ? 'var(--ok)' : 'var(--muted)', opacity: 0.18 }),
+        el('circle', { cx: x, cy: y, r: 7, fill: on ? 'var(--ok)' : 'var(--panel)', stroke: on ? 'var(--ok)' : 'var(--fg)', 'stroke-width': 2 }),
+        el('text', { x: x + s.lab[0], y: y + s.lab[1], 'text-anchor': s.lab[2], 'class': 'lab' }, s.breve));
+      g.addEventListener('click', function () { document.getElementById('spot-' + s.id).scrollIntoView({ block: 'start' }); });
+      box.append(g);
+    });
+  })();
+
+  // ---- Stazioni ----
+  (function () {
+    var box = document.getElementById('stazioni');
+    D.stazioni.forEach(function (st) {
+      var spot = D.spot.filter(function (s) { return s.stazione === st.nome; })[0];
+      var t = h('div', 'sta');
+      var top = h('div', 'top'); var a = link(st.nome, st.pagina); a.className = 'nm';
+      top.append(a, h('span', 'small', spot ? spot.breve : ''));
+      t.append(top);
+      if (st.errore) { t.append(h('div', 'small', 'Non raggiungibile adesso.')); box.append(t); return; }
+      var v = h('div', 'dv'); v.append(h('span', 'big2', n(st.wind)), h('span', 'u', 'kts'));
+      if (st.gust != null) v.append(h('span', 'g', n(st.gust) + ' kts'));
+      t.append(v, h('div', 'small', st.dir + ' ' + Math.round(st.deg) + '° · lettura delle ' + st.ora + ' · ' + st.stato));
+      if (spot && st.stato === 'aggiornata' && st.wind >= D.soglia && classe(spot, st.deg) !== 'terra') t.classList.add('on');
+      box.append(t);
+    });
+  })();
+
+  // ---- Spot ----
+  (function () {
+    var box = document.getElementById('spotlist');
+    var migliori = D.giorni.map(function (g, k) { var l = classifica(k); return l.length ? l[0].s.id : null; });
+    D.spot.forEach(function (s) {
+      var sec = h('section', 'spot'); sec.id = 'spot-' + s.id;
+      var head = h('div', 'shead');
+      var sx = h('div'); sx.append(h('span', 'sname', s.nome));
+      var a = s.adesso;
+      if (a) {
+        var ad = h('span', 'small', '  ·  adesso ' + n(a.wind) + ' kts');
+        if (a.gust != null) ad.append(h('span', 'g', n(a.gust) + ' kts'));
+        ad.append(document.createTextNode(' ' + a.dir + ' · ' + (a.fonte === 'stazione' ? 'stazione ' : a.fonte === 'previsione' ? 'previsione ' : 'stazione vecchia ') + a.ora));
+        sx.append(ad);
+      }
+      var links = h('div', 'links');
+      links.append(link('Windguru', 'https://www.windguru.cz/' + s.wg), link('Stazione', s.paginaStazione),
+        link('Windy', 'https://www.windy.com/' + s.lat.toFixed(3) + '/' + s.lon.toFixed(3) + '?' + s.lat.toFixed(3) + ',' + s.lon.toFixed(3) + ',11'));
+      head.append(sx, links);
+      sec.append(head);
+      if (s.errore) { sec.append(h('div', 'err', 'Previsione Windguru non letta: ' + s.errore)); box.append(sec); return; }
+      var days = h('div', 'days');
+      s.giorni.forEach(function (g, k) {
+        var info = D.giorni[k];
+        var t = h('div', 'd'); t.id = 't-' + s.id + '-' + k;
+        var top = h('div', 'dtop'); top.append(h('span', null, info.oggi ? 'oggi' : info.nome));
+        if (g.firing && migliori[k] === s.id) top.append(h('span', 'best', '★ migliore'));
+        t.append(top);
+        var v = h('div', 'dv');
+        if (g.firing) {
+          t.classList.add(g.pericolose ? 'risk' : 'fire');
+          v.append(vento(g.min + '–' + g.maxf, g.raffica));
+          t.append(v, h('div', 'small', 'ore ' + ore(g.ore) + ' · ' + direzioni(g.dir)));
+          var chips = h('div', 'chips');
+          if (g.pericolose) chips.append(h('span', 'chip bad', 'raffiche pericolose'));
+          else if (g.rafficato) chips.append(h('span', 'chip warn', 'rafficato'));
+          if (g.ideale) chips.append(h('span', 'chip ok', g.ideale));
+          if (g.attenzione) chips.append(h('span', 'chip warn', g.attenzione));
+          if (g.sideoff) chips.append(h('span', 'chip warn', 'side-off'));
+          if (chips.childNodes.length) t.append(chips);
+        } else {
+          v.append(vento(g.max == null ? '—' : g.max, g.maxRaff));
+          t.append(v, h('div', 'small', g.max == null ? 'fuori fascia' : 'max ' + (g.maxDir || '') + ' · no firing'));
+        }
+        days.append(t);
+      });
+      sec.append(days, h('div', 'small', 'Windguru: ' + s.wgSpot + ' · GFS ' + s.init + ' UTC · stazione: ' + s.stazione));
+      box.append(sec);
+    });
+  })();
+})();
+</script>
+</body>
+</html>
