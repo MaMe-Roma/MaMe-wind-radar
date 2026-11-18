@@ -33,6 +33,10 @@ a{color:inherit}
 .cg.fire{background:var(--okbg);border-color:var(--ok);box-shadow:inset 0 0 0 1px var(--ok);cursor:pointer}
 .cg.risk{background:var(--warnbg);border-color:var(--warn);box-shadow:inset 0 0 0 1px var(--warn);cursor:pointer}
 .cg.fire:hover,.cg.risk:hover{transform:translateY(-1px)}
+.cg.past{background:var(--panel);min-height:112px}.cg.past .cgm{font-weight:600}
+.cg.past.seen{border-color:var(--ok);box-shadow:inset 4px 0 0 var(--ok)}
+.cg.past.vuoto{background:transparent;border-style:dashed;opacity:.55}
+.cg.lontano{opacity:.72}
 .cg.sel{box-shadow:inset 0 0 0 3px var(--fg)}
 .cgtop{display:flex;justify-content:space-between;align-items:baseline}
 .cgn{font-size:20px;font-weight:500}
@@ -42,10 +46,11 @@ a{color:inherit}
 .cgv b{font-size:17px;font-weight:600}
 .cgx{font-size:11px;color:var(--muted)}
 .legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:8px}
-.legend .l1::before,.legend .l2::before,.legend .l3::before{content:"";display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px;border:1px solid var(--line)}
+.legend .l1::before,.legend .l2::before,.legend .l3::before,.legend .l4::before{content:"";display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px;border:1px solid var(--line)}
 .legend .l1::before{background:var(--okbg);border-color:var(--ok)}
 .legend .l2::before{background:var(--warnbg);border-color:var(--warn)}
 .legend .l3::before{background:var(--panel)}
+.legend .l4::before{background:var(--panel);border-color:var(--ok);box-shadow:inset 3px 0 0 var(--ok)}
 /* Mappa e stazioni */
 .grid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:16px;align-items:start}
 @media (max-width:760px){.grid{grid-template-columns:1fr}}
@@ -73,8 +78,10 @@ svg{display:block;width:100%;height:auto}
 .links{display:flex;gap:6px;flex-wrap:wrap}
 .links a{font-size:12px;text-decoration:none;border:1px solid var(--line);border-radius:999px;padding:2px 10px}
 .links a:hover{border-color:var(--muted)}
-.days{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin:10px 0 6px}
-@media (max-width:760px){.days{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.days{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:6px;margin:10px 0 6px}
+@media (max-width:980px){.days{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media (max-width:560px){.days{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.d.lontano{opacity:.72}
 .d{border:1px solid var(--line);border-radius:8px;padding:8px 9px;transition:box-shadow .3s}
 .d.fire{background:var(--okbg);border-color:var(--ok)}
 .d.risk{background:var(--warnbg);border-color:var(--warn)}
@@ -82,7 +89,7 @@ svg{display:block;width:100%;height:auto}
 .dtop{display:flex;justify-content:space-between;align-items:baseline;gap:4px;font-size:12px;color:var(--muted)}
 .best{font-size:10px;font-weight:700;color:var(--fg);text-transform:uppercase;letter-spacing:.04em}
 .dv{display:flex;align-items:baseline;flex-wrap:wrap;margin:3px 0 2px;font-variant-numeric:tabular-nums}
-.dv .big{font-size:24px;font-weight:500;line-height:1.1}
+.dv .big{font-size:21px;font-weight:500;line-height:1.1}
 .chips{display:flex;gap:4px;flex-wrap:wrap;margin-top:5px}
 .chip{font-size:11px;font-weight:600;border:1px solid var(--line);border-radius:999px;padding:0 7px;color:var(--muted);background:var(--panel)}
 .chip.ok{color:var(--ok);border-color:var(--ok)}.chip.bad{color:var(--bad);border-color:var(--bad)}.chip.warn{color:var(--warn);border-color:var(--warn)}
@@ -98,7 +105,7 @@ svg{display:block;width:100%;height:auto}
 
   <h2>Settimana</h2>
   <div class="calwrap"><div class="cal" id="cal"></div></div>
-  <div class="legend small"><span class="l1">firing</span><span class="l2">firing ma con raffiche oltre 35 kts</span><span class="l3">niente vento utile</span><span>Clicca un giorno per andare allo spot migliore.</span></div>
+  <div class="legend small"><span class="l1">firing</span><span class="l2">firing ma con raffiche oltre 35 kts</span><span class="l3">niente vento utile</span><span class="l4">giorni passati: letto dalle stazioni</span><span>oltre 5 giorni la previsione è meno affidabile (più chiara)</span><span>Clicca un giorno per andare allo spot migliore.</span></div>
 
   <h2>Adesso</h2>
   <div class="grid">
@@ -245,14 +252,31 @@ var D = /*DATI*/null;
     var indice = {}; D.giorni.forEach(function (g, k) { indice[g.data] = k; });
     var d0 = dataLoc(D.giorni[0].data), dN = dataLoc(D.giorni[D.giorni.length - 1].data);
     var d = new Date(d0); d.setDate(d.getDate() - (d.getDay() + 6) % 7);
-    var fine = new Date(dN); fine.setDate(fine.getDate() + (7 - dN.getDay()) % 7);
+    var passati = {}; (D.passati || []).forEach(function (p) { passati[p.data] = p.spot || []; });
+    var fine = new Date(dN);
     for (; d <= fine; d.setDate(d.getDate() + 1)) {
       var k = indice[iso(d)];
       var lista = k == null ? [] : classifica(k);
       var c = h(lista.length ? 'button' : 'div', 'cg');
-      var top = h('div', 'cgtop'); top.append(h('span', 'cgn', d.getDate()), h('span', 'cgm', k === 0 ? 'oggi' : MESI[d.getMonth()]));
+      var pas = k == null ? passati[iso(d)] : null;
+      var top = h('div', 'cgtop'); top.append(h('span', 'cgn', d.getDate()), h('span', 'cgm', k === 0 ? 'oggi' : (k == null && d < d0 ? 'registrato' : MESI[d.getMonth()])));
       c.append(top);
-      if (k == null) { c.classList.add('fuori'); }
+      if (k != null && k > 4) c.classList.add('lontano');
+      if (k == null && d < d0) {
+        // Giorno passato: la lettura migliore salvata dal programma (prima con vento da direzione buona, poi la piu' forte).
+        c.classList.add('past');
+        if (!pas || !pas.length) { c.classList.add('vuoto'); c.append(h('div', 'cgspot', 'nessun dato'), h('div', 'cgx', 'programma non avviato')); }
+        else {
+          var ord = pas.slice().sort(function (a, b) { return (b.buono - a.buono) || (b.max - a.max); }), p = ord[0];
+          if (p.buono) c.classList.add('seen');
+          var vv = h('div', 'cgv'); vv.append(h('b', null, n(p.max)), h('span', 'u', 'kts'));
+          if (p.gust != null) vv.append(h('span', 'g', n(p.gust) + ' kts'));
+          var tot = pas.reduce(function (a, x) { return a + x.letture; }, 0);
+          c.append(h('div', 'cgspot', p.breve), vv, h('div', 'cgx', p.dir + ' alle ' + p.ora + ' · ' + tot + (tot === 1 ? ' lettura' : ' letture')));
+          c.title = 'Letture salvate (max nella fascia oraria):\n' + ord.map(function (x) { return x.breve + ': ' + n(x.max) + ' kts ' + x.dir + ' alle ' + x.ora + (x.oltre ? ' · ' + x.oltre + ' sopra ' + D.soglia + ' kts' : '') + ' (' + x.letture + ')'; }).join('\n');
+        }
+      }
+      else if (k == null) { c.classList.add('fuori'); }
       else if (!lista.length) {
         c.classList.add('calm');
         c.append(h('div', 'cgspot', 'niente'), h('div', 'cgx', 'fascia ' + ore(D.giorni[k].fascia)));
@@ -382,6 +406,7 @@ var D = /*DATI*/null;
       s.giorni.forEach(function (g, k) {
         var info = D.giorni[k];
         var t = h('div', 'd'); t.id = 't-' + s.id + '-' + k;
+        if (k > 4) t.classList.add('lontano');
         var top = h('div', 'dtop'); top.append(h('span', null, info.oggi ? 'oggi' : info.nome));
         if (g.firing && migliori[k] === s.id) top.append(h('span', 'best', '★ migliore'));
         t.append(top);

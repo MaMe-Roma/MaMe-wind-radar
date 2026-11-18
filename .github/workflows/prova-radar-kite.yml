@@ -7,6 +7,11 @@ jobs:
       - uses: actions/checkout@v4
       - name: Fuso orario di Roma
         run: tzutil /s "W. Europe Standard Time"
+      - name: Storico di prova per lunedi e martedi
+        shell: powershell
+        run: |
+          $r = @('data;stazione;spot;vento;raffica;gradi', '2026-11-16 11:10;torvaianica;torva;17;22;250', '2026-11-16 12:40;torvaianica;torva;19;24;255', '2026-11-16 12:45;msn;msn;12.5;16.9;230', '2026-11-17 09:00;lni_ostia;ostia;9.1;12;140', '2026-11-17 20:00;msn;msn;25;30;240')
+          [IO.File]::WriteAllLines("$PWD\radarkite\storico.csv", $r)
       - name: Avvia Radar kite con PowerShell 5.1
         shell: cmd
         run: |

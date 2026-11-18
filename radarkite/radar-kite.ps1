@@ -10,14 +10,14 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-$VERSIONE = '1.5'
+$VERSIONE = '1.6'
 $DATA_VERSIONE = '18/11/2026'
 $AUTORE = '@MadHatterMatt'
 
 # ---------------- Regole (modificabili) ----------------
 $SOGLIA = 15          # nodi medi minimi
 $ORE_MIN = 2          # ore di fila sopra soglia
-$GIORNI = 5           # oggi + 4 giorni
+$GIORNI = 8           # oggi + 7 giorni (fino allo stesso giorno della settimana prossima)
 $VIAGGIO_ORE = 1      # per oggi conta solo il vento da un'ora dopo l'avvio
 
 # Spot da nord a sud. ok = direzioni buone (gradi da cui arriva il vento), terra = vento da terra (mai firing);
@@ -81,11 +81,11 @@ if ($Link) { $NonAprire = $true }   # avviato dal pulsante: la pagina gia' apert
 function Get-Testo([string]$url, [string]$referer) {
   for ($n = 1; ; $n++) {
     try {
-      $r = Invoke-WebRequest -Uri $url -UseBasicParsing -UserAgent $UA -Headers @{ Referer = $referer; 'Cache-Control' = 'no-cache' } -TimeoutSec 30
+      $r = Invoke-WebRequest -Uri $url -UseBasicParsing -UserAgent $UA -Headers @{ Referer = $referer; 'Cache-Control' = 'no-cache' } -TimeoutSec 20
       break
     } catch {
-      if ($n -ge 3) { throw }
-      Start-Sleep -Seconds 5
+      if ($n -ge 2) { throw }
+      Start-Sleep -Seconds 3
     }
   }
   if ($r.RawContentStream) {
@@ -327,6 +327,51 @@ if ($righeFiring.Count) {
   Write-Host 'Nessuna finestra di vento nei prossimi giorni.' -ForegroundColor Yellow
 }
 
+# ---------------- Storico: le letture delle stazioni salvate a ogni avvio ----------------
+# storico.csv (nella cartella) tiene le letture aggiornate degli ultimi 60 giorni; i giorni passati
+# della settimana nel calendario mostrano cosa e' stato letto lì, non vanno a cercare dati altrove.
+$fileStorico = Join-Path $cartella 'storico.csv'
+$storico = @()
+try {
+  $righe = @()
+  if (Test-Path $fileStorico) { $righe = @([IO.File]::ReadAllLines($fileStorico) | Where-Object { $_ -and $_ -match '^\d{4}-\d{2}-\d{2} ' }) }
+  $limite = $adesso.Date.AddDays(-60).ToString('yyyy-MM-dd', $INV)
+  $righe = @($righe | Where-Object { $_.Substring(0, 10) -ge $limite })
+  foreach ($st in $STAZIONI) {
+    $l = $stRes[$st.id]
+    if (-not $l -or $l.errore -or -not $l.fresca) { continue }
+    $suo = $SPOT | Where-Object { $_.stazioni -contains $st.id } | Select-Object -First 1
+    $g = if ($l.gust -ne $null) { ([double]$l.gust).ToString($INV) } else { '' }
+    $riga = $l.t.ToString('yyyy-MM-dd HH:mm', $INV) + ';' + $st.id + ';' + $suo.id + ';' + ([double]$l.wind).ToString($INV) + ';' + $g + ';' + ([double]$l.deg).ToString($INV)
+    if ($righe -notcontains $riga) { $righe += $riga }
+  }
+  [IO.File]::WriteAllLines($fileStorico, [string[]](@('data;stazione;spot;vento;raffica;gradi') + $righe), (New-Object Text.UTF8Encoding($false)))
+  $storico = $righe
+} catch {
+  Write-Host "  (storico non aggiornato: $($_.Exception.Message))" -ForegroundColor Yellow
+}
+$lunedi = $adesso.Date.AddDays(-(([int]$adesso.DayOfWeek + 6) % 7))
+$daLunedi = @(foreach ($r in $storico) {
+  if ($r.Substring(0, 10) -lt $lunedi.ToString('yyyy-MM-dd', $INV)) { continue }
+  $p = $r.Split(';')
+  [pscustomobject]@{ data = $p[0].Substring(0, 10); ora = $p[0].Substring(11, 5); h = [int]$p[0].Substring(11, 2); spot = $p[2]
+    wind = [double]::Parse($p[3], $INV); gust = $(if ($p[4]) { [double]::Parse($p[4], $INV) } else { $null }); deg = [double]::Parse($p[5], $INV) }
+})
+$datiPassati = @()
+for ($giorno = $lunedi; $giorno -lt $adesso.Date; $giorno = $giorno.AddDays(1)) {
+  $chiave = $giorno.ToString('yyyy-MM-dd', $INV); $f = Get-Fascia $giorno
+  $perSpot = @()
+  foreach ($s in $SPOT) {
+    $lett = @($daLunedi | Where-Object { $_.data -eq $chiave -and $_.spot -eq $s.id -and $_.h -ge $f[0] -and $_.h -le $f[1] })
+    if (-not $lett.Count) { continue }
+    $buone = @($lett | Where-Object { (Get-Classe $s $_.deg) -ne 'terra' })
+    $top = if ($buone.Count) { $buone | Sort-Object wind -Descending | Select-Object -First 1 } else { $lett | Sort-Object wind -Descending | Select-Object -First 1 }
+    $perSpot += [ordered]@{ id = $s.id; breve = $s.breve; letture = $lett.Count; max = $top.wind; gust = $top.gust; dir = (Get-Comp $top.deg); ora = $top.ora
+      buono = ($top.wind -ge $SOGLIA -and (Get-Classe $s $top.deg) -ne 'terra'); oltre = @($buone | Where-Object { $_.wind -ge $SOGLIA }).Count }
+  }
+  $datiPassati += [ordered]@{ data = $chiave; spot = $perSpot }
+}
+
 # ---------------- Report HTML ----------------
 # I dati vanno dentro report-modello.html (grafica e calcoli di pagina), che diventa report.html.
 function Num($x) { if ($x -eq $null) { return $null } return [Math]::Round([double]$x, 1) }
@@ -375,7 +420,7 @@ foreach ($st in $STAZIONI) {
   $stato = if ($l.offline) { 'offline' } elseif ($l.fresca) { 'aggiornata' } else { 'vecchia' }
   $datiStazioni += [ordered]@{ id = $st.id; nome = $st.nome; pagina = $st.pagina; spot = $suo.id; data = $l.t.ToString('dd/MM', $INV); giorni = [int][Math]::Floor(($adesso - $l.t).TotalDays); wind = (Num $l.wind); gust = (Num $l.gust); deg = $l.deg; dir = (Get-Comp $l.deg); ora = $l.t.ToString('HH:mm', $INV); stato = $stato }
 }
-$dati = [ordered]@{ versione = $VERSIONE; dataVersione = $DATA_VERSIONE; autore = $AUTORE; creato = $adesso.ToString("yyyy-MM-dd'T'HH:mm:ss", $INV); soglia = $SOGLIA; oreMin = $ORE_MIN; giorni = $datiGiorni; spot = $datiSpot; stazioni = $datiStazioni }
+$dati = [ordered]@{ versione = $VERSIONE; dataVersione = $DATA_VERSIONE; autore = $AUTORE; creato = $adesso.ToString("yyyy-MM-dd'T'HH:mm:ss", $INV); soglia = $SOGLIA; oreMin = $ORE_MIN; giorni = $datiGiorni; passati = $datiPassati; spot = $datiSpot; stazioni = $datiStazioni }
 $json = ConvertTo-Json -InputObject $dati -Depth 8 -Compress
 $modello = [IO.File]::ReadAllText((Join-Path $cartella 'report-modello.html'), [Text.Encoding]::UTF8)
 $html = $modello.Replace('/*DATI*/null', $json)
