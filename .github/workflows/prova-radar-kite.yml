@@ -12,6 +12,16 @@ jobs:
         run: |
           mkdir grezzi
           powershell -NoProfile -ExecutionPolicy Bypass -Command "$PSVersionTable.PSVersion; & '.\radarkite\radar-kite.ps1' -NonAprire -SalvaGrezzi (Resolve-Path grezzi).Path"
+      - name: Prova del pulsante Aggiorna (link radarkite://)
+        shell: powershell
+        run: |
+          (Get-ItemProperty 'HKCU:\Software\Classes\radarkite\shell\open\command').'(default)'
+          $f = Get-Item radarkite\report.html; $prima = $f.LastWriteTime; "Report prima: $prima"
+          Start-Sleep -Seconds 2
+          Start-Process 'radarkite://aggiorna'
+          for ($i = 0; $i -lt 45; $i++) { Start-Sleep -Seconds 2; if ((Get-Item radarkite\report.html).LastWriteTime -gt $prima) { break } }
+          $dopo = (Get-Item radarkite\report.html).LastWriteTime; "Report dopo: $dopo"
+          if ($dopo -le $prima) { throw 'il link radarkite:// non ha rigenerato il report' } else { 'OK: il link ha rigenerato il report' }
       - name: Report in base64
         if: always()
         shell: powershell

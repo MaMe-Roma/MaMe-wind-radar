@@ -15,6 +15,10 @@ h1{font-weight:500;font-size:26px;margin:0 0 4px}
 h2{font-weight:500;font-size:19px;margin:26px 0 10px}
 .sub{color:var(--muted);font-size:13px;margin:0}
 .ver{font-size:13px;color:var(--muted);font-weight:400;margin-left:6px}
+.testa{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.agg{display:flex;align-items:center;gap:10px}
+#aggiorna{font:inherit;font-size:14px;font-weight:600;background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:7px 16px;cursor:pointer}
+#aggiorna:hover{border-color:var(--muted)}#aggiorna:disabled{opacity:.6;cursor:default}
 .small{font-size:12px;color:var(--muted)}
 a{color:inherit}
 .u{font-size:12px;color:var(--muted);margin-left:3px}
@@ -88,7 +92,8 @@ svg{display:block;width:100%;height:auto}
 </head>
 <body>
 <div class="wrap">
-  <h1>Radar kite <span class="ver" id="ver"></span></h1>
+  <div class="testa"><h1>Radar kite <span class="ver" id="ver"></span></h1>
+    <div class="agg"><span class="small" id="aggstato"></span><button type="button" id="aggiorna" title="Rilancia il programma sul PC: rilegge previsioni e stazioni e ricarica la pagina">↻ Aggiorna</button></div></div>
   <p class="sub" id="sub"></p>
 
   <h2>Settimana</h2>
@@ -117,7 +122,7 @@ svg{display:block;width:100%;height:auto}
   <h2>Spot</h2>
   <div id="spotlist"></div>
 
-  <p class="foot">Previsioni: Windguru (modello GFS, pagine micro). Stazioni lette direttamente dai siti. Per aggiornare rilancia «Avvia Radar kite». Radar kite <span id="ver2"></span>. Vento live: <a href="https://mame-roma.github.io/MaMe-wind-radar/">mame-roma.github.io/MaMe-wind-radar</a></p>
+  <p class="foot">Previsioni: Windguru (modello GFS, pagine micro). Stazioni lette direttamente dai siti. «Aggiorna» rilancia il programma sul PC (la prima volta il browser chiede il permesso di aprirlo). Radar kite <span id="ver2"></span>. Vento live: <a href="https://mame-roma.github.io/MaMe-wind-radar/">mame-roma.github.io/MaMe-wind-radar</a></p>
 </div>
 <script>
 var D = /*DATI*/null;
@@ -186,8 +191,50 @@ var D = /*DATI*/null;
   }
   function hhmm(d) { return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
   var creato = new Date(D.creato);
-  document.getElementById('ver').textContent = 'v' + (D.versione || '?') + ' · ' + (D.dataVersione || '');
-  document.getElementById('ver2').textContent = 'versione ' + (D.versione || '?') + ' del ' + (D.dataVersione || '');
+  document.getElementById('ver').textContent = 'v' + (D.versione || '?') + ' · ' + (D.dataVersione || '') + (D.autore ? ' · ' + D.autore : '');
+  document.getElementById('ver2').textContent = 'versione ' + (D.versione || '?') + ' del ' + (D.dataVersione || '') + (D.autore ? ', di ' + D.autore : '');
+
+  // ---- Aggiorna: avvia il programma con il link radarkite:// e ricarica finche' non arriva il report nuovo ----
+  (function () {
+    var btn = document.getElementById('aggiorna'), st = document.getElementById('aggstato');
+    var m = /^#aggiorno-(\d+)$/.exec(location.hash);
+    if (m) {
+      var t = +m[1];
+      if (creato.getTime() >= t - 5000) {
+        history.replaceState(null, '', location.pathname + location.search);
+        st.textContent = 'Aggiornato alle ' + hhmm(creato);
+      } else if (Date.now() - t < 180000) {
+        btn.disabled = true;
+        st.textContent = 'Aggiornamento in corso…';
+        setTimeout(function () { location.reload(); }, 4000);
+      } else {
+        history.replaceState(null, '', location.pathname + location.search);
+        st.textContent = 'Il programma non ha risposto: avvialo dalla cartella Radar kite.';
+      }
+    }
+    btn.addEventListener('click', function () {
+      var t = Date.now(), partito = false;
+      btn.disabled = true;
+      st.textContent = 'Conferma l\'apertura del programma…';
+      history.replaceState(null, '', '#aggiorno-' + t);
+      // Quando si apre la finestra del programma la pagina perde il focus; quando torna, si ricarica.
+      // Non ricarico prima: chiuderebbe la richiesta del browser di aprire il programma.
+      window.addEventListener('blur', function () {
+        if (partito) return;
+        partito = true;
+        st.textContent = 'Il programma sta leggendo i dati…';
+        setTimeout(function () { location.reload(); }, 40000);
+      });
+      window.addEventListener('focus', function () { if (partito) setTimeout(function () { location.reload(); }, 1500); });
+      setTimeout(function () {
+        if (partito) return;
+        btn.disabled = false;
+        history.replaceState(null, '', location.pathname + location.search);
+        st.textContent = 'Programma non avviato: riprova, o avvialo dalla cartella Radar kite.';
+      }, 60000);
+      location.href = 'radarkite://aggiorna';
+    });
+  })();
   document.getElementById('sub').textContent = 'Aggiornato ' + GG[creato.getDay()] + ' ' + creato.getDate() + ' ' + MESI[creato.getMonth()] + ' alle ' + hhmm(creato) +
     ' · firing = almeno ' + D.soglia + ' kts per ' + D.oreMin + ' ore di fila da una direzione buona, nella fascia oraria utile · oggi tramonto ' + hhmm(soleUTC(41.7187, 12.3024, creato, false)) + '.';
 
@@ -229,9 +276,12 @@ var D = /*DATI*/null;
   // ---- Mappa: vento adesso ----
   (function () {
     var box = document.getElementById('spots');
-    var etichette = [];
+    var etichette = [], ostacoli = [];
     D.spot.forEach(function (s) {
       var xy = P(s.lon, s.lat), x = xy[0], y = xy[1], a = s.adesso;
+      // Nome dello spot e pallino: le etichette del vento non devono coprirli.
+      var nl = s.breve.length * 7, nx0 = s.lab[2] === 'start' ? x + s.lab[0] : (s.lab[2] === 'end' ? x + s.lab[0] - nl : x + s.lab[0] - nl / 2);
+      ostacoli.push({ x0: nx0, x1: nx0 + nl, y0: y + s.lab[1] - 11, y1: y + s.lab[1] + 3 }, { x0: x - 9, x1: x + 9, y0: y - 9, y1: y + 9 });
       var g = el('g', { 'class': 'spotmk' });
       var on = false;
       if (a) {
@@ -269,12 +319,15 @@ var D = /*DATI*/null;
     });
     // Etichette del vento che si sovrappongono (spot vicini, es. Ostia e Torvaianica): scalo quella piu' in basso.
     etichette.sort(function (a, b) { return a.y - b.y; });
-    etichette.forEach(function (e, i) {
-      for (var j = 0; j < i; j++) {
-        var o = etichette[j];
-        if (e.x0 < o.x1 && o.x0 < e.x1 && e.y - o.y < 25) e.y = o.y + 25;
+    var occupati = ostacoli.slice();
+    etichette.forEach(function (e) {
+      for (var giri = 0; giri < 20; giri++) {
+        var b = occupati.filter(function (o) { return e.x0 < o.x1 && o.x0 < e.x1 && e.y - 12 < o.y1 && o.y0 < e.y + 13; })[0];
+        if (!b) break;
+        e.y = b.y1 + 13;
       }
       e.y = Math.min(e.y, MH - 17);
+      occupati.push({ x0: e.x0, x1: e.x1, y0: e.y - 12, y1: e.y + 13 });
       e.t.setAttribute('y', e.y - 1); e.sub.setAttribute('y', e.y + 10);
       box.append(e.t, e.sub);
     });
@@ -320,7 +373,8 @@ var D = /*DATI*/null;
       links.append(link('Windguru', 'https://www.windguru.cz/' + s.wg));
       (s.stazioni || []).forEach(function (st) { links.append(link(st.etichetta || 'Stazione', st.pagina)); });
       links.append(
-        link('Windy', 'https://www.windy.com/' + s.lat.toFixed(3) + '/' + s.lon.toFixed(3) + '?' + s.lat.toFixed(3) + ',' + s.lon.toFixed(3) + ',11'));
+        link('Windy', 'https://www.windy.com/' + s.lat.toFixed(3) + '/' + s.lon.toFixed(3) + '?' + s.lat.toFixed(3) + ',' + s.lon.toFixed(3) + ',11'),
+        link('Ventusky', 'https://www.ventusky.com/?p=' + s.lat.toFixed(3) + ';' + s.lon.toFixed(3) + ';10&l=wind-10m'));
       head.append(sx, links);
       sec.append(head);
       if (s.errore) { sec.append(h('div', 'err', 'Previsione Windguru non letta: ' + s.errore)); box.append(sec); return; }
