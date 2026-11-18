@@ -121,7 +121,7 @@ svg{display:block;width:100%;height:auto}
         <text class="seaname" x="183" y="99" text-anchor="middle" font-size="8">Bracciano</text>
         <g id="spots"></g>
       </svg>
-      <div class="small" style="padding:4px 4px 0">La freccia punta sullo spot dalla direzione da cui arriva il vento: verde da 15 kts in su da una direzione buona, rossa se viene da terra, tratteggiata se è la previsione dell'ora (stazione non aggiornata). Accanto, in nodi (kts), il vento medio e in rosso la raffica. Costa © OpenStreetMap contributors.</div>
+      <div class="small" style="padding:4px 4px 0">La freccia punta sullo spot dalla direzione da cui arriva il vento: verde da 15 kts in su da una direzione buona, rossa se viene da terra, tratteggiata se è la previsione dell'ora (stazione non aggiornata). Sotto il nome dello spot, in nodi (kts), il vento medio e in rosso la raffica. Costa © OpenStreetMap contributors.</div>
     </div>
     <div class="stlist" id="stazioni"></div>
   </div>
@@ -298,71 +298,68 @@ var D = /*DATI*/null;
   })();
 
   // ---- Mappa: vento adesso ----
+  // Ogni spot: pallino, freccia del vento e, accanto, un blocco con il nome e sotto "kts vento raffica".
+  // Il blocco va dal lato scelto per lo spot; se una freccia, un pallino o un altro blocco lo coprirebbe, prova altre posizioni.
   (function () {
     var box = document.getElementById('spots');
-    var etichette = [], ostacoli = [];
+    // Scritte fisse della mappa (citta' e lago): i blocchi non ci vanno sopra.
+    var occupati = [{ x0: 68, x1: 125, y0: 42, y1: 56 }, { x0: 243, x1: 280, y0: 152, y1: 167 }, { x0: 340, x1: 387, y0: 371, y1: 392 }, { x0: 155, x1: 212, y0: 90, y1: 103 }], spots = [];
     D.spot.forEach(function (s) {
-      var xy = P(s.lon, s.lat), x = xy[0], y = xy[1], a = s.adesso;
-      var nome = s.mappa || s.breve;
-      // Nome dello spot, pallino e freccia: le etichette del vento non devono coprirli.
-      var nl = nome.length * 7, nx0 = s.lab[2] === 'start' ? x + s.lab[0] : (s.lab[2] === 'end' ? x + s.lab[0] - nl : x + s.lab[0] - nl / 2);
-      ostacoli.push({ x0: nx0, x1: nx0 + nl, y0: y + s.lab[1] - 11, y1: y + s.lab[1] + 3 }, { x0: x - 9, x1: x + 9, y0: y - 9, y1: y + 9 });
-      var g = el('g', { 'class': 'spotmk' });
-      var on = false;
+      var xy = P(s.lon, s.lat), x = xy[0], y = xy[1], a = s.adesso, o = { s: s, x: x, y: y, a: a, on: false };
+      occupati.push({ x0: x - 10, x1: x + 10, y0: y - 10, y1: y + 10 });
       if (a) {
         var deg = Number(a.deg), cl = classe(s, deg);
-        on = a.fonte !== 'vecchia' && a.wind >= D.soglia && cl !== 'terra';
-        var colore = a.fonte === 'vecchia' ? 'var(--muted)' : (cl === 'terra' ? 'var(--bad)' : (on ? 'var(--ok)' : 'var(--fg)'));
-        var fr = el('g', { transform: 'translate(' + x + ',' + y + ') rotate(' + deg + ')' });
-        var asta = el('line', { x1: 0, y1: -36, x2: 0, y2: -21, stroke: colore, 'stroke-width': 2.5, 'stroke-linecap': 'round' });
-        if (a.fonte !== 'stazione') asta.setAttribute('stroke-dasharray', '4 3');
-        fr.append(asta, el('path', { d: 'M0,-13L-5,-22L5,-22Z', fill: colore }));
+        o.on = a.fonte !== 'vecchia' && a.wind >= D.soglia && cl !== 'terra';
+        o.deg = deg;
+        o.colore = a.fonte === 'vecchia' ? 'var(--muted)' : (cl === 'terra' ? 'var(--bad)' : (o.on ? 'var(--ok)' : 'var(--fg)'));
         var ux = Math.sin(deg * Math.PI / 180), uy = -Math.cos(deg * Math.PI / 180);
-        var ax = [x + ux * 13, x + ux * 37], ay = [y + uy * 13, y + uy * 37];
-        ostacoli.push({ x0: Math.min(ax[0], ax[1]) - 5, x1: Math.max(ax[0], ax[1]) + 5, y0: Math.min(ay[0], ay[1]) - 5, y1: Math.max(ay[0], ay[1]) + 5 });
-        var anchor = ux < -0.35 ? 'end' : (ux > 0.35 ? 'start' : 'middle');
-        // "kts" una volta sola, prima dei numeri: vale per il vento medio e per la raffica (in rosso).
-        var knT = n(a.wind), gT = a.gust != null ? n(a.gust) : '';
-        var larg = 22 + knT.length * 7.2 + (gT ? gT.length * 6.5 + 4 : 0) + 6;
-        var minX = anchor === 'end' ? larg : (anchor === 'middle' ? larg / 2 : 4), maxX = anchor === 'start' ? MW - larg : (anchor === 'middle' ? MW - larg / 2 : MW - 4);
-        var lx = Math.min(Math.max(x + ux * 44, minX), maxX);
-        var cy = y + uy * 44 + (uy < -0.35 ? -4 : (uy > 0.35 ? 6 : 0));
-        // Vicino al bordo della mappa l'etichetta finirebbe sopra lo spot: la sposto sotto la freccia.
-        if (anchor === 'end' && x + ux * 44 < larg - 8) { anchor = 'start'; lx = 4; cy = y + Math.max(uy * 36, 0) + 18; }
-        else if (anchor === 'start' && x + ux * 44 > MW - larg + 8) { anchor = 'end'; lx = MW - 4; cy = y + Math.max(uy * 36, 0) + 18; }
-        cy = Math.min(Math.max(cy, 12), MH - 8);
-        var t = el('text', { x: lx, 'text-anchor': anchor, 'class': 'kn' });
-        t.append(el('tspan', { 'class': 'ku' }, 'kts'), el('tspan', { dx: 4 }, knT));
-        if (gT) t.append(el('tspan', { 'class': 'kg', dx: 4 }, gT));
-        var x0 = anchor === 'start' ? lx : (anchor === 'end' ? lx - larg : lx - larg / 2);
-        etichette.push({ t: t, x0: x0, x1: x0 + larg, y: cy, y0: cy, anchor: anchor, tx: x + ux * 38, ty: y + uy * 38, sy: y });
+        var ax = [x + ux * 12, x + ux * 37], ay = [y + uy * 12, y + uy * 37];
+        occupati.push({ x0: Math.min(ax[0], ax[1]) - 6, x1: Math.max(ax[0], ax[1]) + 6, y0: Math.min(ay[0], ay[1]) - 6, y1: Math.max(ay[0], ay[1]) + 6 });
+      }
+      spots.push(o);
+    });
+    function libero(b) {
+      if (b.x0 < 1 || b.x1 > MW - 1 || b.y0 < 1 || b.y1 > MH - 1) return false;
+      return !occupati.some(function (o) { return b.x0 < o.x1 && o.x0 < b.x1 && b.y0 < o.y1 && o.y0 < b.y1; });
+    }
+    spots.forEach(function (o) {
+      var s = o.s, x = o.x, y = o.y, a = o.a, nome = s.mappa || s.breve;
+      var g = el('g', { 'class': 'spotmk' });
+      if (a) {
+        var fr = el('g', { transform: 'translate(' + x + ',' + y + ') rotate(' + o.deg + ')' });
+        var asta = el('line', { x1: 0, y1: -36, x2: 0, y2: -21, stroke: o.colore, 'stroke-width': 2.5, 'stroke-linecap': 'round' });
+        if (a.fonte !== 'stazione') asta.setAttribute('stroke-dasharray', '4 3');
+        fr.append(asta, el('path', { d: 'M0,-13L-5,-22L5,-22Z', fill: o.colore }));
         g.append(fr);
       }
-      g.append(el('circle', { cx: x, cy: y, r: 14, fill: on ? 'var(--ok)' : 'var(--muted)', opacity: 0.18 }),
-        el('circle', { cx: x, cy: y, r: 7, fill: on ? 'var(--ok)' : 'var(--panel)', stroke: on ? 'var(--ok)' : 'var(--fg)', 'stroke-width': 2 }),
-        el('text', { x: x + s.lab[0], y: y + s.lab[1], 'text-anchor': s.lab[2], 'class': 'lab' }, nome));
+      g.append(el('circle', { cx: x, cy: y, r: 14, fill: o.on ? 'var(--ok)' : 'var(--muted)', opacity: 0.18 }),
+        el('circle', { cx: x, cy: y, r: 7, fill: o.on ? 'var(--ok)' : 'var(--panel)', stroke: o.on ? 'var(--ok)' : 'var(--fg)', 'stroke-width': 2 }));
+      // Testo del blocco: "kts" una volta sola, poi vento medio e raffica in rosso.
+      var knT = a ? n(a.wind) : '', gT = a && a.gust != null ? n(a.gust) : '';
+      var largNum = a ? 22 + knT.length * 7.2 + (gT ? gT.length * 6.5 + 4 : 0) : 0;
+      var larg = Math.max(nome.length * 6.8, largNum) + 4, alto = a ? 27 : 14;
+      // Posizioni da provare: prima quella dello spot, poi intorno al pallino.
+      var prove = [[s.lab[0], s.lab[1], s.lab[2]], [12, 4, 'start'], [12, -10, 'start'], [12, 16, 'start'], [-12, 4, 'end'], [-12, -10, 'end'], [-12, 16, 'end'],
+        [0, -32, 'middle'], [0, 24, 'middle'], [16, -24, 'start'], [16, 28, 'start'], [-16, -24, 'end'], [-16, 28, 'end']];
+      var scelta = null, bScelta = null;
+      for (var i = 0; i < prove.length && !scelta; i++) {
+        var p = prove[i], bx = x + p[0], by = y + p[1];
+        var x0 = p[2] === 'start' ? bx : (p[2] === 'end' ? bx - larg : bx - larg / 2);
+        var b = { x0: x0, x1: x0 + larg, y0: by - 11, y1: by - 11 + alto };
+        if (libero(b)) { scelta = p; bScelta = b; }
+      }
+      if (!scelta) { scelta = prove[0]; var x00 = scelta[2] === 'start' ? x + scelta[0] : (scelta[2] === 'end' ? x + scelta[0] - larg : x + scelta[0] - larg / 2); bScelta = { x0: x00, x1: x00 + larg, y0: y + scelta[1] - 11, y1: y + scelta[1] - 11 + alto }; }
+      occupati.push(bScelta);
+      var tx = x + scelta[0], ty = y + scelta[1];
+      g.append(el('text', { x: tx, y: ty, 'text-anchor': scelta[2], 'class': 'lab' }, nome));
+      if (a) {
+        var t = el('text', { x: tx, y: ty + 14, 'text-anchor': scelta[2], 'class': 'kn' });
+        t.append(el('tspan', { 'class': 'ku' }, 'kts'), el('tspan', { dx: 4 }, knT));
+        if (gT) t.append(el('tspan', { 'class': 'kg', dx: 4 }, gT));
+        g.append(t);
+      }
       g.addEventListener('click', function () { document.getElementById('spot-' + s.id).scrollIntoView({ block: 'start' }); });
       box.append(g);
-    });
-    // Etichette del vento che coprirebbero nomi, pallini, frecce o altre etichette: le sposto piu' in basso.
-    // Prima gli spot piu' a nord: se due etichette si toccano, quella dello spot piu' a sud scende sotto.
-    etichette.sort(function (a, b) { return a.sy - b.sy; });
-    var occupati = ostacoli.slice();
-    etichette.forEach(function (e) {
-      for (var giri = 0; giri < 25; giri++) {
-        var b = occupati.filter(function (o) { return e.x0 < o.x1 && o.x0 < e.x1 && e.y - 8 < o.y1 && o.y0 < e.y + 6; })[0];
-        if (!b) break;
-        e.y = b.y1 + 9;
-      }
-      e.y = Math.min(e.y, MH - 8);
-      occupati.push({ x0: e.x0, x1: e.x1, y0: e.y - 8, y1: e.y + 6 });
-      e.t.setAttribute('y', e.y + 4);
-      if (Math.abs(e.y - e.y0) > 5) {
-        // Etichetta spostata: una linea sottile la collega alla sua freccia.
-        var ex = e.anchor === 'end' ? e.x1 - 4 : (e.anchor === 'start' ? e.x0 + 2 : (e.x0 + e.x1) / 2);
-        box.append(el('line', { x1: ex, y1: e.y - (e.y > e.ty ? 8 : -6), x2: e.tx, y2: e.ty, stroke: 'var(--muted)', 'stroke-width': 0.8, 'stroke-dasharray': '2 2' }));
-      }
-      box.append(e.t);
     });
   })();
 
