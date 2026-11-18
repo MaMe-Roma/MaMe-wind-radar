@@ -10,7 +10,7 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-$VERSIONE = '1.6'
+$VERSIONE = '1.7'
 $DATA_VERSIONE = '18/11/2026'
 $AUTORE = '@MadHatterMatt'
 
@@ -35,6 +35,9 @@ $SPOT = @(
      ideali = @(); attenzione = @() },
   @{ id = 'anzio'; nome = 'Anzio Levante'; breve = 'Anzio Levante'; lon = 12.63; lat = 41.45; lab = @(11, 4, 'start'); wg = 49035; ok = @(40, 230); terra = @(250, 20); stazioni = @('anzio_levante', 'anzio_porto'); webcam = 'https://vedetta.org/webcam/italia/lazio/roma/anzio-levante/'
      ideali = @(@{ n = 'libeccio'; d = 225 }, @{ n = 'grecale'; d = 45 }); attenzione = @() },
+  # Lido di Latina: tra Foce Verde e Capo Portiere (scuola Ultimate Kiteboarding). Windguru non ha uno spot qui: uso Foce Verde, stessa baia.
+  @{ id = 'latina'; nome = 'Lido di Latina'; breve = 'Lido di Latina'; lon = 12.8759; lat = 41.4042; lab = @(11, 4, 'start'); wg = 49036; ok = @(120, 315); terra = @(335, 100); stazioni = @('latina_lido', 'latina_sud'); webcam = 'https://vedetta.org/webcam/italia/lazio/latina/lido-di-latina/'
+     ideali = @(); attenzione = @() },
   @{ id = 'fondi'; nome = 'Salto di Fondi'; breve = 'Salto di Fondi'; lon = 13.3122; lat = 41.2908; lab = @(-6, -14, 'end'); wg = 49042; ok = @(110, 280); terra = @(300, 80); stazioni = @('saltodifondi'); webcam = ''
      ideali = @(); attenzione = @() }
 )
@@ -48,6 +51,8 @@ $STAZIONI = @(
   @{ id = 'torvaianica'; tipo = 'wind24'; nome = 'Torvaianica (Wind24)'; etichetta = 'Wind24'; url = 'https://www.wind24.it/torvaianica'; ref = 'https://www.wind24.it/'; pagina = 'https://www.wind24.it/torvaianica'; fresco = 30 },
   @{ id = 'anzio_levante'; tipo = 'vedetta'; nome = 'Anzio Riviera di Levante (Vedetta)'; etichetta = 'Stazione Levante'; url = 'https://vedetta.org/image-client/marina-di-nettuno/meteo/dati_meteo.html'; ref = 'https://vedetta.org/webcam/italia/lazio/roma/anzio-levante/'; pagina = 'https://vedetta.org/webcam/italia/lazio/roma/anzio-levante/'; fresco = 30 },
   @{ id = 'anzio_porto'; tipo = 'meteolazio'; nome = 'Anzio Porto (Meteo Lazio)'; etichetta = 'Stazione porto'; url = 'https://www.meteoregionelazio.it/rete/stazione.php?id=RM-050'; ref = 'https://www.meteoregionelazio.it/rete/'; pagina = 'https://www.meteoregionelazio.it/rete/stazione.php?id=RM-050'; fresco = 60 },
+  @{ id = 'latina_lido'; tipo = 'vedetta'; nome = 'Lido di Latina (Vedetta)'; etichetta = 'Stazione Lido'; url = 'https://vedetta.org/image-client/lido-di-latina/meteo/dati_meteo.html'; ref = 'https://vedetta.org/webcam/italia/lazio/latina/lido-di-latina/'; pagina = 'https://vedetta.org/webcam/italia/lazio/latina/lido-di-latina/'; fresco = 30 },
+  @{ id = 'latina_sud'; tipo = 'meteotemplate'; nome = 'Latina Sud (Soluzioni Meteo)'; etichetta = 'Stazione Latina Sud'; url = 'https://stazioni3.soluzionimeteo.it/latina/homepage/blocks/modernWind/data.php'; ref = 'https://stazioni3.soluzionimeteo.it/latina/indexDesktop.php'; pagina = 'https://stazioni3.soluzionimeteo.it/latina/indexDesktop.php'; fresco = 30 },
   @{ id = 'saltodifondi'; tipo = 'wind24'; nome = 'Salto di Fondi (Wind24)'; etichetta = 'Wind24'; url = 'https://www.wind24.it/saltodifondi'; ref = 'https://www.wind24.it/'; pagina = 'https://www.wind24.it/saltodifondi'; fresco = 30 }
 )
 
@@ -219,6 +224,15 @@ function Read-Stazione($st) {
       $t = [DateTimeOffset]::FromUnixTimeSeconds([int64]$j.DateTime).LocalDateTime
       return @{ t = $t; wind = [double]$j.W; gust = [double]$j.G; deg = [double]$j.B; offline = ([string]$j.offline -eq '1') }
     }
+    'meteotemplate' {
+      # Blocco "modernWind" di Meteotemplate: JSON con velocita', raffica, gradi, ora (epoch) e unita' di misura.
+      $j = $testo | ConvertFrom-Json
+      if (-not $j.ok) { throw "stazione non disponibile: $($j.error)" }
+      $k = switch -Regex ([string]$j.unit) { 'km' { 1 / 1.852 } 'm/s|ms' { 1.943844 } 'mph' { 0.868976 } default { 1 } }
+      $t = [DateTimeOffset]::FromUnixTimeSeconds([int64]$j.updated).LocalDateTime
+      $g = if ($j.gust -ne $null) { [Math]::Round([double]$j.gust * $k, 1) } else { $null }
+      return @{ t = $t; wind = [Math]::Round([double]$j.speed * $k, 1); gust = $g; deg = [double]$j.bearing; offline = $false }
+    }
     'lni' {
       $f = $testo.Trim() -split '\s+'
       if ($f.Count -lt 75 -or $f[0] -ne '12345') { throw 'clientraw.txt non riconosciuto' }
@@ -388,7 +402,7 @@ foreach ($r in $spotRes) {
   $s = $r.s
   # Vento adesso: stazione aggiornata, altrimenti previsione dell'ora, altrimenti stazione vecchia.
   $letture = @(foreach ($sid in $s.stazioni) { $x = $stRes[$sid]; if ($x -and -not $x.errore) { $x.id = $sid; $x } })
-  $fresche = @($letture | Where-Object { $_.fresca } | Sort-Object { $_.t } -Descending)
+  $fresche = @($letture | Where-Object { $_.fresca })   # in ordine: prima la stazione sulla spiaggia
   $l = $null; $ad = $null
   if ($fresche.Count) { $l = $fresche[0] } else { $l = @($letture | Where-Object { -not $_.offline } | Sort-Object { $_.t } -Descending) | Select-Object -First 1 }
   $nomeSt = if ($l) { ($STAZIONI | Where-Object { $_.id -eq $l.id } | Select-Object -First 1).etichetta } else { '' }
