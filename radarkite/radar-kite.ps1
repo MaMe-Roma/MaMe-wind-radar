@@ -160,7 +160,8 @@ function Get-Giorni($s, $righe) {
 
 # ---------------- Stazioni ----------------
 function Read-Stazione($st) {
-  $testo = Get-Testo $st.url $st.ref
+  $testo = (Get-Testo $st.url $st.ref).TrimStart([char]0xFEFF)
+  if ($SalvaGrezzi) { [IO.File]::WriteAllText((Join-Path $SalvaGrezzi "stazione_$($st.id).txt"), $testo) }
   switch ($st.id) {
     'msn' {
       $j = $testo | ConvertFrom-Json
