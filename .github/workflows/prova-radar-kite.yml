@@ -12,10 +12,10 @@ jobs:
         run: |
           mkdir grezzi
           powershell -NoProfile -ExecutionPolicy Bypass -Command "$PSVersionTable.PSVersion; & '.\radarkite\radar-kite.ps1' -NonAprire -SalvaGrezzi (Resolve-Path grezzi).Path"
-      - name: Testo grezzo Windguru (prime righe)
+      - name: Report in base64
         if: always()
         shell: powershell
-        run: Get-ChildItem grezzi\stazione_* | ForEach-Object { "== $($_.Name)"; (Get-Content $_.FullName -Raw).Substring(0, [Math]::Min(300, (Get-Content $_.FullName -Raw).Length)) }
+        run: "'B64:' + [Convert]::ToBase64String([IO.File]::ReadAllBytes('radarkite\\report.html'))"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
