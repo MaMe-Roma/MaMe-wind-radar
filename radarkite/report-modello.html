@@ -341,7 +341,8 @@ var D = /*DATI*/null;
     ric.addEventListener('click', function () { lancia('radarkite://viaggi'); });
     var conTraffico = D.spot.some(function (s) { return s.viaggio && s.viaggio.traffico != null; });
     var ora = (D.spot.filter(function (s) { return s.viaggio && s.viaggio.ora; })[0] || {}).viaggio;
-    b.append(sel, ric, h('span', 'small', conTraffico ? 'tempi col traffico' + (ora && ora.ora ? ' delle ' + ora.ora : '') + ' (Google)' : 'tempi stimati senza traffico · per il traffico vero usa i pulsanti Waze o Maps degli spot'));
+    var dove = P.trovato ? 'partenza: ' + (/^coordinate/.test(P.trovato) ? P.trovato : P.trovato.split(',').slice(0, 3).join(',')) + ' · ' : '';
+    b.append(sel, ric, h('span', 'small', dove + (conTraffico ? 'tempi col traffico' + (ora && ora.ora ? ' delle ' + ora.ora : '') + ' (Google)' : 'tempi stimati senza traffico · per il traffico vero usa i pulsanti Waze o Maps degli spot')));
   })();
   document.getElementById('sub').textContent = 'Aggiornato ' + GG[creato.getDay()] + ' ' + creato.getDate() + ' ' + MESI[creato.getMonth()] + ' alle ' + hhmm(creato) +
     ' · firing = almeno ' + D.soglia + ' kts per ' + D.oreMin + ' ore di fila da una direzione buona, nella fascia oraria utile · oggi tramonto ' + hhmm(soleUTC(41.7187, 12.3024, creato, false)) + '.';
