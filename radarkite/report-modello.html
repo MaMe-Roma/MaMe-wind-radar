@@ -308,9 +308,9 @@ var D = /*DATI*/null;
         st.textContent = 'Il programma non ha risposto: avvialo dalla cartella Radar kite.';
       }
     }
-    // Pagina aperta prima delle stazioni: si ricarica da sola finche' arrivano (massimo 90 secondi).
+    // Pagina aperta prima delle stazioni: si ricarica da sola finche' arrivano (massimo 2 minuti e mezzo).
     if (D.aggiornando && !PDF) {
-      if (Date.now() - creato.getTime() < 90000) {
+      if (Date.now() - creato.getTime() < 150000) {
         btn.disabled = true; st.textContent = '⏳ Lettura stazioni in corso…';
         setTimeout(function () { location.reload(); }, 2500);
       } else st.textContent = 'Stazioni non lette: premi Aggiorna.';
@@ -543,6 +543,11 @@ var D = /*DATI*/null;
       var top = h('div', 'top'); var a = link(st.nome, st.pagina); a.className = 'nm';
       top.append(a, h('span', 'small', spot ? spot.breve : ''));
       t.append(top);
+      // Appunti: stazioni di solito lente o che spesso non rispondono.
+      var L = st.lenta, nota = null;
+      if (L && L.prove >= 5 && L.fallite / L.prove >= 0.4) nota = 'spesso non risponde (' + L.fallite + ' volte su ' + L.prove + ')';
+      else if (L && L.media != null && L.media > 10) nota = 'di solito lenta: risponde in ~' + Math.round(L.media) + ' s';
+      if (nota) t.append(h('div', 'small attesa', '⏱ ' + nota));
       if (st.errore === 'in lettura') { t.append(h('div', 'small attesa', '⏳ lettura in corso…')); box.append(t); return; }
       if (st.errore) { t.append(h('div', 'small', /sospes/i.test(st.errore) ? 'Servizio sospeso dal sito (rinnovo della stazione).' : 'Non raggiungibile adesso.')); box.append(t); return; }
       if (st.giorni >= 1) { t.append(h('div', 'small', 'Ferma: ultima lettura il ' + st.data + ' alle ' + st.ora + '.')); box.append(t); return; }
