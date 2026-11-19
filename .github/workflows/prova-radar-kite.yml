@@ -24,8 +24,8 @@ jobs:
           for ($i = 0; $i -lt 8; $i++) {
             $time = @(); $temp = @(); $code = @(); $rain = @(); $ws = @(); $wg = @(); $wd = @()
             for ($hh = 0; $hh -lt 216; $hh++) {
-              $t = $oggi.AddHours($hh); $time += $t.ToString("yyyy-MM-dd'T'HH:mm"); $temp += 14 + ($t.Hour -gt 11 -and $t.Hour -lt 17) * 3
-              $code += @(0, 2, 3, 61, 95)[([int]($hh / 24) + $i) % 5] ; $rain += 0.2; $ws += 8 + (($t.Hour -ge 10 -and $t.Hour -le 15) * 9) + $i; $wg += 14 + $i; $wd += 250
+              $t = $oggi.AddHours($hh); $time += $t.ToString("yyyy-MM-dd'T'HH:mm"); $temp += 14 + [int]($t.Hour -gt 11 -and $t.Hour -lt 17) * 3
+              $code += @(0, 2, 3, 61, 95)[([int]($hh / 24) + $i) % 5] ; $rain += 0.2; $ws += 8 + [int]($t.Hour -ge 10 -and $t.Hour -le 15) * 9 + $i; $wg += 14 + $i; $wd += 250
             }
             $loc += [ordered]@{ latitude = 41; longitude = 12; hourly = [ordered]@{ time = $time; temperature_2m = $temp; weather_code = $code; precipitation = $rain; wind_speed_10m = $ws; wind_gusts_10m = $wg; wind_direction_10m = $wd } }
           }
