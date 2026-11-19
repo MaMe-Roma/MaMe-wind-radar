@@ -1,0 +1,12 @@
+<!DOCTYPE html>
+<html lang="it">
+<head><meta charset="utf-8"><title>Radar kite</title></head>
+<body style="margin:0;height:100vh;display:grid;place-items:center;background:#f6f4ef;color:#1f1f1f;font:15px system-ui,sans-serif">
+<p>Radar kite: apro l'ultimo report…</p>
+<script>
+// Apre l'ultimo report in modalita' "aggiornamento in corso": la pagina si ricarica da sola
+// finche' il programma non ha scritto quello nuovo.
+location.replace('report.html#aggiorno-' + Date.now());
+</script>
+</body>
+</html>

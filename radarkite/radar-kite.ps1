@@ -4,13 +4,13 @@
   applica le regole firing di ogni spot e apre un report nel browser.
   Avvio: doppio clic su "Avvia Radar kite.bat" nella stessa cartella.
 #>
-param([switch]$NonAprire, [string]$SalvaGrezzi = '', [string]$Link = '', [switch]$Automatico, [string]$OmProva = '')
+param([switch]$NonAprire, [string]$SalvaGrezzi = '', [string]$Link = '', [switch]$Automatico, [string]$OmProva = '', [switch]$Nascosto, [switch]$GiaAperta)
 
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-$VERSIONE = '2.5'
+$VERSIONE = '2.6'
 $DATA_VERSIONE = '19/11/2026'
 $AUTORE = '@MadHatterMatt'
 
@@ -68,6 +68,8 @@ $adesso = Get-Date
 # ---------------- Impostazioni personali e cartella dei dati ----------------
 $dirDati = Join-Path $cartella 'dati'
 if (-not (Test-Path $dirDati)) { New-Item -ItemType Directory -Path $dirDati | Out-Null }
+# Avviato senza finestra dal file .bat: quello che il programma scrive va in dati\ultimo-avvio.txt.
+if ($Nascosto) { try { Start-Transcript -Path (Join-Path $dirDati 'ultimo-avvio.txt') -Force | Out-Null } catch { } }
 $fileImp = Join-Path $cartella 'impostazioni.txt'
 $IMP_TESTO = @'
 # Radar kite - impostazioni personali. Una per riga: nome = valore. Le righe con # sono note.
@@ -107,7 +109,7 @@ function Set-Impostazione([string]$nome, [string]$valore) {
   [IO.File]::WriteAllLines($fileImp, [string[]]$righe, (New-Object Text.UTF8Encoding($true)))
 }
 $IMP = Read-Impostazioni
-if (-not $IMP.casa -and -not $Automatico -and -not $Link -and [Environment]::UserInteractive -and $Host.Name -eq 'ConsoleHost') {
+if (-not $IMP.casa -and -not $Automatico -and -not $Link -and -not $Nascosto -and [Environment]::UserInteractive -and $Host.Name -eq 'ConsoleHost') {
   Write-Host ''
   Write-Host 'Da dove parti di solito per andare agli spot? Serve per il tempo di viaggio.' -ForegroundColor Cyan
   $risposta = Read-Host 'CASA - indirizzo e citta (es. Via Roma 1, Roma), oppure Invio per saltare'
@@ -964,7 +966,8 @@ $tmpRep = Join-Path $cartella 'report.tmp'
 Move-Item -Path $tmpRep -Destination $file -Force
 if ($FASE -eq 1) {
   Write-Host '  Pagina aperta, leggo le stazioni...' -ForegroundColor Cyan
-  if (-not $NonAprire) { Start-Process $file }
+  # Con -GiaAperta il file .bat ha gia' aperto l'ultimo report, che si ricarica da solo.
+  if (-not $NonAprire -and -not $GiaAperta) { Start-Process $file }
 } else {
   Write-Host ''
   Write-Host "Report: $file"
