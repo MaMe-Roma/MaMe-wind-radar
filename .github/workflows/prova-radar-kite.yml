@@ -7,34 +7,39 @@ jobs:
       - uses: actions/checkout@v4
       - name: Fuso orario di Roma
         run: tzutil /s "W. Europe Standard Time"
-      - name: Storico di prova per lunedi e martedi
+      - name: Impostazioni e dati di prova
         shell: powershell
         run: |
-          $r = @('data;stazione;spot;vento;raffica;gradi', '2026-11-16 11:10;torvaianica;torva;17;22;250', '2026-11-16 12:40;torvaianica;torva;19;24;255', '2026-11-16 12:45;msn;msn;12.5;16.9;230', '2026-11-17 09:00;lni_ostia;ostia;9.1;12;140', '2026-11-17 20:00;msn;msn;25;30;240')
-          [IO.File]::WriteAllLines("$PWD\radarkite\storico.csv", $r)
-      - name: Avvia Radar kite con PowerShell 5.1
+          $rk = "$PWD\radarkite"; New-Item -ItemType Directory -Force "$PWD\pdfout" | Out-Null
+          $imp = @('casa = Via Civitavecchia, Roma', 'lavoro = Piazza Venezia, Roma', 'partenza = casa', 'avvio_automatico = si', "dropbox = $PWD\pdfout", 'google_chiave =')
+          [IO.File]::WriteAllLines("$rk\impostazioni.txt", $imp)
+          $ieri = (Get-Date).Date.AddDays(-1).ToString('yyyy-MM-dd'); $mese = (Get-Date).Date.AddDays(-1).ToString('yyyy-MM')
+          $st = @('data;stazione;spot;vento;raffica;gradi') + (10..15 | ForEach-Object { "$ieri $('{0:D2}' -f $_):05;lni_ostia;ostia;$(12 + $_ - 10);$(18 + $_ - 10);260" })
+          [IO.File]::WriteAllLines("$rk\storico.csv", $st)
+          New-Item -ItemType Directory -Force "$rk\dati" | Out-Null
+          $pv = @('giorno;spot;anticipo;fonte;ora;vento;raffica;gradi;salvata') + (8..16 | ForEach-Object { "$ieri;ostia;0;wg;$_;$(14 + [Math]::Min($_ - 8, 4));22;255;06:30" }) + (8..16 | ForEach-Object { "$ieri;ostia;0;om;$_;$(11 + [Math]::Min($_ - 8, 3));18;250;06:30" })
+          [IO.File]::WriteAllLines("$rk\dati\previsioni-$mese.csv", $pv)
+      - name: Avvia Radar kite 2.0
         shell: cmd
         run: |
-          mkdir grezzi
-          powershell -NoProfile -ExecutionPolicy Bypass -Command "$PSVersionTable.PSVersion; & '.\radarkite\radar-kite.ps1' -NonAprire -SalvaGrezzi (Resolve-Path grezzi).Path"
-      - name: Prova del pulsante Aggiorna (link radarkite://)
+          powershell -NoProfile -ExecutionPolicy Bypass -Command "& '.\radarkite\radar-kite.ps1' -NonAprire"
+      - name: Avvio automatico, diario dal link, PDF
         shell: powershell
         run: |
-          (Get-ItemProperty 'HKCU:\Software\Classes\radarkite\shell\open\command').'(default)'
-          $f = Get-Item radarkite\report.html; $prima = $f.LastWriteTime; "Report prima: $prima"
-          Start-Sleep -Seconds 2
-          Start-Process 'radarkite://aggiorna'
-          for ($i = 0; $i -lt 45; $i++) { Start-Sleep -Seconds 2; if ((Get-Item radarkite\report.html).LastWriteTime -gt $prima) { break } }
-          $dopo = (Get-Item radarkite\report.html).LastWriteTime; "Report dopo: $dopo"
-          if ($dopo -le $prima) { throw 'il link radarkite:// non ha rigenerato il report' } else { 'OK: il link ha rigenerato il report' }
+          $t = Get-ScheduledTask -TaskName 'Radar kite'; "Attivita': $($t.TaskName) - $($t.Actions[0].Arguments)"; $t.Triggers | ForEach-Object { "Inizio $($_.StartBoundary) ogni $($_.Repetition.Interval) per $($_.Repetition.Duration)" }
+          $prima = (Get-Item radarkite\report.html).LastWriteTime
+          Start-Process 'radarkite://uscita?d=2026-11-18&o=11:00&s=ostia&m=60&v=12&n=prova+dal+link'
+          for ($i = 0; $i -lt 60; $i++) { Start-Sleep 2; if ((Get-Item radarkite\report.html).LastWriteTime -gt $prima) { break } }
+          "Diario:"; Get-Content radarkite\dati\diario.csv
+          "Corsa automatica:"; powershell -NoProfile -ExecutionPolicy Bypass -File radarkite\radar-kite.ps1 -Automatico | Select-Object -Last 5
+          "File dati:"; Get-ChildItem radarkite\dati | ForEach-Object { "$($_.Name) $($_.Length)" }
+          "PDF:"; Get-ChildItem pdfout | ForEach-Object { "$($_.Name) $($_.Length)" }
+          "Viaggi:"; Get-Content radarkite\dati\viaggi.json
       - name: Report in base64
         if: always()
         shell: powershell
         run: "'B64:' + [Convert]::ToBase64String([IO.File]::ReadAllBytes('radarkite\\report.html'))"
-      - uses: actions/upload-artifact@v4
+      - name: PDF in base64
         if: always()
-        with:
-          name: report
-          path: |
-            radarkite/report.html
-            grezzi
+        shell: powershell
+        run: "if (Test-Path 'pdfout\\Radar kite.pdf') { 'PDF64:' + [Convert]::ToBase64String([IO.File]::ReadAllBytes('pdfout\\Radar kite.pdf')) }"

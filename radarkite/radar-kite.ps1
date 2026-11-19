@@ -4,14 +4,14 @@
   applica le regole firing di ogni spot e apre un report nel browser.
   Avvio: doppio clic su "Avvia Radar kite.bat" nella stessa cartella.
 #>
-param([switch]$NonAprire, [string]$SalvaGrezzi = '', [string]$Link = '')
+param([switch]$NonAprire, [string]$SalvaGrezzi = '', [string]$Link = '', [switch]$Automatico)
 
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-$VERSIONE = '1.9'
-$DATA_VERSIONE = '18/11/2026'
+$VERSIONE = '2.0'
+$DATA_VERSIONE = '19/11/2026'
 $AUTORE = '@MadHatterMatt'
 
 # ---------------- Regole (modificabili) ----------------
@@ -29,7 +29,7 @@ $SPOT = @(
      ideali = @(@{ n = 'ponente'; d = 270 }); attenzione = @(@{ n = 'libeccio: lavatrice, onde ~2 m'; d = 225 }) },
   # Fregene: stazione del Vela Sporting Club (su Weathercloud e Weather Underground IFIUMI2), webcam sulla loro pagina.
   @{ id = 'fregene'; nome = 'Fregene'; breve = 'Fregene'; lon = 12.195; lat = 41.85; lab = @(11, 4, 'start'); wg = 49029; ok = @(165, 320); terra = @(340, 130); stazioni = @('fregene'); webcam = 'https://www.velasportingclub.it/pages/la-nostra-stazione-meteo'
-     ideali = @(); attenzione = @() },
+     ideali = @(); attenzione = @(@{ n = 'libeccio: lavatrice'; d = 225 }) },
   @{ id = 'ostia'; nome = 'Ostia'; breve = 'Ostia'; lon = 12.3024; lat = 41.7187; lab = @(11, -9, 'start'); wg = 1518; ok = @(115, 325); terra = @(345, 95); stazioni = @('lni_ostia'); webcam = ''
      ideali = @(@{ n = 'scirocco'; d = 135 }, @{ n = 'ponente'; d = 270 }); attenzione = @() },
   @{ id = 'torva'; nome = 'Torvaianica'; breve = 'Torvaianica'; lon = 12.4346; lat = 41.6401; lab = @(11, 4, 'start'); wg = 49033; ok = @(115, 325); terra = @(345, 95); stazioni = @('torvaianica'); webcam = ''
@@ -65,6 +65,58 @@ $UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) RadarKite/1.0'
 $cartella = Split-Path -Parent $MyInvocation.MyCommand.Path
 $adesso = Get-Date
 
+# ---------------- Impostazioni personali e cartella dei dati ----------------
+$dirDati = Join-Path $cartella 'dati'
+if (-not (Test-Path $dirDati)) { New-Item -ItemType Directory -Path $dirDati | Out-Null }
+$fileImp = Join-Path $cartella 'impostazioni.txt'
+$IMP_TESTO = @'
+# Radar kite - impostazioni personali. Una per riga: nome = valore. Le righe con # sono note.
+#
+# Da dove parti per andare agli spot (indirizzo e citta'). Serve per il tempo di viaggio.
+casa =
+lavoro =
+# Quale delle due usare adesso: casa oppure lavoro (si cambia anche dal menu nella pagina).
+partenza = casa
+#
+# si = il programma parte da solo ogni ora dalle 6:30 alle 19:30 (se il PC e' acceso); no = solo a mano.
+avvio_automatico = si
+#
+# Copia PDF del report per il telefono: auto = nella cartella Dropbox se c'e'; no = niente; oppure il percorso di una cartella.
+dropbox = auto
+#
+# Facoltativo: chiave Google Maps Platform (Routes API) per il tempo di viaggio col traffico. Vuoto = solo stima.
+google_chiave =
+'@
+function Read-Impostazioni {
+  $imp = @{ casa = ''; lavoro = ''; partenza = 'casa'; avvio_automatico = 'si'; dropbox = 'auto'; google_chiave = '' }
+  if (-not (Test-Path $fileImp)) { [IO.File]::WriteAllText($fileImp, $IMP_TESTO, (New-Object Text.UTF8Encoding($true))) }
+  foreach ($r in [IO.File]::ReadAllLines($fileImp)) {
+    if ($r -match '^\s*#' -or $r -notmatch '=') { continue }
+    $kv = $r.Split('=', 2)
+    $imp[$kv[0].Trim().ToLower()] = $kv[1].Trim()
+  }
+  if ($imp.partenza -ne 'lavoro') { $imp.partenza = 'casa' }
+  return $imp
+}
+function Set-Impostazione([string]$nome, [string]$valore) {
+  $righe = @([IO.File]::ReadAllLines($fileImp))
+  $trovata = $false
+  for ($i = 0; $i -lt $righe.Count; $i++) { if ($righe[$i] -match "^\s*$nome\s*=") { $righe[$i] = "$nome = $valore"; $trovata = $true } }
+  if (-not $trovata) { $righe += "$nome = $valore" }
+  [IO.File]::WriteAllLines($fileImp, [string[]]$righe, (New-Object Text.UTF8Encoding($true)))
+}
+$IMP = Read-Impostazioni
+if (-not $IMP.casa -and -not $Automatico -and -not $Link -and [Environment]::UserInteractive -and $Host.Name -eq 'ConsoleHost') {
+  Write-Host ''
+  Write-Host 'Da dove parti di solito per andare agli spot? Serve per il tempo di viaggio.' -ForegroundColor Cyan
+  $risposta = Read-Host 'CASA - indirizzo e citta (es. Via Roma 1, Roma), oppure Invio per saltare'
+  if ($risposta) {
+    $risposta = ($risposta -replace '[\r\n=;#]', ' ').Trim(); Set-Impostazione 'casa' $risposta; $IMP.casa = $risposta
+    $r2 = Read-Host 'LAVORO - indirizzo e citta (facoltativo), oppure Invio per saltare'
+    if ($r2) { $r2 = ($r2 -replace '[\r\n=;#]', ' ').Trim(); Set-Impostazione 'lavoro' $r2; $IMP.lavoro = $r2 }
+  }
+}
+
 # Pulsante "Aggiorna" del report: registra per l'utente (non serve essere amministratore) il link radarkite://
 # che riavvia questo programma. Se la cartella cambia posto, al prossimo avvio il link si aggiorna da solo.
 # Per toglierlo: chiave HKEY_CURRENT_USER\Software\Classes\radarkite nel Registro di sistema.
@@ -83,7 +135,7 @@ function Register-LinkAggiorna {
   }
 }
 Register-LinkAggiorna
-if ($Link) { $NonAprire = $true }   # avviato dal pulsante: la pagina gia' aperta si ricarica da sola
+if ($Link -or $Automatico) { $NonAprire = $true }   # avviato dal pulsante o dall'avvio automatico: niente browser
 
 function Get-Testo([string]$url, [string]$referer, [switch]$Xhr) {
   $intestazioni = @{ Referer = $referer; 'Cache-Control' = 'no-cache' }
@@ -302,8 +354,197 @@ function Read-Stazione($st) {
   }
 }
 
+# ---------------- Comandi dai pulsanti del report (link radarkite://) ----------------
+function Clean([string]$x, [int]$max) { $y = ($x -replace '[\r\n;"<>]', ' ').Trim(); if ($y.Length -gt $max) { $y = $y.Substring(0, $max) }; return $y }
+function Get-Parametri([string]$link) {
+  $q = @{}
+  $parte = ($link -split '\?', 2)
+  if ($parte.Count -lt 2) { return $q }
+  foreach ($kv in ($parte[1] -split '&')) { $a = $kv -split '=', 2; if ($a.Count -eq 2) { $q[$a[0]] = [Uri]::UnescapeDataString($a[1].Replace('+', ' ')) } }
+  return $q
+}
+$fileDiario = Join-Path $dirDati 'diario.csv'
+$forzaViaggi = $false
+if ($Link -like 'radarkite://uscita*') {
+  # Diario: un'uscita scritta nel modulo del report.
+  try {
+    $q = Get-Parametri $Link
+    $d = Clean $q['d'] 10; $o = Clean $q['o'] 5; $sp = Clean $q['s'] 20; $mi = Clean $q['m'] 4; $v = Clean $q['v'] 12; $no = Clean $q['n'] 140
+    if ($d -notmatch '^\d{4}-\d{2}-\d{2}$') { throw 'data non valida' }
+    if ($o -and $o -notmatch '^\d{1,2}:\d{2}$') { $o = '' }
+    if (-not ($SPOT | Where-Object { $_.id -eq $sp })) { throw 'spot non valido' }
+    if ($mi -notmatch '^\d{1,3}$') { $mi = '' }
+    if (-not (Test-Path $fileDiario)) { [IO.File]::WriteAllText($fileDiario, "data;ora;spot;minuti;vela;note`r`n", (New-Object Text.UTF8Encoding($false))) }
+    [IO.File]::AppendAllText($fileDiario, "$d;$o;$sp;$mi;$v;$no`r`n", (New-Object Text.UTF8Encoding($false)))
+    Write-Host "Uscita salvata nel diario: $d $sp" -ForegroundColor Green
+  } catch { Write-Host "Uscita non salvata: $($_.Exception.Message)" -ForegroundColor Red }
+}
+if ($Link -like 'radarkite://partenza*') {
+  $q = Get-Parametri $Link
+  if ($q['p'] -eq 'casa' -or $q['p'] -eq 'lavoro') { Set-Impostazione 'partenza' $q['p']; $IMP.partenza = $q['p'] }
+  $forzaViaggi = $true
+}
+if ($Link -like 'radarkite://viaggi*') { $forzaViaggi = $true }
+
+# ---------------- Avvio automatico ogni ora (Utilita' di pianificazione di Windows) ----------------
+function Register-AvvioAutomatico {
+  try {
+    $nome = 'Radar kite'
+    $esistente = Get-ScheduledTask -TaskName $nome -ErrorAction SilentlyContinue
+    if ($IMP.avvio_automatico -ne 'si') {
+      if ($esistente) { Unregister-ScheduledTask -TaskName $nome -Confirm:$false; Write-Host '  Avvio automatico tolto.' }
+      return
+    }
+    $ps = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+    $arg = '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + $PSCommandPath + '" -Automatico'
+    if ($esistente -and $esistente.Actions[0].Arguments -eq $arg) { return }
+    $azione = New-ScheduledTaskAction -Execute $ps -Argument $arg -WorkingDirectory $cartella
+    $trigger = New-ScheduledTaskTrigger -Daily -At '06:30'
+    $ripeti = New-ScheduledTaskTrigger -Once -At '06:30' -RepetitionInterval (New-TimeSpan -Hours 1) -RepetitionDuration (New-TimeSpan -Hours 13)
+    $trigger.Repetition = $ripeti.Repetition
+    $opz = New-ScheduledTaskSettingsSet -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit (New-TimeSpan -Minutes 10) -MultipleInstances IgnoreNew
+    Register-ScheduledTask -TaskName $nome -Action $azione -Trigger $trigger -Settings $opz -Description 'Radar kite: previsioni e stazioni ogni ora dalle 6:30 alle 19:30' -Force | Out-Null
+    Write-Host '  Avvio automatico attivo: ogni ora dalle 6:30 alle 19:30.' -ForegroundColor Green
+  } catch {
+    Write-Host "  (avvio automatico non attivato: $($_.Exception.Message))" -ForegroundColor Yellow
+  }
+}
+
+# ---------------- Open-Meteo: meteo, secondo modello del vento, acqua ----------------
+function Read-OpenMeteo {
+  $lat = ($SPOT | ForEach-Object { ([double]$_.lat).ToString($INV) }) -join ','
+  $lon = ($SPOT | ForEach-Object { ([double]$_.lon).ToString($INV) }) -join ','
+  $url = "https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lon&hourly=temperature_2m,weather_code,precipitation,wind_speed_10m,wind_gusts_10m,wind_direction_10m&wind_speed_unit=kn&timezone=Europe%2FRome&forecast_days=9"
+  $lista = @(ConvertFrom-Json (Get-Testo $url 'https://open-meteo.com/'))
+  $out = @{}
+  for ($i = 0; $i -lt $SPOT.Count; $i++) {
+    $h = $lista[$i].hourly
+    $righe = New-Object System.Collections.ArrayList
+    for ($n = 0; $n -lt $h.time.Count; $n++) {
+      $t = [datetime]::ParseExact($h.time[$n], "yyyy-MM-dd'T'HH:mm", $INV)
+      [void]$righe.Add([pscustomobject]@{ t = $t; date = $t.Date; hour = $t.Hour; temp = $h.temperature_2m[$n]; code = $h.weather_code[$n]; rain = $h.precipitation[$n]
+        wind = $h.wind_speed_10m[$n]; gust = $h.wind_gusts_10m[$n]; deg = $h.wind_direction_10m[$n] })
+    }
+    $out[$SPOT[$i].id] = $righe
+  }
+  return $out
+}
+function Read-Acqua {
+  # Un punto un po' al largo di ogni spot, verso il mare (centro delle direzioni buone).
+  $lat = @(); $lon = @()
+  foreach ($s in $SPOT) {
+    $c = if ($s.ok[0] -le $s.ok[1]) { ($s.ok[0] + $s.ok[1]) / 2 } else { (($s.ok[0] + $s.ok[1] + 360) / 2) % 360 }
+    $lat += ([double]$s.lat + 0.06 * [Math]::Cos($c * [Math]::PI / 180)).ToString('0.000', $INV)
+    $lon += ([double]$s.lon + 0.06 * [Math]::Sin($c * [Math]::PI / 180) / 0.745).ToString('0.000', $INV)
+  }
+  $url = "https://marine-api.open-meteo.com/v1/marine?latitude=$($lat -join ',')&longitude=$($lon -join ',')&hourly=sea_surface_temperature&timezone=Europe%2FRome&forecast_days=1"
+  $lista = @(ConvertFrom-Json (Get-Testo $url 'https://open-meteo.com/'))
+  $out = @{}
+  for ($i = 0; $i -lt $SPOT.Count; $i++) {
+    $v = @($lista[$i].hourly.sea_surface_temperature | Where-Object { $_ -ne $null })
+    $out[$SPOT[$i].id] = $(if ($v.Count) { [Math]::Round(($v | Measure-Object -Average).Average) } else { $null })
+  }
+  return $out
+}
+function Get-Meteo($righeOm, [datetime]$giorno, $fascia) {
+  $periodi = @(@(8, 11), @(12, 16), @(17, 20))
+  $res = @()
+  foreach ($p in $periodi) {
+    $r = @($righeOm | Where-Object { $_.date -eq $giorno -and $_.hour -ge $p[0] -and $_.hour -le $p[1] -and $_.code -ne $null -and $_.temp -ne $null })
+    if (-not $r.Count) { $res += $null; continue }
+    $pioggia = @($r | Where-Object { $_.rain -ne $null })
+    $res += [ordered]@{ codice = [int]($r | Measure-Object code -Maximum).Maximum; temp = [int][Math]::Round(($r | Measure-Object temp -Average).Average)
+      pioggia = $(if ($pioggia.Count) { [Math]::Round(($pioggia | Measure-Object rain -Sum).Sum, 1) } else { 0 }) }
+  }
+  $temporale = @($righeOm | Where-Object { $_.date -eq $giorno -and $_.hour -ge $fascia[0] -and $_.hour -le $fascia[1] -and $_.code -ge 95 }).Count -gt 0
+  return [ordered]@{ periodi = $res; temporale = $temporale }
+}
+
+# Finestra firing su righe orarie (previsione Open-Meteo, previsione salvata o letture): 15 kts per 2 ore di fila, direzione non da terra.
+function Get-Finestra($s, $righe, [int]$inizio, [int]$fine) {
+  $ord = @($righe | Where-Object { $_ -ne $null -and $_.hour -ge $inizio -and $_.hour -le $fine -and $_.wind -ne $null -and $_.deg -ne $null } | Sort-Object hour)
+  $migliore = $null; $run = @()
+  foreach ($r in ($ord + @($null))) {
+    $ok = ($r -ne $null) -and ([double]$r.wind -ge $SOGLIA) -and ((Get-Classe $s ([double]$r.deg)) -ne 'terra')
+    if ($ok -and ($run.Count -eq 0 -or $r.hour -eq $run[-1].hour + 1)) { $run += $r; continue }
+    if ($run.Count) {
+      $dur = $run[-1].hour - $run[0].hour + 1
+      if ($dur -ge $ORE_MIN -and (-not $migliore -or $dur -gt ($migliore[-1].hour - $migliore[0].hour + 1))) { $migliore = $run }
+    }
+    $run = @(); if ($ok) { $run = @($r) }
+  }
+  if (-not $migliore) { return $null }
+  return [ordered]@{ ore = "$($migliore[0].hour)-$($migliore[-1].hour)"; min = [int][Math]::Round(($migliore | Measure-Object wind -Minimum).Minimum); max = [int][Math]::Round(($migliore | Measure-Object wind -Maximum).Maximum) }
+}
+
+# ---------------- Tempo di viaggio dalla partenza scelta ----------------
+function Get-Viaggi([bool]$forza) {
+  $fileV = Join-Path $dirDati 'viaggi.json'
+  $indirizzo = $IMP[$IMP.partenza]
+  if (-not $indirizzo) { return $null }
+  $cache = $null
+  if (Test-Path $fileV) { try { $cache = ConvertFrom-Json ([IO.File]::ReadAllText($fileV)) } catch { $cache = $null } }
+  $ids = @($SPOT | ForEach-Object { $_.id })
+  $valida = $cache -and $cache.indirizzo -eq $indirizzo -and -not @($ids | Where-Object { $cache.stima.$_ -eq $null }).Count
+  # Il traffico vero (chiave Google) si ricalcola solo quando lo chiedi o avvii a mano, non nelle corse automatiche.
+  $traffico = $IMP.google_chiave -and -not $Automatico
+  if ($valida -and -not $forza -and -not $traffico) { return $cache }
+  if ($valida) { $lat = $cache.lat; $lon = $cache.lon; $trovato = $cache.trovato; $stima = $cache.stima }
+  else {
+    $geo = @(ConvertFrom-Json (Get-Testo ("https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=it&q=" + [Uri]::EscapeDataString($indirizzo)) 'https://www.openstreetmap.org/'))
+    if (-not $geo.Count) { throw "indirizzo non trovato: $indirizzo" }
+    $lat = [double]::Parse($geo[0].lat, $INV); $lon = [double]::Parse($geo[0].lon, $INV); $trovato = $geo[0].display_name
+    $coord = @($lon.ToString($INV) + ',' + $lat.ToString($INV)) + @($SPOT | ForEach-Object { ([double]$_.lon).ToString($INV) + ',' + ([double]$_.lat).ToString($INV) })
+    $osrm = ConvertFrom-Json (Get-Testo ('https://router.project-osrm.org/table/v1/driving/' + ($coord -join ';') + '?sources=0&annotations=duration') 'https://project-osrm.org/')
+    $stima = [ordered]@{}
+    for ($i = 0; $i -lt $SPOT.Count; $i++) { $d = $osrm.durations[0][$i + 1]; $stima[$SPOT[$i].id] = $(if ($d -ne $null) { [int][Math]::Round([double]$d / 60) } else { $null }) }
+  }
+  $live = [ordered]@{}; $liveOra = ''
+  if ($traffico) {
+    try {
+      foreach ($s in $SPOT) {
+        $corpo = '{"origin":{"location":{"latLng":{"latitude":' + ([double]$lat).ToString($INV) + ',"longitude":' + ([double]$lon).ToString($INV) + '}}},"destination":{"location":{"latLng":{"latitude":' + ([double]$s.lat).ToString($INV) + ',"longitude":' + ([double]$s.lon).ToString($INV) + '}}},"travelMode":"DRIVE","routingPreference":"TRAFFIC_AWARE"}'
+        $r = Invoke-RestMethod -Method Post -Uri 'https://routes.googleapis.com/directions/v2:computeRoutes' -Body $corpo -ContentType 'application/json' -Headers @{ 'X-Goog-Api-Key' = $IMP.google_chiave; 'X-Goog-FieldMask' = 'routes.duration' } -TimeoutSec 20
+        $sec = [double](([string]$r.routes[0].duration) -replace 's', '')
+        $live[$s.id] = [int][Math]::Round($sec / 60)
+      }
+      $liveOra = $adesso.ToString('HH:mm', $INV)
+    } catch { Write-Host "  (traffico Google non letto: $($_.Exception.Message))" -ForegroundColor Yellow; $live = [ordered]@{} }
+  }
+  $nuovo = [ordered]@{ indirizzo = $indirizzo; partenza = $IMP.partenza; trovato = $trovato; lat = $lat; lon = $lon; calcolato = $adesso.ToString('yyyy-MM-dd HH:mm', $INV); stima = $stima; traffico = $live; trafficoOra = $liveOra }
+  [IO.File]::WriteAllText($fileV, (ConvertTo-Json $nuovo -Depth 4), (New-Object Text.UTF8Encoding($false)))
+  return (ConvertFrom-Json (ConvertTo-Json $nuovo -Depth 4))
+}
+
+# ---------------- PDF del report nella cartella Dropbox ----------------
+function Save-Pdf([string]$fileHtml) {
+  $dest = $IMP.dropbox
+  if (-not $dest -or $dest -eq 'no') { return }
+  if ($dest -eq 'auto') {
+    $dest = $null
+    $info = Join-Path $env:LOCALAPPDATA 'Dropbox\info.json'
+    if (Test-Path $info) { try { $j = ConvertFrom-Json ([IO.File]::ReadAllText($info)); if ($j.personal.path) { $dest = $j.personal.path } elseif ($j.business.path) { $dest = $j.business.path } } catch {} }
+    if (-not $dest -and (Test-Path (Join-Path $env:USERPROFILE 'Dropbox'))) { $dest = Join-Path $env:USERPROFILE 'Dropbox' }
+    if (-not $dest) { return }
+    $dest = Join-Path $dest 'Radar kite'
+  }
+  try {
+    if (-not (Test-Path $dest)) { New-Item -ItemType Directory -Path $dest -Force | Out-Null }
+    $browser = @("${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe", "$env:ProgramFiles\Microsoft\Edge\Application\msedge.exe", "$env:ProgramFiles\Google\Chrome\Application\chrome.exe", "${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.exe", "$env:LOCALAPPDATA\Google\Chrome\Application\chrome.exe", "$env:ProgramFiles\BraveSoftware\Brave-Browser\Application\brave.exe", "$env:LOCALAPPDATA\BraveSoftware\Brave-Browser\Application\brave.exe") | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
+    if (-not $browser) { Write-Host '  (PDF non creato: non trovo Edge, Chrome o Brave)' -ForegroundColor Yellow; return }
+    $pdf = Join-Path $dest 'Radar kite.pdf'
+    $tmp = Join-Path $env:TEMP ('radarkite-' + [guid]::NewGuid().ToString('N'))
+    $argomenti = @('--headless', '--disable-gpu', '--no-first-run', '--no-pdf-header-footer', '--print-to-pdf-no-header', "--user-data-dir=`"$tmp`"", '--window-size=1100,1400', '--virtual-time-budget=4000', "--print-to-pdf=`"$pdf`"", ('"' + ([Uri]$fileHtml).AbsoluteUri + '#pdf"'))
+    $p = Start-Process -FilePath $browser -ArgumentList $argomenti -WindowStyle Hidden -PassThru
+    if (-not $p.WaitForExit(60000)) { try { $p.Kill() } catch {} }
+    Remove-Item -Path $tmp -Recurse -Force -ErrorAction SilentlyContinue
+    if (Test-Path $pdf) { Write-Host "  PDF per il telefono: $pdf" -ForegroundColor Green }
+  } catch { Write-Host "  (PDF non creato: $($_.Exception.Message))" -ForegroundColor Yellow }
+}
+
 # ---------------- Esecuzione ----------------
 Write-Host "Radar kite $VERSIONE ($DATA_VERSIONE) di $AUTORE - $($adesso.ToString('dd/MM/yyyy HH:mm', $INV))" -ForegroundColor Cyan
+if (-not $Automatico -and -not $Link) { Register-AvvioAutomatico }
 $spotRes = @()
 foreach ($s in $SPOT) {
   Write-Host "  Windguru $($s.nome)... " -NoNewline
@@ -332,6 +573,18 @@ foreach ($st in $STAZIONI) {
   }
 }
 
+Write-Host '  Open-Meteo (meteo e secondo modello)... ' -NoNewline
+$OM = @{}
+try { $OM = Read-OpenMeteo; Write-Host 'ok' -ForegroundColor Green } catch { Write-Host "ERRORE: $($_.Exception.Message)" -ForegroundColor Red }
+Write-Host '  Temperatura dell''acqua... ' -NoNewline
+$ACQUA = @{}
+try { $ACQUA = Read-Acqua; Write-Host 'ok' -ForegroundColor Green } catch { Write-Host "ERRORE: $($_.Exception.Message)" -ForegroundColor Red }
+$VIAGGI = $null
+if ($IMP[$IMP.partenza]) {
+  Write-Host "  Tempi di viaggio da $($IMP.partenza)... " -NoNewline
+  try { $VIAGGI = Get-Viaggi $forzaViaggi; Write-Host 'ok' -ForegroundColor Green } catch { Write-Host "ERRORE: $($_.Exception.Message)" -ForegroundColor Red }
+}
+
 # Righe firing (previsione + stazione che segna gia' firing adesso)
 $righeFiring = @()
 foreach ($r in $spotRes) {
@@ -355,49 +608,141 @@ if ($righeFiring.Count) {
   Write-Host 'Nessuna finestra di vento nei prossimi giorni.' -ForegroundColor Yellow
 }
 
-# ---------------- Storico: le letture delle stazioni salvate a ogni avvio ----------------
-# storico.csv (nella cartella) tiene le letture aggiornate degli ultimi 60 giorni; i giorni passati
-# della settimana nel calendario mostrano cosa e' stato letto lì, non vanno a cercare dati altrove.
-$fileStorico = Join-Path $cartella 'storico.csv'
-$storico = @()
+# ---------------- Storico (2 anni): letture e previsioni in dati\, un file per mese ----------------
+# letture-AAAA-MM.csv: le letture aggiornate delle stazioni a ogni avvio.
+# previsioni-AAAA-MM.csv: la prima previsione salvata ogni giorno (per oggi e per domani), Windguru e Open-Meteo.
+# Si aprono con Excel. Oltre i 2 anni i file vengono tolti.
+$UTF8 = New-Object Text.UTF8Encoding($false)
+function Get-FileMese([string]$tipo, [datetime]$d) { return (Join-Path $dirDati ("$tipo-" + $d.ToString('yyyy-MM', $INV) + '.csv')) }
+function Read-Righe([string]$file) { if (Test-Path $file) { return @([IO.File]::ReadAllLines($file) | Select-Object -Skip 1 | Where-Object { $_ }) } else { return @() } }
+function Add-Righe([string]$file, [string]$intestazione, $righe) {
+  if (-not @($righe).Count) { return }
+  if (-not (Test-Path $file)) { [IO.File]::WriteAllText($file, $intestazione + "`r`n", $UTF8) }
+  [IO.File]::AppendAllText($file, ((@($righe) -join "`r`n") + "`r`n"), $UTF8)
+}
+$INT_LETTURE = 'data;stazione;spot;vento;raffica;gradi'
+$INT_PREV = 'giorno;spot;anticipo;fonte;ora;vento;raffica;gradi;salvata'
 try {
-  $righe = @()
-  if (Test-Path $fileStorico) { $righe = @([IO.File]::ReadAllLines($fileStorico) | Where-Object { $_ -and $_ -match '^\d{4}-\d{2}-\d{2} ' }) }
-  $limite = $adesso.Date.AddDays(-60).ToString('yyyy-MM-dd', $INV)
-  $righe = @($righe | Where-Object { $_.Substring(0, 10) -ge $limite })
+  # Lo storico.csv delle versioni 1.x passa nei file mensili (una volta sola).
+  $vecchio = Join-Path $cartella 'storico.csv'
+  if (Test-Path $vecchio) {
+    $gruppi = @{}
+    foreach ($r in @([IO.File]::ReadAllLines($vecchio) | Where-Object { $_ -match '^\d{4}-\d{2}-\d{2} ' })) { $m = $r.Substring(0, 7); if (-not $gruppi[$m]) { $gruppi[$m] = New-Object System.Collections.ArrayList }; [void]$gruppi[$m].Add($r) }
+    foreach ($m in $gruppi.Keys) { $f = Join-Path $dirDati "letture-$m.csv"; $gia = Read-Righe $f; Add-Righe $f $INT_LETTURE @($gruppi[$m] | Where-Object { $gia -notcontains $_ }) }
+    Move-Item -Path $vecchio -Destination (Join-Path $dirDati 'storico-versione-1.csv') -Force
+  }
+  # Letture di adesso.
+  $fileL = Get-FileMese 'letture' $adesso
+  $gia = Read-Righe $fileL
+  $nuove = @()
   foreach ($st in $STAZIONI) {
     $l = $stRes[$st.id]
     if (-not $l -or $l.errore -or -not $l.fresca) { continue }
     $suo = $SPOT | Where-Object { $_.stazioni -contains $st.id } | Select-Object -First 1
     $g = if ($l.gust -ne $null) { ([double]$l.gust).ToString($INV) } else { '' }
     $riga = $l.t.ToString('yyyy-MM-dd HH:mm', $INV) + ';' + $st.id + ';' + $suo.id + ';' + ([double]$l.wind).ToString($INV) + ';' + $g + ';' + ([double]$l.deg).ToString($INV)
-    if ($righe -notcontains $riga) { $righe += $riga }
+    if ($gia -notcontains $riga -and $nuove -notcontains $riga) { $nuove += $riga }
   }
-  [IO.File]::WriteAllLines($fileStorico, [string[]](@('data;stazione;spot;vento;raffica;gradi') + $righe), (New-Object Text.UTF8Encoding($false)))
-  $storico = $righe
+  Add-Righe $fileL $INT_LETTURE $nuove
+  # Previsione del giorno: la prima di oggi (anticipo 0) e quella per domani (anticipo 1), una volta sola.
+  for ($k = 0; $k -le 1; $k++) {
+    $giorno = $adesso.Date.AddDays($k); $chiave = $giorno.ToString('yyyy-MM-dd', $INV)
+    $fileP = Get-FileMese 'previsioni' $giorno
+    $presenti = @{}
+    foreach ($r in (Read-Righe $fileP)) { $p = $r.Split(';'); $presenti["$($p[0]);$($p[1]);$($p[2]);$($p[3])"] = 1 }
+    $nuove = @()
+    foreach ($r in $spotRes) {
+      $fonti = @(@{ f = 'wg'; righe = $(if ($r.wg) { $r.wg.righe } else { @() }) }, @{ f = 'om'; righe = $(if ($OM[$r.s.id]) { $OM[$r.s.id] } else { @() }) })
+      foreach ($fo in $fonti) {
+        if ($presenti["$chiave;$($r.s.id);$k;$($fo.f)"]) { continue }
+        foreach ($x in @($fo.righe | Where-Object { $_.date -eq $giorno -and $_.hour -ge 6 -and $_.hour -le 20 -and $_.wind -ne $null })) {
+          $g = if ($x.gust -ne $null) { ([double]$x.gust).ToString($INV) } else { '' }
+          $nuove += "$chiave;$($r.s.id);$k;$($fo.f);$($x.hour);$(([double]$x.wind).ToString('0.#', $INV));$g;$(([double]$x.deg).ToString('0', $INV));$($adesso.ToString('HH:mm', $INV))"
+        }
+      }
+    }
+    Add-Righe $fileP $INT_PREV $nuove
+  }
+  # Oltre i 2 anni si toglie.
+  $limite = $adesso.AddMonths(-24).ToString('yyyy-MM', $INV)
+  Get-ChildItem -Path $dirDati -Filter '*.csv' | Where-Object { $_.Name -match '^(letture|previsioni)-(\d{4}-\d{2})\.csv$' -and $Matches[2] -lt $limite } | Remove-Item -Force
 } catch {
-  Write-Host "  (storico non aggiornato: $($_.Exception.Message))" -ForegroundColor Yellow
+  Write-Host "  (storico non aggiornato: $($_.Exception.Message) riga $($_.InvocationInfo.ScriptLineNumber))" -ForegroundColor Yellow
 }
+
+# Giorni passati della settimana: letture orarie, previsione salvata quel giorno, verdetto.
 $lunedi = $adesso.Date.AddDays(-(([int]$adesso.DayOfWeek + 6) % 7))
-$daLunedi = @(foreach ($r in $storico) {
+$mesi = @($lunedi, $adesso.Date) | ForEach-Object { $_.ToString('yyyy-MM', $INV) } | Select-Object -Unique
+$letture = @(foreach ($m in $mesi) { foreach ($r in (Read-Righe (Join-Path $dirDati "letture-$m.csv"))) {
   if ($r.Substring(0, 10) -lt $lunedi.ToString('yyyy-MM-dd', $INV)) { continue }
   $p = $r.Split(';')
-  [pscustomobject]@{ data = $p[0].Substring(0, 10); ora = $p[0].Substring(11, 5); h = [int]$p[0].Substring(11, 2); spot = $p[2]
+  [pscustomobject]@{ data = $p[0].Substring(0, 10); ora = $p[0].Substring(11, 5); h = [int]$p[0].Substring(11, 2); hour = [int]$p[0].Substring(11, 2); stazione = $p[1]; spot = $p[2]
     wind = [double]::Parse($p[3], $INV); gust = $(if ($p[4]) { [double]::Parse($p[4], $INV) } else { $null }); deg = [double]::Parse($p[5], $INV) }
-})
+} })
+$previsioni = @(foreach ($m in $mesi) { foreach ($r in (Read-Righe (Join-Path $dirDati "previsioni-$m.csv"))) {
+  if ($r.Substring(0, 10) -lt $lunedi.ToString('yyyy-MM-dd', $INV)) { continue }
+  $p = $r.Split(';')
+  [pscustomobject]@{ giorno = $p[0]; spot = $p[1]; anticipo = [int]$p[2]; fonte = $p[3]; hour = [int]$p[4]; wind = [double]::Parse($p[5], $INV)
+    gust = $(if ($p[6]) { [double]::Parse($p[6], $INV) } else { $null }); deg = [double]::Parse($p[7], $INV); salvata = $p[8] }
+} })
+function Get-OreRegistrate($s, $lett) {
+  $out = @()
+  foreach ($gr in @($lett | Group-Object h)) {
+    $sel = $null
+    foreach ($sid in $s.stazioni) { $x = @($gr.Group | Where-Object { $_.stazione -eq $sid }); if ($x.Count) { $sel = $x; break } }
+    if (-not $sel) { $sel = @($gr.Group) }
+    $gx = @($sel | Where-Object { $_.gust -ne $null })
+    $out += [pscustomobject]@{ hour = [int]$gr.Name; wind = [Math]::Round(($sel | Measure-Object wind -Average).Average, 1)
+      gust = $(if ($gx.Count) { ($gx | Measure-Object gust -Maximum).Maximum } else { $null }); deg = ($sel | Sort-Object wind -Descending | Select-Object -First 1).deg; n = $sel.Count }
+  }
+  return @($out | Sort-Object hour)
+}
 $datiPassati = @()
 for ($giorno = $lunedi; $giorno -lt $adesso.Date; $giorno = $giorno.AddDays(1)) {
   $chiave = $giorno.ToString('yyyy-MM-dd', $INV); $f = Get-Fascia $giorno
-  $perSpot = @()
+  $perSpot = @(); $dettaglio = @()
   foreach ($s in $SPOT) {
-    $lett = @($daLunedi | Where-Object { $_.data -eq $chiave -and $_.spot -eq $s.id -and $_.h -ge $f[0] -and $_.h -le $f[1] })
-    if (-not $lett.Count) { continue }
-    $buone = @($lett | Where-Object { (Get-Classe $s $_.deg) -ne 'terra' })
-    $top = if ($buone.Count) { $buone | Sort-Object wind -Descending | Select-Object -First 1 } else { $lett | Sort-Object wind -Descending | Select-Object -First 1 }
-    $perSpot += [ordered]@{ id = $s.id; breve = $s.breve; letture = $lett.Count; max = $top.wind; gust = $top.gust; dir = (Get-Comp $top.deg); ora = $top.ora
-      buono = ($top.wind -ge $SOGLIA -and (Get-Classe $s $top.deg) -ne 'terra'); oltre = @($buone | Where-Object { $_.wind -ge $SOGLIA }).Count }
+    $lett = @($letture | Where-Object { $_.data -eq $chiave -and $_.spot -eq $s.id -and $_.h -ge $f[0] -and $_.h -le $f[1] })
+    if ($lett.Count) {
+      $buone = @($lett | Where-Object { (Get-Classe $s $_.deg) -ne 'terra' })
+      $top = if ($buone.Count) { $buone | Sort-Object wind -Descending | Select-Object -First 1 } else { $lett | Sort-Object wind -Descending | Select-Object -First 1 }
+      $perSpot += [ordered]@{ id = $s.id; breve = $s.breve; letture = $lett.Count; max = $top.wind; gust = $top.gust; dir = (Get-Comp $top.deg); ora = $top.ora
+        buono = ($top.wind -ge $SOGLIA -and (Get-Classe $s $top.deg) -ne 'terra'); oltre = @($buone | Where-Object { $_.wind -ge $SOGLIA }).Count }
+    }
+    # Confronto: previsione salvata quel giorno (se no quella del giorno prima) contro letture ora per ora.
+    $pv = @($previsioni | Where-Object { $_.giorno -eq $chiave -and $_.spot -eq $s.id })
+    $ant = if (@($pv | Where-Object { $_.anticipo -eq 0 -and $_.fonte -eq 'wg' }).Count) { 0 } else { 1 }
+    $wgPrev = @($pv | Where-Object { $_.anticipo -eq $ant -and $_.fonte -eq 'wg' -and $_.hour -ge $f[0] -and $_.hour -le $f[1] } | Sort-Object hour)
+    $omPrev = @($pv | Where-Object { $_.anticipo -eq $ant -and $_.fonte -eq 'om' -and $_.hour -ge $f[0] -and $_.hour -le $f[1] } | Sort-Object hour)
+    $reg = Get-OreRegistrate $s $lett
+    if (-not $wgPrev.Count -and -not $reg.Count) { continue }
+    $diff = @(); foreach ($x in $reg) { $y = $wgPrev | Where-Object { $_.hour -eq $x.hour } | Select-Object -First 1; if ($y) { $diff += ($y.wind - $x.wind) } }
+    $dettaglio += [ordered]@{ id = $s.id; nome = $s.nome; salvata = $(if ($wgPrev.Count) { $wgPrev[0].salvata } else { '' }); anticipo = $ant
+      prev = @($wgPrev | ForEach-Object { [ordered]@{ h = $_.hour; w = $_.wind; g = $_.gust; d = (Get-Comp $_.deg) } })
+      om = @($omPrev | ForEach-Object { [ordered]@{ h = $_.hour; w = $_.wind } })
+      reg = @($reg | ForEach-Object { [ordered]@{ h = $_.hour; w = $_.wind; g = $_.gust; d = (Get-Comp $_.deg); n = $_.n } })
+      prevF = (Get-Finestra $s $wgPrev $f[0] $f[1]); omF = (Get-Finestra $s $omPrev $f[0] $f[1]); regF = (Get-Finestra $s $reg $f[0] $f[1])
+      scarto = $(if ($diff.Count) { [Math]::Round(($diff | Measure-Object -Average).Average, 1) } else { $null }); oreConfronto = $diff.Count }
   }
-  $datiPassati += [ordered]@{ data = $chiave; spot = $perSpot }
+  $datiPassati += [ordered]@{ data = $chiave; spot = $perSpot; dettaglio = $dettaglio }
+}
+
+# Diario delle uscite (ultime 30), con il vento letto durante l'uscita se c'e'.
+$datiDiario = @()
+if (Test-Path $fileDiario) {
+  $righeD = @(Read-Righe $fileDiario | Select-Object -Last 30)
+  $mesiD = @($righeD | ForEach-Object { $_.Substring(0, 7) } | Select-Object -Unique)
+  $lettD = @(foreach ($m in $mesiD) { foreach ($r in (Read-Righe (Join-Path $dirDati "letture-$m.csv"))) { $p = $r.Split(';'); [pscustomobject]@{ t = [datetime]::ParseExact($p[0], 'yyyy-MM-dd HH:mm', $INV); spot = $p[2]; wind = [double]::Parse($p[3], $INV); gust = $(if ($p[4]) { [double]::Parse($p[4], $INV) } else { $null }); deg = [double]::Parse($p[5], $INV) } } })
+  foreach ($r in $righeD) {
+    $p = $r.Split(';')
+    $vento = $null
+    if ($p[1] -and $p[3]) {
+      $da = [datetime]::ParseExact("$($p[0]) $($p[1])", 'yyyy-MM-dd H:mm', $INV); $a = $da.AddMinutes([int]$p[3])
+      $x = @($lettD | Where-Object { $_.spot -eq $p[2] -and $_.t -ge $da.AddMinutes(-20) -and $_.t -le $a.AddMinutes(20) })
+      if ($x.Count) { $gx = @($x | Where-Object { $_.gust -ne $null }); $vento = [ordered]@{ w = [Math]::Round(($x | Measure-Object wind -Average).Average, 1); g = $(if ($gx.Count) { ($gx | Measure-Object gust -Maximum).Maximum } else { $null }); d = (Get-Comp ($x | Sort-Object wind -Descending | Select-Object -First 1).deg); n = $x.Count } }
+    }
+    $datiDiario += [ordered]@{ data = $p[0]; ora = $p[1]; spot = $p[2]; minuti = $(if ($p[3]) { [int]$p[3] } else { $null }); vela = $p[4]; note = $(if ($p.Count -gt 5) { $p[5] } else { '' }); vento = $vento }
+  }
 }
 
 # ---------------- Report HTML ----------------
@@ -426,19 +771,29 @@ foreach ($r in $spotRes) {
   } elseif ($l) {
     $ad = [ordered]@{ fonte = 'vecchia'; wind = (Num $l.wind); gust = (Num $l.gust); deg = $l.deg; dir = (Get-Comp $l.deg); ora = $l.t.ToString('HH:mm', $INV); nome = $nomeSt }
   }
-  $gg = @()
+  $tessere = @()
+  $omS = $OM[$s.id]
   foreach ($g in $r.giorni) {
     $o = [ordered]@{ firing = $g.firing; max = $g.max; maxRaff = $g.maxRaff; maxDir = $g.maxDir }
+    if ($omS) {
+      $fa = Get-Fascia $g.data
+      $ini = if ($g.oggi) { [Math]::Max($fa[0], $adesso.AddHours($VIAGGIO_ORE).Hour) } else { $fa[0] }
+      $o.meteo = Get-Meteo $omS $g.data $fa
+      $omOre = @($omS | Where-Object { $_.date -eq $g.data -and $_.hour -ge $ini -and $_.hour -le $fa[1] -and $_.wind -ne $null })
+      $o.om = [ordered]@{ firing = (Get-Finestra $s $omOre $ini $fa[1]); max = $(if ($omOre.Count) { [int][Math]::Round(($omOre | Measure-Object wind -Maximum).Maximum) } else { $null }) }
+    }
     if ($g.firing) {
       $o.ore = $g.ore; $o.durata = $g.durata; $o.min = $g.min; $o.maxf = $g.maxf; $o.raffica = $g.raffica; $o.dir = $g.dir
       $o.pericolose = $g.pericolose; $o.rafficato = $g.rafficato; $o.sideoff = $g.sideoff; $o.ideale = $g.ideale; $o.attenzione = $g.attenzione
     }
-    $gg += $o
+    $tessere += $o
   }
   $staz = @(foreach ($sid in $s.stazioni) { $x = $STAZIONI | Where-Object { $_.id -eq $sid } | Select-Object -First 1; [ordered]@{ id = $x.id; nome = $x.nome; etichetta = $x.etichetta; pagina = $x.pagina } })
-  $datiSpot += [ordered]@{ id = $s.id; nome = $s.nome; breve = $s.breve; mappa = $(if ($s.mappa) { $s.mappa } else { $s.breve }); lon = $s.lon; lat = $s.lat; lab = $s.lab; wg = $s.wg; webcam = $s.webcam
+  $viaggio = $null
+  if ($VIAGGI) { $viaggio = [ordered]@{ stima = $VIAGGI.stima.($s.id); traffico = $(if ($VIAGGI.traffico) { $VIAGGI.traffico.($s.id) } else { $null }); ora = $VIAGGI.trafficoOra } }
+  $datiSpot += [ordered]@{ viaggio = $viaggio; acqua = $ACQUA[$s.id]; id = $s.id; nome = $s.nome; breve = $s.breve; mappa = $(if ($s.mappa) { $s.mappa } else { $s.breve }); lon = $s.lon; lat = $s.lat; lab = $s.lab; wg = $s.wg; webcam = $s.webcam
     ok = $s.ok; terra = $s.terra; stazioni = $staz; errore = $r.errore
-    wgSpot = $(if ($r.wg) { $r.wg.spot } else { '' }); init = $(if ($r.wg) { $r.wg.init } else { '' }); adesso = $ad; giorni = $gg }
+    wgSpot = $(if ($r.wg) { $r.wg.spot } else { '' }); init = $(if ($r.wg) { $r.wg.init } else { '' }); adesso = $ad; giorni = $tessere }
 }
 $datiStazioni = @()
 foreach ($st in $STAZIONI) {
@@ -448,7 +803,8 @@ foreach ($st in $STAZIONI) {
   $stato = if ($l.offline) { 'offline' } elseif ($l.fresca) { 'aggiornata' } else { 'vecchia' }
   $datiStazioni += [ordered]@{ id = $st.id; nome = $st.nome; pagina = $st.pagina; spot = $suo.id; data = $l.t.ToString('dd/MM', $INV); giorni = [int][Math]::Floor(($adesso - $l.t).TotalDays); wind = (Num $l.wind); gust = (Num $l.gust); deg = $l.deg; dir = (Get-Comp $l.deg); ora = $l.t.ToString('HH:mm', $INV); stato = $stato }
 }
-$dati = [ordered]@{ versione = $VERSIONE; dataVersione = $DATA_VERSIONE; autore = $AUTORE; creato = $adesso.ToString("yyyy-MM-dd'T'HH:mm:ss", $INV); soglia = $SOGLIA; oreMin = $ORE_MIN; giorni = $datiGiorni; passati = $datiPassati; spot = $datiSpot; stazioni = $datiStazioni }
+$dati = [ordered]@{ versione = $VERSIONE; dataVersione = $DATA_VERSIONE; autore = $AUTORE; creato = $adesso.ToString("yyyy-MM-dd'T'HH:mm:ss", $INV); soglia = $SOGLIA; oreMin = $ORE_MIN; giorni = $datiGiorni; passati = $datiPassati; spot = $datiSpot; stazioni = $datiStazioni; diario = $datiDiario
+  partenza = [ordered]@{ scelta = $IMP.partenza; casa = $IMP.casa; lavoro = $IMP.lavoro; trovato = $(if ($VIAGGI) { $VIAGGI.trovato } else { '' }); lat = $(if ($VIAGGI) { $VIAGGI.lat } else { $null }); lon = $(if ($VIAGGI) { $VIAGGI.lon } else { $null }); google = [bool]$IMP.google_chiave } }
 $json = ConvertTo-Json -InputObject $dati -Depth 8 -Compress
 $modello = [IO.File]::ReadAllText((Join-Path $cartella 'report-modello.html'), [Text.Encoding]::UTF8)
 $html = $modello.Replace('/*DATI*/null', $json)
@@ -457,5 +813,6 @@ $file = Join-Path $cartella 'report.html'
 [IO.File]::WriteAllText($file, $html, (New-Object Text.UTF8Encoding($true)))
 Write-Host ''
 Write-Host "Report: $file"
+Save-Pdf $file
 if (-not $NonAprire) { Start-Process $file }
 if ($Link) { Start-Sleep -Seconds 2 }
