@@ -8,10 +8,7 @@ param([switch]$NonAprire, [string]$SalvaGrezzi = '', [string]$Link = '', [switch
 
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
-# TLS 1.2, e 1.3 dove Windows lo supporta (alcuni servizi, come i percorsi stradali, chiedono la 1.3).
-$protocolli = [Net.SecurityProtocolType]::Tls12
-try { $protocolli = $protocolli -bor [Net.SecurityProtocolType]'Tls13' } catch {}
-[Net.ServicePointManager]::SecurityProtocol = $protocolli
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
 $VERSIONE = '2.0'
 $DATA_VERSIONE = '19/11/2026'
@@ -418,7 +415,8 @@ function Read-OpenMeteo {
   $lat = ($SPOT | ForEach-Object { ([double]$_.lat).ToString($INV) }) -join ','
   $lon = ($SPOT | ForEach-Object { ([double]$_.lon).ToString($INV) }) -join ','
   $url = "https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lon&hourly=temperature_2m,weather_code,precipitation,wind_speed_10m,wind_gusts_10m,wind_direction_10m&wind_speed_unit=kn&timezone=Europe%2FRome&forecast_days=9"
-  $lista = @(ConvertFrom-Json (Get-Testo $url 'https://open-meteo.com/'))
+  $j = ConvertFrom-Json (Get-Testo $url 'https://open-meteo.com/')
+  $lista = @($j)
   $out = @{}
   for ($i = 0; $i -lt $SPOT.Count; $i++) {
     $h = $lista[$i].hourly
@@ -441,7 +439,8 @@ function Read-Acqua {
     $lon += ([double]$s.lon + 0.06 * [Math]::Sin($c * [Math]::PI / 180) / 0.745).ToString('0.000', $INV)
   }
   $url = "https://marine-api.open-meteo.com/v1/marine?latitude=$($lat -join ',')&longitude=$($lon -join ',')&hourly=sea_surface_temperature&timezone=Europe%2FRome&forecast_days=1"
-  $lista = @(ConvertFrom-Json (Get-Testo $url 'https://open-meteo.com/'))
+  $j = ConvertFrom-Json (Get-Testo $url 'https://open-meteo.com/')
+  $lista = @($j)
   $out = @{}
   for ($i = 0; $i -lt $SPOT.Count; $i++) {
     $v = @($lista[$i].hourly.sea_surface_temperature | Where-Object { $_ -ne $null })
@@ -492,9 +491,14 @@ function Get-Viaggi([bool]$forza) {
   # Il traffico vero (chiave Google) si ricalcola solo quando lo chiedi o avvii a mano, non nelle corse automatiche.
   $traffico = $IMP.google_chiave -and -not $Automatico
   if ($valida -and -not $forza -and -not $traffico) { return $cache }
+  # I servizi dei percorsi chiedono TLS 1.3 (dove Windows lo supporta): lo accendo solo qui.
+  $tlsPrima = [Net.ServicePointManager]::SecurityProtocol
+  try { [Net.ServicePointManager]::SecurityProtocol = $tlsPrima -bor [Net.SecurityProtocolType]'Tls13' } catch {}
+  try {
   if ($valida) { $lat = $cache.lat; $lon = $cache.lon; $trovato = $cache.trovato; $stima = $cache.stima }
   else {
-    $geo = @(ConvertFrom-Json (Get-Testo ("https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=it&q=" + [Uri]::EscapeDataString($indirizzo)) 'https://www.openstreetmap.org/'))
+    $j = ConvertFrom-Json (Get-Testo ("https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=it&q=" + [Uri]::EscapeDataString($indirizzo)) 'https://www.openstreetmap.org/')
+    $geo = @($j)
     if (-not $geo.Count) { throw "indirizzo non trovato: $indirizzo" }
     $lat = [double]::Parse($geo[0].lat, $INV); $lon = [double]::Parse($geo[0].lon, $INV); $trovato = $geo[0].display_name
     $coord = @($lon.ToString($INV) + ',' + $lat.ToString($INV)) + @($SPOT | ForEach-Object { ([double]$_.lon).ToString($INV) + ',' + ([double]$_.lat).ToString($INV) })
@@ -514,6 +518,7 @@ function Get-Viaggi([bool]$forza) {
       $liveOra = $adesso.ToString('HH:mm', $INV)
     } catch { Write-Host "  (traffico Google non letto: $($_.Exception.Message))" -ForegroundColor Yellow; $live = [ordered]@{} }
   }
+  } finally { [Net.ServicePointManager]::SecurityProtocol = $tlsPrima }
   $nuovo = [ordered]@{ indirizzo = $indirizzo; partenza = $IMP.partenza; trovato = $trovato; lat = $lat; lon = $lon; calcolato = $adesso.ToString('yyyy-MM-dd HH:mm', $INV); stima = $stima; traffico = $live; trafficoOra = $liveOra }
   [IO.File]::WriteAllText($fileV, (ConvertTo-Json $nuovo -Depth 4), (New-Object Text.UTF8Encoding($false)))
   return (ConvertFrom-Json (ConvertTo-Json $nuovo -Depth 4))
