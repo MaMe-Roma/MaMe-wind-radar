@@ -34,12 +34,11 @@ jobs:
           "Corsa automatica:"; powershell -NoProfile -ExecutionPolicy Bypass -File radarkite\radar-kite.ps1 -Automatico | Select-Object -Last 5
           "File dati:"; Get-ChildItem radarkite\dati | ForEach-Object { "$($_.Name) $($_.Length)" }
           "PDF:"; Get-ChildItem pdfout | ForEach-Object { "$($_.Name) $($_.Length)" }
-          "Viaggi:"; Get-Content radarkite\dati\viaggi.json
-      - name: Report in base64
+          "Viaggi:"; if (Test-Path radarkite\dati\viaggi.json) { Get-Content radarkite\dati\viaggi.json }
+      - name: Report e PDF in base64 a pezzi
         if: always()
         shell: powershell
-        run: "'B64:' + [Convert]::ToBase64String([IO.File]::ReadAllBytes('radarkite\\report.html'))"
-      - name: PDF in base64
-        if: always()
-        shell: powershell
-        run: "if (Test-Path 'pdfout\\Radar kite.pdf') { 'PDF64:' + [Convert]::ToBase64String([IO.File]::ReadAllBytes('pdfout\\Radar kite.pdf')) }"
+        run: |
+          function Pezzi($tag, $file) { if (-not (Test-Path $file)) { return }; $b = [Convert]::ToBase64String([IO.File]::ReadAllBytes($file)); for ($i = 0; $i -lt $b.Length; $i += 40000) { "$tag" + ($i / 40000) + ':' + $b.Substring($i, [Math]::Min(40000, $b.Length - $i)) } }
+          Pezzi 'HTML' 'radarkite\report.html'
+          Pezzi 'PDF' 'pdfout\Radar kite.pdf'
