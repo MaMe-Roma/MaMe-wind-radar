@@ -52,6 +52,8 @@ jobs:
           "File dati:"; Get-ChildItem radarkite\dati | ForEach-Object { "$($_.Name) $($_.Length)" }
           "PDF:"; Get-ChildItem pdfout | ForEach-Object { "$($_.Name) $($_.Length)" }
           "Viaggi:"; if (Test-Path radarkite\dati\viaggi.json) { Get-Content radarkite\dati\viaggi.json }
+          "Indirizzi dalla pagina:"; powershell -NoProfile -ExecutionPolicy Bypass -File radarkite\radar-kite.ps1 -Link 'radarkite://indirizzi?c=Via%20Ostiense%20162%2C%20Roma%20(41.86400%2C%2012.47700)&l=&p=casa' -OmProva "$PWD\om-prova.json" | Select-String 'Partenza salvata|viaggio|ERRORE'
+          Get-Content radarkite\impostazioni.txt | Select-String '^(casa|lavoro|partenza) ='; (Select-String -Path radarkite\report.html -Pattern '"partenza":\{[^}]*\}').Matches.Value
           "Partenza lavoro (coordinate):"; powershell -NoProfile -ExecutionPolicy Bypass -File radarkite\radar-kite.ps1 -Link 'radarkite://partenza?p=lavoro' -OmProva "$PWD\om-prova.json" | Select-String 'viaggio|ERRORE'
           Get-Content radarkite\dati\viaggi.json; (Select-String -Path radarkite\report.html -Pattern '"partenza":\{[^}]*\}').Matches.Value
       - name: Report e PDF in base64 a pezzi
