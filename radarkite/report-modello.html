@@ -106,11 +106,12 @@ svg{display:block;width:100%;height:auto}
 .foot{color:var(--muted);font-size:12px;margin-top:20px;line-height:1.5}
 /* 2.0: partenza, meteo, confronto, diario */
 .pform{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:flex-end;margin:8px 0 0;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--panel)}
-.pform[hidden]{display:none}
+.pform[hidden],.perr[hidden]{display:none}
+.attesa{color:var(--warn)}
 .pform .aiuto{flex:1 1 100%;line-height:1.5}
-.perr{margin-top:8px;padding:8px 12px;border:1px solid var(--bad);border-radius:8px;color:var(--bad);font-size:13px;font-weight:600}
+.perr{flex:1 1 100%;margin-top:8px;padding:8px 12px;border:1px solid var(--bad);border-radius:8px;color:var(--bad);font-size:13px;font-weight:600}
 body.pdf .perr{display:none}
-.pform label{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--muted);flex:1 1 300px}
+.pform .pcampo{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted);flex:1 1 300px}
 .pform input{font:inherit;font-size:13px;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:6px 8px}
 .barra{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px;font-size:13px}
 .barra select,.barra button,.pform button,.diario input,.diario select,.diario button{font:inherit;font-size:13px;color:var(--fg);background:var(--panel);border:1px solid var(--line);border-radius:7px;padding:4px 8px}
@@ -307,6 +308,13 @@ var D = /*DATI*/null;
         st.textContent = 'Il programma non ha risposto: avvialo dalla cartella Radar kite.';
       }
     }
+    // Pagina aperta prima delle stazioni: si ricarica da sola finche' arrivano (massimo 90 secondi).
+    if (D.aggiornando && !PDF) {
+      if (Date.now() - creato.getTime() < 90000) {
+        btn.disabled = true; st.textContent = '⏳ Lettura stazioni in corso…';
+        setTimeout(function () { location.reload(); }, 2500);
+      } else st.textContent = 'Stazioni non lette: premi Aggiorna.';
+    }
     btn.addEventListener('click', function () { lancia('radarkite://aggiorna'); });
   })();
   // Avvia il programma sul PC con un link radarkite:// (aggiorna, partenza, ricalcolo tempi, uscita nel diario)
@@ -342,25 +350,46 @@ var D = /*DATI*/null;
     var b = document.getElementById('barra'), P = D.partenza || {};
     // Modulo per scrivere casa e lavoro: li salva il programma (impostazioni.txt), poi ricalcola e ricarica.
     var form = h('div', 'pform'); form.hidden = true;
+    // Per ogni partenza: riga 1 l'indirizzo, riga 2 le coordinate (facoltative, servono se la mappa non trova il civico).
+    var RE = /(-?\d{1,2}\.\d{3,})\s*,\s*(-?\d{1,3}\.\d{3,})/;
     function campo(nome, val) {
-      var l = h('label'); l.append(h('span', null, nome));
-      var i = h('input'); i.type = 'text'; i.value = val || ''; i.placeholder = 'es. Via Roma 1, Roma (41.90000, 12.50000)';
-      l.append(i); form.append(l); return i;
+      val = val || ''; var m = RE.exec(val);
+      var l = h('div', 'pcampo'); l.append(h('span', null, nome));
+      var ind = h('input'); ind.type = 'text'; ind.placeholder = 'Via e numero, città (es. Via Roma 1, Roma)';
+      ind.value = val.replace(/\(?\s*-?\d{1,2}\.\d{3,}\s*,\s*-?\d{1,3}\.\d{3,}\s*\)?/, '').replace(/[\s,;]+$/, '').trim();
+      var co = h('input'); co.type = 'text'; co.placeholder = 'Coordinate (facoltative), es. 41.90000, 12.50000';
+      co.value = m ? m[1] + ', ' + m[2] : '';
+      l.append(ind, co); form.append(l);
+      return {
+        testo: function () {
+          var t = ind.value.trim(), c = co.value.trim();
+          if (!c) return t;
+          var mm = RE.exec(c); if (!mm) throw nome + ': coordinate non valide (scrivi due numeri col punto, es. 41.90000, 12.50000)';
+          return (t || nome) + ' (' + mm[1] + ', ' + mm[2] + ')';
+        },
+        vuoto: function () { return !ind.value.trim() && !co.value.trim(); },
+        focus: function () { ind.focus(); }
+      };
     }
     var ic = campo('Casa', P.casaImp), il = campo('Lavoro', P.lavoroImp);
+    var msg = h('div', 'perr'); msg.hidden = true;
     var salva = h('button', null, '✓ Salva partenza'); salva.type = 'button';
     salva.addEventListener('click', function () {
-      var p = P.scelta === 'lavoro' && il.value.trim() ? 'lavoro' : (ic.value.trim() ? 'casa' : 'lavoro');
-      lancia('radarkite://indirizzi?c=' + encodeURIComponent(ic.value.trim()) + '&l=' + encodeURIComponent(il.value.trim()) + '&p=' + p);
+      try {
+        var c = ic.testo(), l = il.testo();
+        var p = P.scelta === 'lavoro' && !il.vuoto() ? 'lavoro' : (!ic.vuoto() ? 'casa' : 'lavoro');
+        msg.hidden = true;
+        lancia('radarkite://indirizzi?c=' + encodeURIComponent(c) + '&l=' + encodeURIComponent(l) + '&p=' + p);
+      } catch (e) { msg.textContent = '⚠ ' + e; msg.hidden = false; }
     });
     var aiuto = h('div', 'small aiuto');
-    aiuto.innerHTML = 'Scrivi via, numero e città. Se la mappa non trova il numero civico, aggiungi in fondo le <b>coordinate tra parentesi</b>: ' +
-      'in Google Maps fai clic destro sul punto, clic sulla prima riga (i numeri, si copiano) e incollali dopo l\'indirizzo, così: <b>Via Roma 1, Roma (41.90000, 12.50000)</b>.';
-    form.append(salva, aiuto);
+    aiuto.innerHTML = 'Le <b>coordinate</b> servono solo se la mappa non trova il numero civico: in Google Maps fai clic destro sul punto, ' +
+      'clic sulla prima riga (i numeri, si copiano) e incollale nella seconda riga. Se ci sono, si usano quelle.';
+    form.append(salva, msg, aiuto);
     var mod = h('button', null, P.casa || P.lavoro ? '✎ Modifica' : '✎ Imposta la partenza'); mod.type = 'button';
     mod.addEventListener('click', function () { form.hidden = !form.hidden; if (!form.hidden) ic.focus(); });
     b.after(form);
-    if (P.errore) { b.after(h('div', 'perr', '⚠ Partenza non trovata: ' + P.errore + '. Premi «✎ Modifica» e aggiungi le coordinate tra parentesi.')); form.hidden = false; }
+    if (P.errore) { b.after(h('div', 'perr', '⚠ Partenza non trovata: ' + P.errore + '. Scrivi le coordinate nella seconda riga qui sotto e premi «Salva partenza».')); form.hidden = false; }
     if (!P.casa && !P.lavoro) { b.append(h('span', null, '🚗 Partenza'), mod, h('span', 'small', 'scrivi casa o lavoro per avere i tempi di viaggio e la navigazione da lì')); return; }
     b.append(h('span', null, '🚗 Partenza'));
     var sel = h('select');
@@ -514,6 +543,7 @@ var D = /*DATI*/null;
       var top = h('div', 'top'); var a = link(st.nome, st.pagina); a.className = 'nm';
       top.append(a, h('span', 'small', spot ? spot.breve : ''));
       t.append(top);
+      if (st.errore === 'in lettura') { t.append(h('div', 'small attesa', '⏳ lettura in corso…')); box.append(t); return; }
       if (st.errore) { t.append(h('div', 'small', /sospes/i.test(st.errore) ? 'Servizio sospeso dal sito (rinnovo della stazione).' : 'Non raggiungibile adesso.')); box.append(t); return; }
       if (st.giorni >= 1) { t.append(h('div', 'small', 'Ferma: ultima lettura il ' + st.data + ' alle ' + st.ora + '.')); box.append(t); return; }
       var v = h('div', 'dv'); v.append(h('span', 'big2', n(st.wind)), h('span', 'u', 'kts'));
@@ -540,6 +570,7 @@ var D = /*DATI*/null;
         ad.append(document.createTextNode(' ' + a.dir + ' · ' + fonte + a.ora));
         sx.append(ad);
       }
+      if (D.aggiornando) sx.append(h('span', 'small attesa', ' · ⏳ stazioni in lettura'));
       var mv = minuti(s);
       if (mv != null) sx.append(h('span', 'info', '🚗 ' + mv + ' min' + (s.viaggio.traffico != null ? ' col traffico' : ' (stima)')));
       var dest = s.lat.toFixed(5) + ',' + s.lon.toFixed(5), Pt = D.partenza || {};

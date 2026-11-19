@@ -10,7 +10,7 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-$VERSIONE = '2.3'
+$VERSIONE = '2.4'
 $DATA_VERSIONE = '19/11/2026'
 $AUTORE = '@MadHatterMatt'
 
@@ -138,7 +138,42 @@ function Register-LinkAggiorna {
 Register-LinkAggiorna
 if ($Link -or $Automatico) { $NonAprire = $true }   # avviato dal pulsante o dall'avvio automatico: niente browser
 
+# Download in parallelo: le richieste partono tutte insieme (Start-Scarico) e Get-Testo usa la risposta
+# quando arriva. Per le stazioni (-Rigido) si aspettano al massimo 10 secondi, poi "non raggiungibile".
+Add-Type -AssemblyName System.Net.Http
+$PRE = @{}
+$HTTP = $null
+function Start-Scarico([string]$url, [string]$referer, [switch]$Xhr, [switch]$Rigido) {
+  if (-not $script:HTTP) {
+    $hh = New-Object System.Net.Http.HttpClientHandler
+    $hh.AutomaticDecompression = [System.Net.DecompressionMethods]::GZip -bor [System.Net.DecompressionMethods]::Deflate
+    $script:HTTP = New-Object System.Net.Http.HttpClient($hh)
+    $script:HTTP.Timeout = [TimeSpan]::FromSeconds(10)
+  }
+  $req = New-Object System.Net.Http.HttpRequestMessage([System.Net.Http.HttpMethod]::Get, $url)
+  [void]$req.Headers.TryAddWithoutValidation('User-Agent', $UA)
+  if ($referer) { [void]$req.Headers.TryAddWithoutValidation('Referer', $referer) }
+  [void]$req.Headers.TryAddWithoutValidation('Cache-Control', 'no-cache')
+  if ($Xhr) { [void]$req.Headers.TryAddWithoutValidation('X-Requested-With', 'XMLHttpRequest') }
+  $script:PRE[$url] = @{ task = $script:HTTP.SendAsync($req); rigido = [bool]$Rigido }
+}
+function Get-Scaricato([string]$url) {
+  $p = $script:PRE[$url]; $script:PRE.Remove($url)
+  try {
+    if (-not $p.task.Wait(15000)) { throw 'nessuna risposta in 10 secondi' }
+    $resp = $p.task.Result
+    if (-not $resp.IsSuccessStatusCode) { throw "il sito risponde con errore $([int]$resp.StatusCode)" }
+    return @{ testo = [Text.Encoding]::UTF8.GetString($resp.Content.ReadAsByteArrayAsync().Result) }
+  } catch {
+    $e = $_.Exception; while ($e.InnerException) { $e = $e.InnerException }
+    $msg = if ($e -is [System.Threading.Tasks.TaskCanceledException]) { 'nessuna risposta in 10 secondi' } else { $e.Message }
+    if ($p.rigido) { throw $msg }
+    return $null
+  }
+}
 function Get-Testo([string]$url, [string]$referer, [switch]$Xhr) {
+  # Se il download e' gia' partito uso quello; se e' fallito (e non e' una stazione) riprovo qui sotto.
+  if ($script:PRE.ContainsKey($url)) { $pr = Get-Scaricato $url; if ($pr) { return $pr.testo } }
   $intestazioni = @{ Referer = $referer; 'Cache-Control' = 'no-cache' }
   if ($Xhr) { $intestazioni['X-Requested-With'] = 'XMLHttpRequest' }
   for ($n = 1; ; $n++) {
@@ -426,10 +461,13 @@ function Register-AvvioAutomatico {
 }
 
 # ---------------- Open-Meteo: meteo, secondo modello del vento, acqua ----------------
-function Read-OpenMeteo {
+function Get-UrlOpenMeteo {
   $lat = ($SPOT | ForEach-Object { ([double]$_.lat).ToString($INV) }) -join ','
   $lon = ($SPOT | ForEach-Object { ([double]$_.lon).ToString($INV) }) -join ','
-  $url = "https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lon&hourly=temperature_2m,weather_code,precipitation,wind_speed_10m,wind_gusts_10m,wind_direction_10m&wind_speed_unit=kn&timezone=Europe%2FRome&forecast_days=9"
+  return "https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lon&hourly=temperature_2m,weather_code,precipitation,wind_speed_10m,wind_gusts_10m,wind_direction_10m&wind_speed_unit=kn&timezone=Europe%2FRome&forecast_days=9"
+}
+function Read-OpenMeteo {
+  $url = Get-UrlOpenMeteo
   # -OmProva: legge un file al posto del servizio (solo per le prove).
   $testo = if ($OmProva) { [IO.File]::ReadAllText($OmProva) } else { Get-Testo $url 'https://open-meteo.com/' }
   $j = ConvertFrom-Json $testo
@@ -447,7 +485,7 @@ function Read-OpenMeteo {
   }
   return $out
 }
-function Read-Acqua {
+function Get-UrlAcqua {
   # Un punto un po' al largo di ogni spot, verso il mare (centro delle direzioni buone).
   $lat = @(); $lon = @()
   foreach ($s in $SPOT) {
@@ -455,8 +493,10 @@ function Read-Acqua {
     $lat += ([double]$s.lat + 0.06 * [Math]::Cos($c * [Math]::PI / 180)).ToString('0.000', $INV)
     $lon += ([double]$s.lon + 0.06 * [Math]::Sin($c * [Math]::PI / 180) / 0.745).ToString('0.000', $INV)
   }
-  $url = "https://marine-api.open-meteo.com/v1/marine?latitude=$($lat -join ',')&longitude=$($lon -join ',')&hourly=sea_surface_temperature&timezone=Europe%2FRome&forecast_days=1"
-  $j = ConvertFrom-Json (Get-Testo $url 'https://open-meteo.com/')
+  return "https://marine-api.open-meteo.com/v1/marine?latitude=$($lat -join ',')&longitude=$($lon -join ',')&hourly=sea_surface_temperature&timezone=Europe%2FRome&forecast_days=1"
+}
+function Read-Acqua {
+  $j = ConvertFrom-Json (Get-Testo (Get-UrlAcqua) 'https://open-meteo.com/')
   $lista = @($j)
   $out = @{}
   for ($i = 0; $i -lt $SPOT.Count; $i++) {
@@ -592,6 +632,11 @@ function Save-Pdf([string]$fileHtml) {
 # ---------------- Esecuzione ----------------
 Write-Host "Radar kite $VERSIONE ($DATA_VERSIONE) di $AUTORE - $($adesso.ToString('dd/MM/yyyy HH:mm', $INV))" -ForegroundColor Cyan
 if (-not $Automatico -and -not $Link) { Register-AvvioAutomatico }
+# Tutte le richieste partono insieme: previsioni Windguru, Open-Meteo, acqua e stazioni.
+foreach ($s in $SPOT) { Start-Scarico "https://micro.windguru.cz/?s=$($s.wg)" 'https://micro.windguru.cz/' }
+if (-not $OmProva) { Start-Scarico (Get-UrlOpenMeteo) 'https://open-meteo.com/' }
+Start-Scarico (Get-UrlAcqua) 'https://open-meteo.com/'
+foreach ($st in $STAZIONI) { Start-Scarico $st.url $st.ref -Xhr:($st.tipo -eq 'weathercloud') -Rigido }
 $spotRes = @()
 foreach ($s in $SPOT) {
   Write-Host "  Windguru $($s.nome)... " -NoNewline
@@ -605,7 +650,26 @@ foreach ($s in $SPOT) {
     Write-Host "ERRORE: $($_.Exception.Message) (riga $($_.InvocationInfo.ScriptLineNumber))" -ForegroundColor Red
   }
 }
+Write-Host '  Open-Meteo (meteo e secondo modello)... ' -NoNewline
+$OM = @{}
+try { $OM = Read-OpenMeteo; Write-Host 'ok' -ForegroundColor Green } catch { Write-Host "ERRORE: $($_.Exception.Message)" -ForegroundColor Red }
+Write-Host '  Temperatura dell''acqua... ' -NoNewline
+$ACQUA = @{}
+try { $ACQUA = Read-Acqua; Write-Host 'ok' -ForegroundColor Green } catch { Write-Host "ERRORE: $($_.Exception.Message)" -ForegroundColor Red }
+$VIAGGI = $null; $erroreViaggi = ''
+if ($IMP[$IMP.partenza]) {
+  Write-Host "  Tempi di viaggio da $($IMP.partenza)... " -NoNewline
+  try { $VIAGGI = Get-Viaggi $forzaViaggi; Write-Host 'ok' -ForegroundColor Green } catch { $erroreViaggi = $_.Exception.Message; Write-Host "ERRORE: $erroreViaggi" -ForegroundColor Red }
+}
+
+# Due fasi: 1) la pagina si apre subito con le previsioni e le stazioni "in lettura";
+# 2) arrivano le stazioni, la pagina si aggiorna da sola e si fa il PDF. Gli avvii automatici fanno solo la 2.
+$fasi = if ($Automatico) { @(2) } else { @(1, 2) }
+foreach ($FASE in $fasi) {
 $stRes = @{}
+if ($FASE -eq 1) {
+  foreach ($st in $STAZIONI) { $stRes[$st.id] = @{ errore = 'in lettura' } }
+} else {
 foreach ($st in $STAZIONI) {
   Write-Host "  Stazione $($st.nome)... " -NoNewline
   try {
@@ -619,17 +683,6 @@ foreach ($st in $STAZIONI) {
     Write-Host "ERRORE: $($_.Exception.Message) (riga $($_.InvocationInfo.ScriptLineNumber))" -ForegroundColor Red
   }
 }
-
-Write-Host '  Open-Meteo (meteo e secondo modello)... ' -NoNewline
-$OM = @{}
-try { $OM = Read-OpenMeteo; Write-Host 'ok' -ForegroundColor Green } catch { Write-Host "ERRORE: $($_.Exception.Message)" -ForegroundColor Red }
-Write-Host '  Temperatura dell''acqua... ' -NoNewline
-$ACQUA = @{}
-try { $ACQUA = Read-Acqua; Write-Host 'ok' -ForegroundColor Green } catch { Write-Host "ERRORE: $($_.Exception.Message)" -ForegroundColor Red }
-$VIAGGI = $null; $erroreViaggi = ''
-if ($IMP[$IMP.partenza]) {
-  Write-Host "  Tempi di viaggio da $($IMP.partenza)... " -NoNewline
-  try { $VIAGGI = Get-Viaggi $forzaViaggi; Write-Host 'ok' -ForegroundColor Green } catch { $erroreViaggi = $_.Exception.Message; Write-Host "ERRORE: $erroreViaggi" -ForegroundColor Red }
 }
 
 # Righe firing (previsione + stazione che segna gia' firing adesso)
@@ -647,12 +700,14 @@ foreach ($r in $spotRes) {
 }
 $righeFiring = @($righeFiring | Sort-Object ordine, @{ Expression = 'ideale'; Descending = $true })
 
+if ($FASE -eq 2) {
 Write-Host ''
 if ($righeFiring.Count) {
   Write-Host 'FIRING:' -ForegroundColor Green
   foreach ($f in $righeFiring) { Write-Host ("  * " + $f.testo) }
 } else {
   Write-Host 'Nessuna finestra di vento nei prossimi giorni.' -ForegroundColor Yellow
+}
 }
 
 # ---------------- Storico (2 anni): letture e previsioni in dati\, un file per mese ----------------
@@ -850,16 +905,25 @@ foreach ($st in $STAZIONI) {
   $stato = if ($l.offline) { 'offline' } elseif ($l.fresca) { 'aggiornata' } else { 'vecchia' }
   $datiStazioni += [ordered]@{ id = $st.id; nome = $st.nome; pagina = $st.pagina; spot = $suo.id; data = $l.t.ToString('dd/MM', $INV); giorni = [int][Math]::Floor(($adesso - $l.t).TotalDays); wind = (Num $l.wind); gust = (Num $l.gust); deg = $l.deg; dir = (Get-Comp $l.deg); ora = $l.t.ToString('HH:mm', $INV); stato = $stato }
 }
-$dati = [ordered]@{ versione = $VERSIONE; dataVersione = $DATA_VERSIONE; autore = $AUTORE; creato = $adesso.ToString("yyyy-MM-dd'T'HH:mm:ss", $INV); soglia = $SOGLIA; oreMin = $ORE_MIN; giorni = $datiGiorni; passati = $datiPassati; spot = $datiSpot; stazioni = $datiStazioni; diario = $datiDiario
+$dati = [ordered]@{ aggiornando = ($FASE -eq 1); versione = $VERSIONE; dataVersione = $DATA_VERSIONE; autore = $AUTORE; creato = $adesso.ToString("yyyy-MM-dd'T'HH:mm:ss", $INV); soglia = $SOGLIA; oreMin = $ORE_MIN; giorni = $datiGiorni; passati = $datiPassati; spot = $datiSpot; stazioni = $datiStazioni; diario = $datiDiario
   partenza = [ordered]@{ scelta = $IMP.partenza; casa = (Get-NomePosto $IMP.casa); lavoro = (Get-NomePosto $IMP.lavoro); casaImp = $IMP.casa; lavoroImp = $IMP.lavoro; errore = $erroreViaggi; trovato = $(if ($VIAGGI) { $VIAGGI.trovato } else { '' }); lat = $(if ($VIAGGI) { $VIAGGI.lat } else { $null }); lon = $(if ($VIAGGI) { $VIAGGI.lon } else { $null }); google = [bool]$IMP.google_chiave } }
 $json = ConvertTo-Json -InputObject $dati -Depth 8 -Compress
 $modello = [IO.File]::ReadAllText((Join-Path $cartella 'report-modello.html'), [Text.Encoding]::UTF8)
 $html = $modello.Replace('/*DATI*/null', $json)
 
 $file = Join-Path $cartella 'report.html'
-[IO.File]::WriteAllText($file, $html, (New-Object Text.UTF8Encoding($true)))
-Write-Host ''
-Write-Host "Report: $file"
-Save-Pdf $file
-if (-not $NonAprire) { Start-Process $file }
+# Scrivo prima un file temporaneo e poi lo sostituisco: la pagina che si ricarica non trova mai un file a meta'.
+$tmpRep = Join-Path $cartella 'report.tmp'
+[IO.File]::WriteAllText($tmpRep, $html, (New-Object Text.UTF8Encoding($true)))
+Move-Item -Path $tmpRep -Destination $file -Force
+if ($FASE -eq 1) {
+  Write-Host '  Pagina aperta, leggo le stazioni...' -ForegroundColor Cyan
+  if (-not $NonAprire) { Start-Process $file }
+} else {
+  Write-Host ''
+  Write-Host "Report: $file"
+  Save-Pdf $file
+  if (-not $NonAprire -and $fasi.Count -eq 1) { Start-Process $file }
+}
+}
 if ($Link) { Start-Sleep -Seconds 2 }
