@@ -10,7 +10,7 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-$VERSIONE = '2.1'
+$VERSIONE = '2.2'
 $DATA_VERSIONE = '19/11/2026'
 $AUTORE = '@MadHatterMatt'
 
@@ -386,6 +386,17 @@ if ($Link -like 'radarkite://partenza*') {
   $forzaViaggi = $true
 }
 if ($Link -like 'radarkite://viaggi*') { $forzaViaggi = $true }
+if ($Link -like 'radarkite://indirizzi*') {
+  # Casa e lavoro scritti nella pagina: li salvo in impostazioni.txt e ricalcolo i tempi.
+  $q = Get-Parametri $Link
+  foreach ($coppia in @(@('c', 'casa'), @('l', 'lavoro'))) {
+    if ($q.ContainsKey($coppia[0])) { $val = Clean $q[$coppia[0]] 120; Set-Impostazione $coppia[1] $val; $IMP[$coppia[1]] = $val }
+  }
+  if ($q['p'] -eq 'casa' -or $q['p'] -eq 'lavoro') { Set-Impostazione 'partenza' $q['p']; $IMP.partenza = $q['p'] }
+  if (-not $IMP[$IMP.partenza]) { $alt = $(if ($IMP.partenza -eq 'casa') { 'lavoro' } else { 'casa' }); if ($IMP[$alt]) { Set-Impostazione 'partenza' $alt; $IMP.partenza = $alt } }
+  Write-Host "Partenza salvata: casa = $($IMP.casa) | lavoro = $($IMP.lavoro)" -ForegroundColor Green
+  $forzaViaggi = $true
+}
 
 # ---------------- Avvio automatico ogni ora (Utilita' di pianificazione di Windows) ----------------
 function Register-AvvioAutomatico {
@@ -838,7 +849,7 @@ foreach ($st in $STAZIONI) {
   $datiStazioni += [ordered]@{ id = $st.id; nome = $st.nome; pagina = $st.pagina; spot = $suo.id; data = $l.t.ToString('dd/MM', $INV); giorni = [int][Math]::Floor(($adesso - $l.t).TotalDays); wind = (Num $l.wind); gust = (Num $l.gust); deg = $l.deg; dir = (Get-Comp $l.deg); ora = $l.t.ToString('HH:mm', $INV); stato = $stato }
 }
 $dati = [ordered]@{ versione = $VERSIONE; dataVersione = $DATA_VERSIONE; autore = $AUTORE; creato = $adesso.ToString("yyyy-MM-dd'T'HH:mm:ss", $INV); soglia = $SOGLIA; oreMin = $ORE_MIN; giorni = $datiGiorni; passati = $datiPassati; spot = $datiSpot; stazioni = $datiStazioni; diario = $datiDiario
-  partenza = [ordered]@{ scelta = $IMP.partenza; casa = (Get-NomePosto $IMP.casa); lavoro = (Get-NomePosto $IMP.lavoro); trovato = $(if ($VIAGGI) { $VIAGGI.trovato } else { '' }); lat = $(if ($VIAGGI) { $VIAGGI.lat } else { $null }); lon = $(if ($VIAGGI) { $VIAGGI.lon } else { $null }); google = [bool]$IMP.google_chiave } }
+  partenza = [ordered]@{ scelta = $IMP.partenza; casa = (Get-NomePosto $IMP.casa); lavoro = (Get-NomePosto $IMP.lavoro); casaImp = $IMP.casa; lavoroImp = $IMP.lavoro; trovato = $(if ($VIAGGI) { $VIAGGI.trovato } else { '' }); lat = $(if ($VIAGGI) { $VIAGGI.lat } else { $null }); lon = $(if ($VIAGGI) { $VIAGGI.lon } else { $null }); google = [bool]$IMP.google_chiave } }
 $json = ConvertTo-Json -InputObject $dati -Depth 8 -Compress
 $modello = [IO.File]::ReadAllText((Join-Path $cartella 'report-modello.html'), [Text.Encoding]::UTF8)
 $html = $modello.Replace('/*DATI*/null', $json)
