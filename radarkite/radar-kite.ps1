@@ -395,10 +395,13 @@ function Register-AvvioAutomatico {
       if ($esistente) { Unregister-ScheduledTask -TaskName $nome -Confirm:$false; Write-Host '  Avvio automatico tolto.' }
       return
     }
+    # Avvio senza finestre: conhost --headless (su Windows 11 -WindowStyle Hidden da solo apre comunque il Terminale).
     $ps = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
-    $arg = '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + $PSCommandPath + '" -Automatico'
+    $con = Join-Path $env:SystemRoot 'System32\conhost.exe'
+    $arg = '--headless "' + $ps + '" -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + $PSCommandPath + '" -Automatico'
+    if (-not (Test-Path $con)) { $con = $ps; $arg = $arg.Substring($arg.IndexOf('-NoProfile')) }
     if ($esistente -and $esistente.Actions[0].Arguments -eq $arg) { return }
-    $azione = New-ScheduledTaskAction -Execute $ps -Argument $arg -WorkingDirectory $cartella
+    $azione = New-ScheduledTaskAction -Execute $con -Argument $arg -WorkingDirectory $cartella
     $trigger = New-ScheduledTaskTrigger -Daily -At '06:30'
     $ripeti = New-ScheduledTaskTrigger -Once -At '06:30' -RepetitionInterval (New-TimeSpan -Hours 1) -RepetitionDuration (New-TimeSpan -Hours 13)
     $trigger.Repetition = $ripeti.Repetition
@@ -544,7 +547,7 @@ function Save-Pdf([string]$fileHtml) {
     if (-not $browser) { Write-Host '  (PDF non creato: non trovo Edge, Chrome o Brave)' -ForegroundColor Yellow; return }
     $pdf = Join-Path $dest 'Radar kite.pdf'
     $tmp = Join-Path $env:TEMP ('radarkite-' + [guid]::NewGuid().ToString('N'))
-    $argomenti = @('--headless', '--disable-gpu', '--no-first-run', '--no-pdf-header-footer', '--print-to-pdf-no-header', "--user-data-dir=`"$tmp`"", '--window-size=1100,1400', '--virtual-time-budget=4000', "--print-to-pdf=`"$pdf`"", ('"' + ([Uri]$fileHtml).AbsoluteUri + '#pdf"'))
+    $argomenti = @('--headless', '--disable-gpu', '--no-first-run', '--no-pdf-header-footer', '--print-to-pdf-no-header', "--user-data-dir=`"$tmp`"", '--window-size=760,1400', '--virtual-time-budget=4000', "--print-to-pdf=`"$pdf`"", ('"' + ([Uri]$fileHtml).AbsoluteUri + '#pdf"'))
     $p = Start-Process -FilePath $browser -ArgumentList $argomenti -WindowStyle Hidden -PassThru
     if (-not $p.WaitForExit(60000)) { try { $p.Kill() } catch {} }
     Remove-Item -Path $tmp -Recurse -Force -ErrorAction SilentlyContinue
