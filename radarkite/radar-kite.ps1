@@ -10,7 +10,7 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-$VERSIONE = '2.0'
+$VERSIONE = '2.1'
 $DATA_VERSIONE = '19/11/2026'
 $AUTORE = '@MadHatterMatt'
 
@@ -23,23 +23,23 @@ $VIAGGIO_ORE = 1      # per oggi conta solo il vento da un'ora dopo l'avvio
 # Spot da nord a sud. ok = direzioni buone (gradi da cui arriva il vento), terra = vento da terra (mai firing);
 # tutto il resto e' side-off. Salto di Fondi e Lido di Latina: direzioni stimate dalla costa, da confermare.
 $SPOT = @(
-  @{ id = 'sag'; nome = "Civitavecchia Sant'Agostino"; breve = 'S. Agostino'; lon = 11.74; lat = 42.17; lab = @(11, -9, 'start'); wg = 49021; ok = @(180, 320); terra = @(350, 130); stazioni = @('rdt_civitavecchia'); webcam = ''
+  @{ id = 'sag'; nome = "Civitavecchia Sant'Agostino"; breve = 'S. Agostino'; lon = 11.73579; lat = 42.17537; lab = @(11, -9, 'start'); wg = 49021; ok = @(180, 320); terra = @(350, 130); stazioni = @('rdt_civitavecchia'); webcam = ''
      ideali = @(); attenzione = @() },
-  @{ id = 'msn'; nome = 'Marina di San Nicola'; breve = 'San Nicola'; lon = 12.12; lat = 41.93; lab = @(11, -9, 'start'); wg = 49027; ok = @(170, 300); terra = @(330, 110); stazioni = @('msn', 'passoscuro'); webcam = ''
+  @{ id = 'msn'; nome = 'Marina di San Nicola'; breve = 'San Nicola'; lon = 12.12663; lat = 41.92557; lab = @(11, -9, 'start'); wg = 49027; ok = @(170, 300); terra = @(330, 110); stazioni = @('msn', 'passoscuro'); webcam = ''
      ideali = @(@{ n = 'ponente'; d = 270 }); attenzione = @(@{ n = 'libeccio: lavatrice, onde ~2 m'; d = 225 }) },
   # Fregene: stazione del Vela Sporting Club (su Weathercloud e Weather Underground IFIUMI2), webcam sulla loro pagina.
-  @{ id = 'fregene'; nome = 'Fregene'; breve = 'Fregene'; lon = 12.195; lat = 41.85; lab = @(11, 4, 'start'); wg = 49029; ok = @(165, 320); terra = @(340, 130); stazioni = @('fregene'); webcam = 'https://www.velasportingclub.it/pages/la-nostra-stazione-meteo'
+  @{ id = 'fregene'; nome = 'Fregene'; breve = 'Fregene'; lon = 12.18148; lat = 41.86864; lab = @(11, 4, 'start'); wg = 49029; ok = @(165, 320); terra = @(340, 130); stazioni = @('fregene'); webcam = 'https://www.velasportingclub.it/pages/la-nostra-stazione-meteo'
      ideali = @(); attenzione = @(@{ n = 'libeccio: lavatrice'; d = 225 }) },
-  @{ id = 'ostia'; nome = 'Ostia'; breve = 'Ostia'; lon = 12.3024; lat = 41.7187; lab = @(11, -9, 'start'); wg = 1518; ok = @(115, 325); terra = @(345, 95); stazioni = @('lni_ostia'); webcam = ''
+  @{ id = 'ostia'; nome = 'Ostia'; breve = 'Ostia'; lon = 12.37940; lat = 41.68148; lab = @(11, -9, 'start'); wg = 1518; ok = @(115, 325); terra = @(345, 95); stazioni = @('lni_ostia'); webcam = ''
      ideali = @(@{ n = 'scirocco'; d = 135 }, @{ n = 'ponente'; d = 270 }); attenzione = @() },
-  @{ id = 'torva'; nome = 'Torvaianica'; breve = 'Torvaianica'; lon = 12.4346; lat = 41.6401; lab = @(11, 4, 'start'); wg = 49033; ok = @(115, 325); terra = @(345, 95); stazioni = @('torvaianica'); webcam = ''
+  @{ id = 'torva'; nome = 'Torvaianica'; breve = 'Torvaianica'; lon = 12.43412; lat = 41.64355; lab = @(11, 4, 'start'); wg = 49033; ok = @(115, 325); terra = @(345, 95); stazioni = @('torvaianica'); webcam = ''
      ideali = @(); attenzione = @() },
-  @{ id = 'anzio'; nome = 'Anzio Levante'; breve = 'Anzio Levante'; mappa = 'Anzio'; lon = 12.63; lat = 41.45; lab = @(8, -12, 'start'); wg = 49035; ok = @(40, 230); terra = @(250, 20); stazioni = @('anzio_levante', 'anzio_porto'); webcam = 'https://vedetta.org/webcam/italia/lazio/roma/anzio-levante/'
+  @{ id = 'anzio'; nome = 'Anzio Levante'; breve = 'Anzio Levante'; mappa = 'Anzio'; lon = 12.63555; lat = 41.45040; lab = @(8, -12, 'start'); wg = 49035; ok = @(40, 230); terra = @(250, 20); stazioni = @('anzio_levante', 'anzio_porto'); webcam = 'https://vedetta.org/webcam/italia/lazio/roma/anzio-levante/'
      ideali = @(@{ n = 'libeccio'; d = 225 }, @{ n = 'grecale'; d = 45 }); attenzione = @() },
   # Lido di Latina: tra Foce Verde e Capo Portiere (scuola Ultimate Kiteboarding). Windguru non ha uno spot qui: uso Foce Verde, stessa baia.
-  @{ id = 'latina'; nome = 'Lido di Latina'; breve = 'Lido di Latina'; mappa = 'Latina'; lon = 12.8759; lat = 41.4042; lab = @(11, 4, 'start'); wg = 49036; ok = @(120, 315); terra = @(335, 100); stazioni = @('latina_lido', 'latina_sud'); webcam = 'https://vedetta.org/webcam/italia/lazio/latina/lido-di-latina/'
+  @{ id = 'latina'; nome = 'Lido di Latina'; breve = 'Lido di Latina'; mappa = 'Latina'; lon = 12.87552; lat = 41.40429; lab = @(11, 4, 'start'); wg = 49036; ok = @(120, 315); terra = @(335, 100); stazioni = @('latina_lido', 'latina_sud'); webcam = 'https://vedetta.org/webcam/italia/lazio/latina/lido-di-latina/'
      ideali = @(); attenzione = @() },
-  @{ id = 'fondi'; nome = 'Salto di Fondi'; breve = 'Salto di Fondi'; lon = 13.3122; lat = 41.2908; lab = @(11, 4, 'start'); wg = 49042; ok = @(110, 280); terra = @(300, 80); stazioni = @('saltodifondi'); webcam = ''
+  @{ id = 'fondi'; nome = 'Salto di Fondi'; breve = 'Salto di Fondi'; lon = 13.31390; lat = 41.29504; lab = @(11, 4, 'start'); wg = 49042; ok = @(110, 280); terra = @(300, 80); stazioni = @('saltodifondi'); webcam = ''
      ideali = @(); attenzione = @() }
 )
 
@@ -492,7 +492,9 @@ function Get-Viaggi([bool]$forza) {
   $cache = $null
   if (Test-Path $fileV) { try { $cache = ConvertFrom-Json ([IO.File]::ReadAllText($fileV)) } catch { $cache = $null } }
   $ids = @($SPOT | ForEach-Object { $_.id })
-  $valida = $cache -and $cache.indirizzo -eq $indirizzo -and -not @($ids | Where-Object { $cache.stima.$_ -eq $null }).Count
+  # Se cambiano le coordinate degli spot i tempi si ricalcolano.
+  $firma = (@($SPOT | ForEach-Object { $_.id + ':' + ([double]$_.lat).ToString($INV) + ',' + ([double]$_.lon).ToString($INV) }) -join ';')
+  $valida = $cache -and $cache.indirizzo -eq $indirizzo -and $cache.firma -eq $firma -and -not @($ids | Where-Object { $cache.stima.$_ -eq $null }).Count
   # Il traffico vero (chiave Google) si ricalcola solo quando lo chiedi o avvii a mano, non nelle corse automatiche.
   $traffico = $IMP.google_chiave -and -not $Automatico
   if ($valida -and -not $forza -and -not $traffico) { return $cache }
@@ -524,7 +526,7 @@ function Get-Viaggi([bool]$forza) {
     } catch { Write-Host "  (traffico Google non letto: $($_.Exception.Message))" -ForegroundColor Yellow; $live = [ordered]@{} }
   }
   } finally { [Net.ServicePointManager]::SecurityProtocol = $tlsPrima }
-  $nuovo = [ordered]@{ indirizzo = $indirizzo; partenza = $IMP.partenza; trovato = $trovato; lat = $lat; lon = $lon; calcolato = $adesso.ToString('yyyy-MM-dd HH:mm', $INV); stima = $stima; traffico = $live; trafficoOra = $liveOra }
+  $nuovo = [ordered]@{ indirizzo = $indirizzo; firma = $firma; partenza = $IMP.partenza; trovato = $trovato; lat = $lat; lon = $lon; calcolato = $adesso.ToString('yyyy-MM-dd HH:mm', $INV); stima = $stima; traffico = $live; trafficoOra = $liveOra }
   [IO.File]::WriteAllText($fileV, (ConvertTo-Json $nuovo -Depth 4), (New-Object Text.UTF8Encoding($false)))
   return (ConvertFrom-Json (ConvertTo-Json $nuovo -Depth 4))
 }
