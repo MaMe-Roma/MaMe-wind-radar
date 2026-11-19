@@ -19,10 +19,21 @@ jobs:
           New-Item -ItemType Directory -Force "$rk\dati" | Out-Null
           $pv = @('giorno;spot;anticipo;fonte;ora;vento;raffica;gradi;salvata') + (8..16 | ForEach-Object { "$ieri;ostia;0;wg;$_;$(14 + [Math]::Min($_ - 8, 4));22;255;06:30" }) + (8..16 | ForEach-Object { "$ieri;ostia;0;om;$_;$(11 + [Math]::Min($_ - 8, 3));18;250;06:30" })
           [IO.File]::WriteAllLines("$rk\dati\previsioni-$mese.csv", $pv)
+          # Open-Meteo finto (dai server di GitHub il servizio va in timeout): 8 spot, 9 giorni, ora per ora.
+          $oggi = (Get-Date).Date; $loc = @()
+          for ($i = 0; $i -lt 8; $i++) {
+            $time = @(); $temp = @(); $code = @(); $rain = @(); $ws = @(); $wg = @(); $wd = @()
+            for ($hh = 0; $hh -lt 216; $hh++) {
+              $t = $oggi.AddHours($hh); $time += $t.ToString("yyyy-MM-dd'T'HH:mm"); $temp += 14 + ($t.Hour -gt 11 -and $t.Hour -lt 17) * 3
+              $code += @(0, 2, 3, 61, 95)[([int]($hh / 24) + $i) % 5] ; $rain += 0.2; $ws += 8 + (($t.Hour -ge 10 -and $t.Hour -le 15) * 9) + $i; $wg += 14 + $i; $wd += 250
+            }
+            $loc += [ordered]@{ latitude = 41; longitude = 12; hourly = [ordered]@{ time = $time; temperature_2m = $temp; weather_code = $code; precipitation = $rain; wind_speed_10m = $ws; wind_gusts_10m = $wg; wind_direction_10m = $wd } }
+          }
+          [IO.File]::WriteAllText("$PWD\om-prova.json", (ConvertTo-Json -InputObject $loc -Depth 6 -Compress))
       - name: Avvia Radar kite 2.0
         shell: cmd
         run: |
-          powershell -NoProfile -ExecutionPolicy Bypass -Command "& '.\radarkite\radar-kite.ps1' -NonAprire"
+          powershell -NoProfile -ExecutionPolicy Bypass -Command "& '.\radarkite\radar-kite.ps1' -NonAprire -OmProva '%CD%\om-prova.json'"
       - name: Avvio automatico, diario dal link, PDF
         shell: powershell
         run: |
@@ -31,7 +42,7 @@ jobs:
           Start-Process 'radarkite://uscita?d=2026-11-18&o=11:00&s=ostia&m=60&v=12&n=prova+dal+link'
           for ($i = 0; $i -lt 60; $i++) { Start-Sleep 2; if ((Get-Item radarkite\report.html).LastWriteTime -gt $prima) { break } }
           "Diario:"; Get-Content radarkite\dati\diario.csv
-          "Corsa automatica:"; powershell -NoProfile -ExecutionPolicy Bypass -File radarkite\radar-kite.ps1 -Automatico | Select-Object -Last 5
+          "Corsa automatica:"; powershell -NoProfile -ExecutionPolicy Bypass -File radarkite\radar-kite.ps1 -Automatico -OmProva "$PWD\om-prova.json" | Select-Object -Last 5
           "File dati:"; Get-ChildItem radarkite\dati | ForEach-Object { "$($_.Name) $($_.Length)" }
           "PDF:"; Get-ChildItem pdfout | ForEach-Object { "$($_.Name) $($_.Length)" }
           "Viaggi:"; if (Test-Path radarkite\dati\viaggi.json) { Get-Content radarkite\dati\viaggi.json }

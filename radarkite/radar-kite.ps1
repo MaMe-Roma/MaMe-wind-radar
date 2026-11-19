@@ -4,7 +4,7 @@
   applica le regole firing di ogni spot e apre un report nel browser.
   Avvio: doppio clic su "Avvia Radar kite.bat" nella stessa cartella.
 #>
-param([switch]$NonAprire, [string]$SalvaGrezzi = '', [string]$Link = '', [switch]$Automatico)
+param([switch]$NonAprire, [string]$SalvaGrezzi = '', [string]$Link = '', [switch]$Automatico, [string]$OmProva = '')
 
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
@@ -415,7 +415,9 @@ function Read-OpenMeteo {
   $lat = ($SPOT | ForEach-Object { ([double]$_.lat).ToString($INV) }) -join ','
   $lon = ($SPOT | ForEach-Object { ([double]$_.lon).ToString($INV) }) -join ','
   $url = "https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lon&hourly=temperature_2m,weather_code,precipitation,wind_speed_10m,wind_gusts_10m,wind_direction_10m&wind_speed_unit=kn&timezone=Europe%2FRome&forecast_days=9"
-  $j = ConvertFrom-Json (Get-Testo $url 'https://open-meteo.com/')
+  # -OmProva: legge un file al posto del servizio (solo per le prove).
+  $testo = if ($OmProva) { [IO.File]::ReadAllText($OmProva) } else { Get-Testo $url 'https://open-meteo.com/' }
+  $j = ConvertFrom-Json $testo
   $lista = @($j)
   $out = @{}
   for ($i = 0; $i -lt $SPOT.Count; $i++) {
