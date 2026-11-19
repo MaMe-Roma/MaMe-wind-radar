@@ -10,7 +10,7 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-$VERSIONE = '2.4'
+$VERSIONE = '2.5'
 $DATA_VERSIONE = '19/11/2026'
 $AUTORE = '@MadHatterMatt'
 
@@ -139,16 +139,18 @@ Register-LinkAggiorna
 if ($Link -or $Automatico) { $NonAprire = $true }   # avviato dal pulsante o dall'avvio automatico: niente browser
 
 # Download in parallelo: le richieste partono tutte insieme (Start-Scarico) e Get-Testo usa la risposta
-# quando arriva. Per le stazioni (-Rigido) si aspettano al massimo 10 secondi, poi "non raggiungibile".
+# quando arriva. Per le stazioni (-Rigido) si aspetta fino a 60 secondi (la pagina e' gia' aperta), poi "non raggiungibile".
 Add-Type -AssemblyName System.Net.Http
 $PRE = @{}
 $HTTP = $null
+$T0 = Get-Date
+$TEMPI = @{}
 function Start-Scarico([string]$url, [string]$referer, [switch]$Xhr, [switch]$Rigido) {
   if (-not $script:HTTP) {
     $hh = New-Object System.Net.Http.HttpClientHandler
     $hh.AutomaticDecompression = [System.Net.DecompressionMethods]::GZip -bor [System.Net.DecompressionMethods]::Deflate
     $script:HTTP = New-Object System.Net.Http.HttpClient($hh)
-    $script:HTTP.Timeout = [TimeSpan]::FromSeconds(10)
+    $script:HTTP.Timeout = [TimeSpan]::FromSeconds(60)
   }
   $req = New-Object System.Net.Http.HttpRequestMessage([System.Net.Http.HttpMethod]::Get, $url)
   [void]$req.Headers.TryAddWithoutValidation('User-Agent', $UA)
@@ -160,16 +162,30 @@ function Start-Scarico([string]$url, [string]$referer, [switch]$Xhr, [switch]$Ri
 function Get-Scaricato([string]$url) {
   $p = $script:PRE[$url]; $script:PRE.Remove($url)
   try {
-    if (-not $p.task.Wait(15000)) { throw 'nessuna risposta in 10 secondi' }
+    if (-not $p.task.Wait(65000)) { throw 'nessuna risposta in 60 secondi' }
     $resp = $p.task.Result
     if (-not $resp.IsSuccessStatusCode) { throw "il sito risponde con errore $([int]$resp.StatusCode)" }
     return @{ testo = [Text.Encoding]::UTF8.GetString($resp.Content.ReadAsByteArrayAsync().Result) }
   } catch {
     $e = $_.Exception; while ($e.InnerException) { $e = $e.InnerException }
-    $msg = if ($e -is [System.Threading.Tasks.TaskCanceledException]) { 'nessuna risposta in 10 secondi' } else { $e.Message }
+    $msg = if ($e -is [System.Threading.Tasks.TaskCanceledException]) { 'nessuna risposta in 60 secondi' } else { $e.Message }
     if ($p.rigido) { throw $msg }
     return $null
   }
+}
+# Aspetta le stazioni segnando quando risponde ciascuna (secondi dalla partenza delle richieste).
+function Wait-Stazioni {
+  $fine = (Get-Date).AddSeconds(66)
+  do {
+    $tutte = $true
+    foreach ($st in $STAZIONI) {
+      $p = $script:PRE[$st.url]
+      if (-not $p -or $script:TEMPI.ContainsKey($st.id)) { continue }
+      if ($p.task.IsCompleted) { $script:TEMPI[$st.id] = [Math]::Round(((Get-Date) - $script:T0).TotalSeconds, 1) } else { $tutte = $false }
+    }
+    if ($tutte) { break }
+    Start-Sleep -Milliseconds 100
+  } while ((Get-Date) -lt $fine)
 }
 function Get-Testo([string]$url, [string]$referer, [switch]$Xhr) {
   # Se il download e' gia' partito uso quello; se e' fallito (e non e' una stazione) riprovo qui sotto.
@@ -670,6 +686,7 @@ $stRes = @{}
 if ($FASE -eq 1) {
   foreach ($st in $STAZIONI) { $stRes[$st.id] = @{ errore = 'in lettura' } }
 } else {
+Wait-Stazioni
 foreach ($st in $STAZIONI) {
   Write-Host "  Stazione $($st.nome)... " -NoNewline
   try {
@@ -677,13 +694,36 @@ foreach ($st in $STAZIONI) {
     $eta = ($adesso - $l.t).TotalMinutes
     $l.fresca = (-not $l.offline) -and $eta -le $st.fresco -and $eta -ge -15
     $stRes[$st.id] = $l
-    Write-Host ("{0} nodi da {1} alle {2}{3}" -f $l.wind, (Get-Comp $l.deg), $l.t.ToString('HH:mm', $INV), $(if ($l.fresca) { '' } else { ' (vecchia)' })) -ForegroundColor Green
+    Write-Host ("{0} nodi da {1} alle {2}{3} ({4} s)" -f $l.wind, (Get-Comp $l.deg), $l.t.ToString('HH:mm', $INV), $(if ($l.fresca) { '' } else { ' (vecchia)' }), $TEMPI[$st.id]) -ForegroundColor Green
   } catch {
     $stRes[$st.id] = @{ errore = $_.Exception.Message }
     Write-Host "ERRORE: $($_.Exception.Message) (riga $($_.InvocationInfo.ScriptLineNumber))" -ForegroundColor Red
   }
 }
 }
+
+# Appunti sulle stazioni: quanto ci mettono a rispondere e se rispondono (dati\tempi-stazioni.csv).
+$LENTE = @{}
+try {
+  $fileT = Join-Path $dirDati 'tempi-stazioni.csv'
+  $righeT = @(if (Test-Path $fileT) { [IO.File]::ReadAllLines($fileT) | Select-Object -Skip 1 | Where-Object { $_ } })
+  if ($FASE -eq 2) {
+    $nuoveT = @(foreach ($st in $STAZIONI) {
+      $l = $stRes[$st.id]; if (-not $l -or $l.errore -match 'sospes') { continue }
+      $sec = if ($TEMPI.ContainsKey($st.id)) { ([double]$TEMPI[$st.id]).ToString('0.0', $INV) } else { '' }
+      $adesso.ToString('yyyy-MM-dd HH:mm', $INV) + ';' + $st.id + ';' + $sec + ';' + $(if ($l.errore) { 'errore' } else { 'ok' })
+    })
+    $righeT = @($righeT + $nuoveT | Select-Object -Last 3000)
+    [IO.File]::WriteAllText($fileT, "data;stazione;secondi;esito`r`n" + (($righeT -join "`r`n") + "`r`n"), (New-Object Text.UTF8Encoding($false)))
+  }
+  foreach ($st in $STAZIONI) {
+    $sue = @($righeT | Where-Object { $_.Split(';')[1] -eq $st.id } | Select-Object -Last 30)
+    if ($sue.Count -lt 3) { continue }
+    $ok = @($sue | Where-Object { $_.Split(';')[3] -eq 'ok' -and $_.Split(';')[2] })
+    $media = if ($ok.Count) { [Math]::Round((@($ok | ForEach-Object { [double]::Parse($_.Split(';')[2], $INV) }) | Measure-Object -Average).Average, 1) } else { $null }
+    $LENTE[$st.id] = [ordered]@{ media = $media; fallite = $sue.Count - $ok.Count; prove = $sue.Count }
+  }
+} catch { Write-Host "  (appunti stazioni non aggiornati: $($_.Exception.Message))" -ForegroundColor Yellow }
 
 # Righe firing (previsione + stazione che segna gia' firing adesso)
 $righeFiring = @()
@@ -901,9 +941,9 @@ $datiStazioni = @()
 foreach ($st in $STAZIONI) {
   $l = $stRes[$st.id]
   $suo = $SPOT | Where-Object { $_.stazioni -contains $st.id } | Select-Object -First 1
-  if ($l.errore) { $datiStazioni += [ordered]@{ id = $st.id; nome = $st.nome; pagina = $st.pagina; spot = $suo.id; errore = $l.errore }; continue }
+  if ($l.errore) { $datiStazioni += [ordered]@{ id = $st.id; nome = $st.nome; pagina = $st.pagina; spot = $suo.id; errore = $l.errore; lenta = $LENTE[$st.id] }; continue }
   $stato = if ($l.offline) { 'offline' } elseif ($l.fresca) { 'aggiornata' } else { 'vecchia' }
-  $datiStazioni += [ordered]@{ id = $st.id; nome = $st.nome; pagina = $st.pagina; spot = $suo.id; data = $l.t.ToString('dd/MM', $INV); giorni = [int][Math]::Floor(($adesso - $l.t).TotalDays); wind = (Num $l.wind); gust = (Num $l.gust); deg = $l.deg; dir = (Get-Comp $l.deg); ora = $l.t.ToString('HH:mm', $INV); stato = $stato }
+  $datiStazioni += [ordered]@{ id = $st.id; nome = $st.nome; pagina = $st.pagina; spot = $suo.id; data = $l.t.ToString('dd/MM', $INV); giorni = [int][Math]::Floor(($adesso - $l.t).TotalDays); wind = (Num $l.wind); gust = (Num $l.gust); deg = $l.deg; dir = (Get-Comp $l.deg); ora = $l.t.ToString('HH:mm', $INV); stato = $stato; lenta = $LENTE[$st.id] }
 }
 $dati = [ordered]@{ aggiornando = ($FASE -eq 1); versione = $VERSIONE; dataVersione = $DATA_VERSIONE; autore = $AUTORE; creato = $adesso.ToString("yyyy-MM-dd'T'HH:mm:ss", $INV); soglia = $SOGLIA; oreMin = $ORE_MIN; giorni = $datiGiorni; passati = $datiPassati; spot = $datiSpot; stazioni = $datiStazioni; diario = $datiDiario
   partenza = [ordered]@{ scelta = $IMP.partenza; casa = (Get-NomePosto $IMP.casa); lavoro = (Get-NomePosto $IMP.lavoro); casaImp = $IMP.casa; lavoroImp = $IMP.lavoro; errore = $erroreViaggi; trovato = $(if ($VIAGGI) { $VIAGGI.trovato } else { '' }); lat = $(if ($VIAGGI) { $VIAGGI.lat } else { $null }); lon = $(if ($VIAGGI) { $VIAGGI.lon } else { $null }); google = [bool]$IMP.google_chiave } }
