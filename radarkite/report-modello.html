@@ -302,10 +302,10 @@ var D = /*DATI*/null;
       } else if (Date.now() - t < 180000) {
         btn.disabled = true;
         st.textContent = 'Aggiornamento in corso…';
-        setTimeout(function () { location.reload(); }, 4000);
+        setTimeout(function () { location.reload(); }, 2000);
       } else {
         history.replaceState(null, '', location.pathname + location.search);
-        st.textContent = 'Il programma non ha risposto: avvialo dalla cartella Radar kite.';
+        st.textContent = 'Il programma non ha risposto: guarda dati\\ultimo-avvio.txt nella cartella Radar kite.';
       }
     }
     // Pagina aperta prima delle stazioni: si ricarica da sola finche' arrivano (massimo 2 minuti e mezzo).

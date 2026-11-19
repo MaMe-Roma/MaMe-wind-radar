@@ -52,6 +52,9 @@ jobs:
           "File dati:"; Get-ChildItem radarkite\dati | ForEach-Object { "$($_.Name) $($_.Length)" }
           "PDF:"; Get-ChildItem pdfout | ForEach-Object { "$($_.Name) $($_.Length)" }
           "Viaggi:"; if (Test-Path radarkite\dati\viaggi.json) { Get-Content radarkite\dati\viaggi.json }
+          "Avvio dal file .bat (nascosto):"; $prima = (Get-Item radarkite\report.html).LastWriteTime; cmd /c "radarkite\Avvia Radar kite 2.6.bat"
+          for ($i = 0; $i -lt 60; $i++) { Start-Sleep 2; $h = [IO.File]::ReadAllText("$PWD\radarkite\report.html"); if ((Get-Item radarkite\report.html).LastWriteTime -gt $prima -and $h -match '"aggiornando":false') { break } }
+          "report finale dal .bat: $((Get-Item radarkite\report.html).LastWriteTime -gt $prima) $([regex]::Match($h, '"aggiornando":\w+').Value) dopo $($i * 2) s"; Get-Content radarkite\dati\ultimo-avvio.txt -TotalCount 12
           "Indirizzi dalla pagina:"; powershell -NoProfile -ExecutionPolicy Bypass -File radarkite\radar-kite.ps1 -Link 'radarkite://indirizzi?c=Piazza%20Venezia%201%2C%20Roma%20(41.86400%2C%2012.47700)&l=&p=casa' -OmProva "$PWD\om-prova.json" | Select-String 'Partenza salvata|viaggio|ERRORE'
           Get-Content radarkite\impostazioni.txt | Select-String '^(casa|lavoro|partenza) ='; (Select-String -Path radarkite\report.html -Pattern '"partenza":\{[^}]*\}').Matches.Value
           "Partenza lavoro (coordinate):"; powershell -NoProfile -ExecutionPolicy Bypass -File radarkite\radar-kite.ps1 -Link 'radarkite://partenza?p=lavoro' -OmProva "$PWD\om-prova.json" | Select-String 'viaggio|ERRORE'
