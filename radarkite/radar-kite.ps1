@@ -173,19 +173,20 @@ function Get-Scaricato([string]$url) {
     return $null
   }
 }
-# Aspetta le stazioni segnando quando risponde ciascuna (secondi dalla partenza delle richieste).
+# Segna quando risponde ciascuna stazione (secondi dalla partenza delle richieste): si controlla spesso
+# mentre il programma lavora, poi Wait-Stazioni aspetta le ultime.
+function Update-Tempi {
+  $tutte = $true
+  foreach ($st in $STAZIONI) {
+    $p = $script:PRE[$st.url]
+    if (-not $p -or $script:TEMPI.ContainsKey($st.id)) { continue }
+    if ($p.task.IsCompleted) { $script:TEMPI[$st.id] = [Math]::Round(((Get-Date) - $script:T0).TotalSeconds, 1) } else { $tutte = $false }
+  }
+  return $tutte
+}
 function Wait-Stazioni {
   $fine = (Get-Date).AddSeconds(66)
-  do {
-    $tutte = $true
-    foreach ($st in $STAZIONI) {
-      $p = $script:PRE[$st.url]
-      if (-not $p -or $script:TEMPI.ContainsKey($st.id)) { continue }
-      if ($p.task.IsCompleted) { $script:TEMPI[$st.id] = [Math]::Round(((Get-Date) - $script:T0).TotalSeconds, 1) } else { $tutte = $false }
-    }
-    if ($tutte) { break }
-    Start-Sleep -Milliseconds 100
-  } while ((Get-Date) -lt $fine)
+  while (-not (Update-Tempi) -and (Get-Date) -lt $fine) { Start-Sleep -Milliseconds 100 }
 }
 function Get-Testo([string]$url, [string]$referer, [switch]$Xhr) {
   # Se il download e' gia' partito uso quello; se e' fallito (e non e' una stazione) riprovo qui sotto.
@@ -652,6 +653,7 @@ if (-not $Automatico -and -not $Link) { Register-AvvioAutomatico }
 foreach ($s in $SPOT) { Start-Scarico "https://micro.windguru.cz/?s=$($s.wg)" 'https://micro.windguru.cz/' }
 if (-not $OmProva) { Start-Scarico (Get-UrlOpenMeteo) 'https://open-meteo.com/' }
 Start-Scarico (Get-UrlAcqua) 'https://open-meteo.com/'
+$T0 = Get-Date
 foreach ($st in $STAZIONI) { Start-Scarico $st.url $st.ref -Xhr:($st.tipo -eq 'weathercloud') -Rigido }
 $spotRes = @()
 foreach ($s in $SPOT) {
@@ -659,7 +661,7 @@ foreach ($s in $SPOT) {
   try {
     $wg = Read-Windguru $s
     $esito = Get-Giorni $s $wg.righe
-    $spotRes += [pscustomobject]@{ s = $s; wg = $wg; giorni = $esito; errore = $null }
+    $spotRes += [pscustomobject]@{ s = $s; wg = $wg; giorni = $esito; errore = $null }; [void](Update-Tempi)
     Write-Host "ok ($($wg.spot), init $($wg.init) UTC)" -ForegroundColor Green
   } catch {
     $spotRes += [pscustomobject]@{ s = $s; wg = $null; giorni = @(); errore = $_.Exception.Message }
@@ -669,9 +671,11 @@ foreach ($s in $SPOT) {
 Write-Host '  Open-Meteo (meteo e secondo modello)... ' -NoNewline
 $OM = @{}
 try { $OM = Read-OpenMeteo; Write-Host 'ok' -ForegroundColor Green } catch { Write-Host "ERRORE: $($_.Exception.Message)" -ForegroundColor Red }
+[void](Update-Tempi)
 Write-Host '  Temperatura dell''acqua... ' -NoNewline
 $ACQUA = @{}
 try { $ACQUA = Read-Acqua; Write-Host 'ok' -ForegroundColor Green } catch { Write-Host "ERRORE: $($_.Exception.Message)" -ForegroundColor Red }
+[void](Update-Tempi)
 $VIAGGI = $null; $erroreViaggi = ''
 if ($IMP[$IMP.partenza]) {
   Write-Host "  Tempi di viaggio da $($IMP.partenza)... " -NoNewline
@@ -702,6 +706,7 @@ foreach ($st in $STAZIONI) {
 }
 }
 
+[void](Update-Tempi)
 # Appunti sulle stazioni: quanto ci mettono a rispondere e se rispondono (dati\tempi-stazioni.csv).
 $LENTE = @{}
 try {
@@ -947,6 +952,7 @@ foreach ($st in $STAZIONI) {
 }
 $dati = [ordered]@{ aggiornando = ($FASE -eq 1); versione = $VERSIONE; dataVersione = $DATA_VERSIONE; autore = $AUTORE; creato = $adesso.ToString("yyyy-MM-dd'T'HH:mm:ss", $INV); soglia = $SOGLIA; oreMin = $ORE_MIN; giorni = $datiGiorni; passati = $datiPassati; spot = $datiSpot; stazioni = $datiStazioni; diario = $datiDiario
   partenza = [ordered]@{ scelta = $IMP.partenza; casa = (Get-NomePosto $IMP.casa); lavoro = (Get-NomePosto $IMP.lavoro); casaImp = $IMP.casa; lavoroImp = $IMP.lavoro; errore = $erroreViaggi; trovato = $(if ($VIAGGI) { $VIAGGI.trovato } else { '' }); lat = $(if ($VIAGGI) { $VIAGGI.lat } else { $null }); lon = $(if ($VIAGGI) { $VIAGGI.lon } else { $null }); google = [bool]$IMP.google_chiave } }
+[void](Update-Tempi)
 $json = ConvertTo-Json -InputObject $dati -Depth 8 -Compress
 $modello = [IO.File]::ReadAllText((Join-Path $cartella 'report-modello.html'), [Text.Encoding]::UTF8)
 $html = $modello.Replace('/*DATI*/null', $json)
