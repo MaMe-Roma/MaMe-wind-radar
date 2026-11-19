@@ -8,7 +8,10 @@ param([switch]$NonAprire, [string]$SalvaGrezzi = '', [string]$Link = '', [switch
 
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
-[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+# TLS 1.2, e 1.3 dove Windows lo supporta (alcuni servizi, come i percorsi stradali, chiedono la 1.3).
+$protocolli = [Net.SecurityProtocolType]::Tls12
+try { $protocolli = $protocolli -bor [Net.SecurityProtocolType]'Tls13' } catch {}
+[Net.ServicePointManager]::SecurityProtocol = $protocolli
 
 $VERSIONE = '2.0'
 $DATA_VERSIONE = '19/11/2026'
