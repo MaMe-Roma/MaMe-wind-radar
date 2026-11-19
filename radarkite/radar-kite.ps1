@@ -10,7 +10,7 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-$VERSIONE = '2.2'
+$VERSIONE = '2.3'
 $DATA_VERSIONE = '19/11/2026'
 $AUTORE = '@MadHatterMatt'
 
@@ -535,7 +535,9 @@ function Get-Viaggi([bool]$forza) {
         try { $j = ConvertFrom-Json (Get-Testo ($base + $q) 'https://www.openstreetmap.org/'); $geo = @($j | Where-Object { $_.address.house_number }) } catch { $geo = @() }
       }
       if (-not $geo.Count) { $j = ConvertFrom-Json (Get-Testo ($base + 'q=' + [Uri]::EscapeDataString($indirizzo)) 'https://www.openstreetmap.org/'); $geo = @($j) }
-      if (-not $geo.Count) { throw "indirizzo non trovato: $indirizzo" }
+      if (-not $geo.Count) { throw "indirizzo non trovato ($indirizzo)" }
+      # Se hai scritto il numero civico e la mappa non lo conosce, meglio un errore che un punto qualsiasi della via.
+      if ($indirizzo -match '\s\d+\s*[A-Za-z]?\s*(,|$)' -and -not $geo[0].address.house_number) { throw "numero civico non trovato sulla mappa ($indirizzo)" }
       $lat = [double]::Parse($geo[0].lat, $INV); $lon = [double]::Parse($geo[0].lon, $INV); $trovato = $geo[0].display_name
     }
     $coord = @($lon.ToString($INV) + ',' + $lat.ToString($INV)) + @($SPOT | ForEach-Object { ([double]$_.lon).ToString($INV) + ',' + ([double]$_.lat).ToString($INV) })
@@ -624,10 +626,10 @@ try { $OM = Read-OpenMeteo; Write-Host 'ok' -ForegroundColor Green } catch { Wri
 Write-Host '  Temperatura dell''acqua... ' -NoNewline
 $ACQUA = @{}
 try { $ACQUA = Read-Acqua; Write-Host 'ok' -ForegroundColor Green } catch { Write-Host "ERRORE: $($_.Exception.Message)" -ForegroundColor Red }
-$VIAGGI = $null
+$VIAGGI = $null; $erroreViaggi = ''
 if ($IMP[$IMP.partenza]) {
   Write-Host "  Tempi di viaggio da $($IMP.partenza)... " -NoNewline
-  try { $VIAGGI = Get-Viaggi $forzaViaggi; Write-Host 'ok' -ForegroundColor Green } catch { Write-Host "ERRORE: $($_.Exception.Message)" -ForegroundColor Red }
+  try { $VIAGGI = Get-Viaggi $forzaViaggi; Write-Host 'ok' -ForegroundColor Green } catch { $erroreViaggi = $_.Exception.Message; Write-Host "ERRORE: $erroreViaggi" -ForegroundColor Red }
 }
 
 # Righe firing (previsione + stazione che segna gia' firing adesso)
@@ -849,7 +851,7 @@ foreach ($st in $STAZIONI) {
   $datiStazioni += [ordered]@{ id = $st.id; nome = $st.nome; pagina = $st.pagina; spot = $suo.id; data = $l.t.ToString('dd/MM', $INV); giorni = [int][Math]::Floor(($adesso - $l.t).TotalDays); wind = (Num $l.wind); gust = (Num $l.gust); deg = $l.deg; dir = (Get-Comp $l.deg); ora = $l.t.ToString('HH:mm', $INV); stato = $stato }
 }
 $dati = [ordered]@{ versione = $VERSIONE; dataVersione = $DATA_VERSIONE; autore = $AUTORE; creato = $adesso.ToString("yyyy-MM-dd'T'HH:mm:ss", $INV); soglia = $SOGLIA; oreMin = $ORE_MIN; giorni = $datiGiorni; passati = $datiPassati; spot = $datiSpot; stazioni = $datiStazioni; diario = $datiDiario
-  partenza = [ordered]@{ scelta = $IMP.partenza; casa = (Get-NomePosto $IMP.casa); lavoro = (Get-NomePosto $IMP.lavoro); casaImp = $IMP.casa; lavoroImp = $IMP.lavoro; trovato = $(if ($VIAGGI) { $VIAGGI.trovato } else { '' }); lat = $(if ($VIAGGI) { $VIAGGI.lat } else { $null }); lon = $(if ($VIAGGI) { $VIAGGI.lon } else { $null }); google = [bool]$IMP.google_chiave } }
+  partenza = [ordered]@{ scelta = $IMP.partenza; casa = (Get-NomePosto $IMP.casa); lavoro = (Get-NomePosto $IMP.lavoro); casaImp = $IMP.casa; lavoroImp = $IMP.lavoro; errore = $erroreViaggi; trovato = $(if ($VIAGGI) { $VIAGGI.trovato } else { '' }); lat = $(if ($VIAGGI) { $VIAGGI.lat } else { $null }); lon = $(if ($VIAGGI) { $VIAGGI.lon } else { $null }); google = [bool]$IMP.google_chiave } }
 $json = ConvertTo-Json -InputObject $dati -Depth 8 -Compress
 $modello = [IO.File]::ReadAllText((Join-Path $cartella 'report-modello.html'), [Text.Encoding]::UTF8)
 $html = $modello.Replace('/*DATI*/null', $json)
