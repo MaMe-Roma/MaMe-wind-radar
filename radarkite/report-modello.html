@@ -107,6 +107,9 @@ svg{display:block;width:100%;height:auto}
 /* 2.0: partenza, meteo, confronto, diario */
 .pform{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:flex-end;margin:8px 0 0;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--panel)}
 .pform[hidden]{display:none}
+.pform .aiuto{flex:1 1 100%;line-height:1.5}
+.perr{margin-top:8px;padding:8px 12px;border:1px solid var(--bad);border-radius:8px;color:var(--bad);font-size:13px;font-weight:600}
+body.pdf .perr{display:none}
 .pform label{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--muted);flex:1 1 300px}
 .pform input{font:inherit;font-size:13px;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:6px 8px}
 .barra{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px;font-size:13px}
@@ -341,7 +344,7 @@ var D = /*DATI*/null;
     var form = h('div', 'pform'); form.hidden = true;
     function campo(nome, val) {
       var l = h('label'); l.append(h('span', null, nome));
-      var i = h('input'); i.type = 'text'; i.value = val || ''; i.placeholder = 'Via e numero, città — oppure coordinate (es. 41.86500, 12.47800)';
+      var i = h('input'); i.type = 'text'; i.value = val || ''; i.placeholder = 'es. Via Roma 1, Roma (41.90000, 12.50000)';
       l.append(i); form.append(l); return i;
     }
     var ic = campo('Casa', P.casaImp), il = campo('Lavoro', P.lavoroImp);
@@ -350,10 +353,14 @@ var D = /*DATI*/null;
       var p = P.scelta === 'lavoro' && il.value.trim() ? 'lavoro' : (ic.value.trim() ? 'casa' : 'lavoro');
       lancia('radarkite://indirizzi?c=' + encodeURIComponent(ic.value.trim()) + '&l=' + encodeURIComponent(il.value.trim()) + '&p=' + p);
     });
-    form.append(salva, h('span', 'small', 'Per essere precisi: in Google Maps clic destro sul punto, clic sulle coordinate (si copiano) e incollale qui.'));
+    var aiuto = h('div', 'small aiuto');
+    aiuto.innerHTML = 'Scrivi via, numero e città. Se la mappa non trova il numero civico, aggiungi in fondo le <b>coordinate tra parentesi</b>: ' +
+      'in Google Maps fai clic destro sul punto, clic sulla prima riga (i numeri, si copiano) e incollali dopo l\'indirizzo, così: <b>Via Roma 1, Roma (41.90000, 12.50000)</b>.';
+    form.append(salva, aiuto);
     var mod = h('button', null, P.casa || P.lavoro ? '✎ Modifica' : '✎ Imposta la partenza'); mod.type = 'button';
     mod.addEventListener('click', function () { form.hidden = !form.hidden; if (!form.hidden) ic.focus(); });
     b.after(form);
+    if (P.errore) { b.after(h('div', 'perr', '⚠ Partenza non trovata: ' + P.errore + '. Premi «✎ Modifica» e aggiungi le coordinate tra parentesi.')); form.hidden = false; }
     if (!P.casa && !P.lavoro) { b.append(h('span', null, '🚗 Partenza'), mod, h('span', 'small', 'scrivi casa o lavoro per avere i tempi di viaggio e la navigazione da lì')); return; }
     b.append(h('span', null, '🚗 Partenza'));
     var sel = h('select');
