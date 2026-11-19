@@ -73,6 +73,7 @@ $IMP_TESTO = @'
 # Radar kite - impostazioni personali. Una per riga: nome = valore. Le righe con # sono note.
 #
 # Da dove parti per andare agli spot (indirizzo e citta'). Serve per il tempo di viaggio.
+# Per essere precisi aggiungi le coordinate tra parentesi, es. Via Roma 1, Roma (41.90000, 12.50000).
 casa =
 lavoro =
 # Quale delle due usare adesso: casa oppure lavoro (si cambia anche dal menu nella pagina).
@@ -485,6 +486,11 @@ function Get-Finestra($s, $righe, [int]$inizio, [int]$fine) {
 }
 
 # ---------------- Tempo di viaggio dalla partenza scelta ----------------
+# Indirizzo da mostrare nella pagina: senza le eventuali coordinate tra parentesi.
+function Get-NomePosto([string]$v) {
+  $t = ($v -replace '\(?\s*-?\d{1,2}\.\d{3,}\s*,\s*-?\d{1,3}\.\d{3,}\s*\)?', '').Trim(' ,;')
+  if ($t) { return $t } elseif ($v) { return 'posizione salvata' } else { return '' }
+}
 function Get-Viaggi([bool]$forza) {
   $fileV = Join-Path $dirDati 'viaggi.json'
   $indirizzo = $IMP[$IMP.partenza]
@@ -504,10 +510,23 @@ function Get-Viaggi([bool]$forza) {
   try {
   if ($valida) { $lat = $cache.lat; $lon = $cache.lon; $trovato = $cache.trovato; $stima = $cache.stima }
   else {
-    $j = ConvertFrom-Json (Get-Testo ("https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=it&q=" + [Uri]::EscapeDataString($indirizzo)) 'https://www.openstreetmap.org/')
-    $geo = @($j)
-    if (-not $geo.Count) { throw "indirizzo non trovato: $indirizzo" }
-    $lat = [double]::Parse($geo[0].lat, $INV); $lon = [double]::Parse($geo[0].lon, $INV); $trovato = $geo[0].display_name
+    # Coordinate scritte in impostazioni.txt (es. "Via Roma 1, Roma (41.90000, 12.50000)"): si usano quelle.
+    $cc = [regex]::Match($indirizzo, '(-?\d{1,2}\.\d{3,})\s*,\s*(-?\d{1,3}\.\d{3,})')
+    if ($cc.Success) {
+      $lat = [double]::Parse($cc.Groups[1].Value, $INV); $lon = [double]::Parse($cc.Groups[2].Value, $INV); $trovato = 'coordinate di impostazioni.txt'
+    } else {
+      $base = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=it&addressdetails=1&'
+      $geo = @()
+      # Prima via + numero civico + citta' (la ricerca libera spesso ignora il civico), poi l'indirizzo com'e'.
+      $pz = @($indirizzo -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+      if ($pz.Count -ge 2 -and $pz[0] -match '^(.+?)\s+(\d+\s*[A-Za-z]?)$') {
+        $q = 'street=' + [Uri]::EscapeDataString($Matches[2] + ' ' + $Matches[1]) + '&city=' + [Uri]::EscapeDataString($pz[1])
+        try { $j = ConvertFrom-Json (Get-Testo ($base + $q) 'https://www.openstreetmap.org/'); $geo = @($j | Where-Object { $_.address.house_number }) } catch { $geo = @() }
+      }
+      if (-not $geo.Count) { $j = ConvertFrom-Json (Get-Testo ($base + 'q=' + [Uri]::EscapeDataString($indirizzo)) 'https://www.openstreetmap.org/'); $geo = @($j) }
+      if (-not $geo.Count) { throw "indirizzo non trovato: $indirizzo" }
+      $lat = [double]::Parse($geo[0].lat, $INV); $lon = [double]::Parse($geo[0].lon, $INV); $trovato = $geo[0].display_name
+    }
     $coord = @($lon.ToString($INV) + ',' + $lat.ToString($INV)) + @($SPOT | ForEach-Object { ([double]$_.lon).ToString($INV) + ',' + ([double]$_.lat).ToString($INV) })
     $osrm = ConvertFrom-Json (Get-Testo ('https://router.project-osrm.org/table/v1/driving/' + ($coord -join ';') + '?sources=0&annotations=duration') 'https://project-osrm.org/')
     $stima = [ordered]@{}
@@ -819,7 +838,7 @@ foreach ($st in $STAZIONI) {
   $datiStazioni += [ordered]@{ id = $st.id; nome = $st.nome; pagina = $st.pagina; spot = $suo.id; data = $l.t.ToString('dd/MM', $INV); giorni = [int][Math]::Floor(($adesso - $l.t).TotalDays); wind = (Num $l.wind); gust = (Num $l.gust); deg = $l.deg; dir = (Get-Comp $l.deg); ora = $l.t.ToString('HH:mm', $INV); stato = $stato }
 }
 $dati = [ordered]@{ versione = $VERSIONE; dataVersione = $DATA_VERSIONE; autore = $AUTORE; creato = $adesso.ToString("yyyy-MM-dd'T'HH:mm:ss", $INV); soglia = $SOGLIA; oreMin = $ORE_MIN; giorni = $datiGiorni; passati = $datiPassati; spot = $datiSpot; stazioni = $datiStazioni; diario = $datiDiario
-  partenza = [ordered]@{ scelta = $IMP.partenza; casa = $IMP.casa; lavoro = $IMP.lavoro; trovato = $(if ($VIAGGI) { $VIAGGI.trovato } else { '' }); lat = $(if ($VIAGGI) { $VIAGGI.lat } else { $null }); lon = $(if ($VIAGGI) { $VIAGGI.lon } else { $null }); google = [bool]$IMP.google_chiave } }
+  partenza = [ordered]@{ scelta = $IMP.partenza; casa = (Get-NomePosto $IMP.casa); lavoro = (Get-NomePosto $IMP.lavoro); trovato = $(if ($VIAGGI) { $VIAGGI.trovato } else { '' }); lat = $(if ($VIAGGI) { $VIAGGI.lat } else { $null }); lon = $(if ($VIAGGI) { $VIAGGI.lon } else { $null }); google = [bool]$IMP.google_chiave } }
 $json = ConvertTo-Json -InputObject $dati -Depth 8 -Compress
 $modello = [IO.File]::ReadAllText((Join-Path $cartella 'report-modello.html'), [Text.Encoding]::UTF8)
 $html = $modello.Replace('/*DATI*/null', $json)
