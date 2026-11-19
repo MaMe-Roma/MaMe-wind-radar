@@ -43,6 +43,12 @@ jobs:
           for ($i = 0; $i -lt 60; $i++) { Start-Sleep 2; if ((Get-Item radarkite\report.html).LastWriteTime -gt $prima) { break } }
           "Diario:"; Get-Content radarkite\dati\diario.csv
           "Corsa automatica:"; powershell -NoProfile -ExecutionPolicy Bypass -File radarkite\radar-kite.ps1 -Automatico -OmProva "$PWD\om-prova.json" | Select-Object -Last 5
+          "Avvio come l'attivita' (conhost --headless):"; $prima = (Get-Item radarkite\report.html).LastWriteTime
+          $p = Start-Process "$env:SystemRoot\System32\conhost.exe" -ArgumentList ('--headless "' + "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" + '" -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + "$PWD\radarkite\radar-kite.ps1" + '" -Automatico -OmProva "' + "$PWD\om-prova.json" + '"') -PassThru
+          $p.WaitForExit(240000) | Out-Null; Start-Sleep 3; "report aggiornato: $((Get-Item radarkite\report.html).LastWriteTime -gt $prima)"
+          "Attivita' avviata dallo scheduler:"; $prima = (Get-Item radarkite\report.html).LastWriteTime; Start-ScheduledTask -TaskName 'Radar kite'
+          for ($i = 0; $i -lt 90; $i++) { Start-Sleep 2; if ((Get-Item radarkite\report.html).LastWriteTime -gt $prima) { break } }
+          $ti = Get-ScheduledTaskInfo -TaskName 'Radar kite'; "report aggiornato: $((Get-Item radarkite\report.html).LastWriteTime -gt $prima) - esito $('0x{0:X}' -f $ti.LastTaskResult)"
           "File dati:"; Get-ChildItem radarkite\dati | ForEach-Object { "$($_.Name) $($_.Length)" }
           "PDF:"; Get-ChildItem pdfout | ForEach-Object { "$($_.Name) $($_.Length)" }
           "Viaggi:"; if (Test-Path radarkite\dati\viaggi.json) { Get-Content radarkite\dati\viaggi.json }

@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="it">
 <head>
 <meta charset="utf-8">
@@ -46,7 +46,7 @@ a{color:inherit}
 .cgn{font-size:20px;font-weight:500}
 .cgm{font-size:11px;color:var(--muted)}
 .cgspot{font-weight:600;font-size:14px;margin-top:4px}
-.cgv b{font-size:17px;font-weight:600}
+.cgv b{font-size:17px;font-weight:600;white-space:nowrap}
 .cgx{font-size:11px;color:var(--muted)}
 .legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:8px}
 .legend .l1::before,.legend .l2::before,.legend .l3::before,.legend .l4::before{content:"";display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px;border:1px solid var(--line)}
@@ -104,7 +104,7 @@ svg{display:block;width:100%;height:auto}
 .barra select,.barra button,.diario input,.diario select,.diario button{font:inherit;font-size:13px;color:var(--fg);background:var(--panel);border:1px solid var(--line);border-radius:7px;padding:4px 8px}
 .barra button,.diario button{cursor:pointer;font-weight:600}
 .info{font-size:12px;color:var(--muted);margin-left:8px;white-space:nowrap}
-.meteo{display:flex;gap:6px;font-size:12px;margin-top:4px;color:var(--muted);flex-wrap:wrap}
+.meteo{display:flex;gap:5px;font-size:11.5px;margin-top:4px;color:var(--muted);flex-wrap:nowrap;letter-spacing:-.2px}
 .meteo span{white-space:nowrap}
 .om{font-size:11px;color:var(--muted);margin-top:3px}
 .om b.si{color:var(--ok)}.om b.no{color:var(--bad)}
@@ -129,6 +129,7 @@ table.tab th{font-weight:600;color:var(--muted);font-size:12px}
 .stat span{font-size:12px;border:1px solid var(--line);border-radius:999px;padding:2px 10px}
 /* PDF per il telefono: niente pulsanti e una pagina sola lunga quanto il report */
 body.pdf .agg,body.pdf .barra button,body.pdf .barra select,body.pdf .diario form,body.pdf .legend span:last-child{display:none}
+body.pdf .grid{grid-template-columns:1fr}body.pdf .cal{grid-template-columns:repeat(7,minmax(0,1fr));min-width:0;gap:5px}body.pdf .cg{padding:7px 6px;font-size:12px}body.pdf .cgv{display:flex;flex-wrap:wrap;align-items:baseline;column-gap:3px}body.pdf .cgv b{font-size:14px}body.pdf .cgspot{font-size:12.5px}body.pdf .cgn{font-size:17px}body.pdf .calwrap,body.pdf .scroll{overflow:visible}body.pdf .days{grid-template-columns:repeat(4,minmax(0,1fr))}
 @media print{*{-webkit-print-color-adjust:exact;print-color-adjust:exact}.cg,.d,.spot,.sta,.conf{break-inside:avoid}}
 </style>
 </head>
@@ -210,6 +211,8 @@ var D = /*DATI*/null;
     return '5/4 o 6/5, calzari, guanti e cappuccio';
   }
   function minuti(s) { var v = s.viaggio; if (!v) return null; return v.traffico != null ? v.traffico : v.stima; }
+  function durata(m) { var o = Math.floor(m / 60), r = m % 60; return o ? o + ' h' + (r ? ' ' + r + ' min' : '') : r + ' min'; }
+  function forbice(f) { return f.min === f.max ? String(f.min) : f.min + '–' + f.max; }
   function temporale(g) { return !!(g && g.meteo && g.meteo.temporale); }
   // Spot migliore del giorno: prima senza raffiche pericolose e senza temporali, poi direzione ideale,
   // poi senza avvisi (es. lavatrice), poi non side-off, poi finestra piu' lunga e vento piu' forte (a scaglioni),
@@ -528,9 +531,9 @@ var D = /*DATI*/null;
         // Secondo modello (Open-Meteo): conferma o no la finestra di Windguru.
         if (g.om && (g.firing || g.om.firing)) {
           var om = h('div', 'om');
-          if (g.firing && g.om.firing) { om.append('Open-Meteo ' + g.om.firing.min + '–' + g.om.firing.max + ' kts '); om.append(h('b', 'si', '✓ concorda')); }
+          if (g.firing && g.om.firing) { om.append('Open-Meteo ' + forbice(g.om.firing) + ' kts '); om.append(h('b', 'si', '✓ concorda')); }
           else if (g.firing) { om.append('Open-Meteo max ' + (g.om.max == null ? '—' : g.om.max) + ' kts '); om.append(h('b', 'no', '✗ non concorda')); }
-          else { om.append('Open-Meteo vede vento ' + g.om.firing.min + '–' + g.om.firing.max + ' kts, ore ' + ore(g.om.firing.ore)); }
+          else { om.append('Open-Meteo vede vento ' + forbice(g.om.firing) + ' kts, ore ' + ore(g.om.firing.ore)); }
           t.append(om);
         }
         // Tempo: mattina, pomeriggio, sera.
@@ -623,7 +626,7 @@ var D = /*DATI*/null;
     if (!lista.length) { box.append(h('p', 'small', 'Ancora nessuna uscita. Compila e premi «Salva uscita»: il programma la scrive in dati\\diario.csv (lo puoi correggere con Excel).')); return; }
     var tot = {}, totMin = 0;
     lista.forEach(function (u) { var t = tot[u.spot] = tot[u.spot] || { n: 0, m: 0 }; t.n++; t.m += u.minuti || 0; totMin += u.minuti || 0; });
-    var st = h('div', 'stat'); st.append(h('span', null, lista.length + (lista.length === 1 ? ' uscita' : ' uscite') + ' · ' + Math.floor(totMin / 60) + ' h ' + (totMin % 60) + ' min'));
+    var st = h('div', 'stat'); st.append(h('span', null, lista.length + (lista.length === 1 ? ' uscita' : ' uscite') + ' · ' + durata(totMin)));
     Object.keys(tot).forEach(function (k) { st.append(h('span', null, (nomeSpot[k] || k) + ': ' + tot[k].n + ' · ' + tot[k].m + ' min')); });
     box.append(st);
     var tab = h('table', 'tab'), tr = h('tr');
@@ -644,7 +647,7 @@ var D = /*DATI*/null;
   if (location.hash === '#pdf') {
     document.body.classList.add('pdf');
     var pag = document.createElement('style');
-    pag.textContent = '@page{size:' + Math.max(1100, document.documentElement.scrollWidth) + 'px ' + (document.documentElement.scrollHeight + 40) + 'px;margin:0}';
+    pag.textContent = '@page{size:760px ' + (Math.ceil(document.documentElement.scrollHeight * 1.03) + 60) + 'px;margin:0}';
     document.head.append(pag);
   }
 })();
