@@ -10,7 +10,7 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-$VERSIONE = '2.6'
+$VERSIONE = '2.8'
 $DATA_VERSIONE = '19/11/2026'
 $AUTORE = '@MadHatterMatt'
 
@@ -21,7 +21,8 @@ $GIORNI = 8           # oggi + 7 giorni (fino allo stesso giorno della settimana
 $VIAGGIO_ORE = 1      # per oggi conta solo il vento da un'ora dopo l'avvio
 
 # Spot da nord a sud. ok = direzioni buone (gradi da cui arriva il vento), terra = vento da terra (mai firing);
-# tutto il resto e' side-off. Salto di Fondi e Lido di Latina: direzioni stimate dalla costa, da confermare.
+# tutto il resto e' side-off. Salto di Fondi: direzioni stimate dalla costa, da confermare.
+# Lido di Latina: ponente ideale (vento da O-ONO, mare formato); col maestrale meglio spostarsi verso Capo Portiere.
 $SPOT = @(
   @{ id = 'sag'; nome = "Civitavecchia Sant'Agostino"; breve = 'S. Agostino'; lon = 11.73579; lat = 42.17537; lab = @(11, -9, 'start'); wg = 49021; ok = @(180, 320); terra = @(350, 130); stazioni = @('rdt_civitavecchia'); webcam = ''
      ideali = @(); attenzione = @() },
@@ -38,7 +39,7 @@ $SPOT = @(
      ideali = @(@{ n = 'libeccio'; d = 225 }, @{ n = 'grecale'; d = 45 }); attenzione = @() },
   # Lido di Latina: tra Foce Verde e Capo Portiere (scuola Ultimate Kiteboarding). Windguru non ha uno spot qui: uso Foce Verde, stessa baia.
   @{ id = 'latina'; nome = 'Lido di Latina'; breve = 'Lido di Latina'; mappa = 'Latina'; lon = 12.87552; lat = 41.40429; lab = @(11, 4, 'start'); wg = 49036; ok = @(120, 315); terra = @(335, 100); stazioni = @('latina_lido', 'latina_sud'); webcam = 'https://vedetta.org/webcam/italia/lazio/latina/lido-di-latina/'
-     ideali = @(); attenzione = @() },
+     ideali = @(@{ n = 'ponente'; d = 270 }); attenzione = @(@{ n = 'maestrale: vai a Capo Portiere'; d = 315 }) },
   @{ id = 'fondi'; nome = 'Salto di Fondi'; breve = 'Salto di Fondi'; lon = 13.31390; lat = 41.29504; lab = @(11, 4, 'start'); wg = 49042; ok = @(110, 280); terra = @(300, 80); stazioni = @('saltodifondi'); webcam = ''
      ideali = @(); attenzione = @() }
 )
@@ -512,17 +513,37 @@ function Get-UrlAcqua {
     $lat += ([double]$s.lat + 0.06 * [Math]::Cos($c * [Math]::PI / 180)).ToString('0.000', $INV)
     $lon += ([double]$s.lon + 0.06 * [Math]::Sin($c * [Math]::PI / 180) / 0.745).ToString('0.000', $INV)
   }
-  return "https://marine-api.open-meteo.com/v1/marine?latitude=$($lat -join ',')&longitude=$($lon -join ',')&hourly=sea_surface_temperature&timezone=Europe%2FRome&forecast_days=1"
+  return "https://marine-api.open-meteo.com/v1/marine?latitude=$($lat -join ',')&longitude=$($lon -join ',')&hourly=sea_surface_temperature,wave_height,wave_period,wave_direction,swell_wave_height,swell_wave_period,wind_wave_height,wind_wave_period&timezone=Europe%2FRome&forecast_days=9"
 }
 function Read-Acqua {
   $j = ConvertFrom-Json (Get-Testo (Get-UrlAcqua) 'https://open-meteo.com/')
   $lista = @($j)
   $out = @{}
+  $script:ONDE = @{}
   for ($i = 0; $i -lt $SPOT.Count; $i++) {
-    $v = @($lista[$i].hourly.sea_surface_temperature | Where-Object { $_ -ne $null })
+    $hh = $lista[$i].hourly
+    # Temperatura dell'acqua: media di oggi.
+    $v = @($hh.sea_surface_temperature | Select-Object -First 24 | Where-Object { $_ -ne $null })
     $out[$SPOT[$i].id] = $(if ($v.Count) { [Math]::Round(($v | Measure-Object -Average).Average) } else { $null })
+    # Onde ora per ora: totale, onda lunga (swell) e onde da vento.
+    $righe = @()
+    for ($k = 0; $hh.wave_height -and $k -lt @($hh.time).Count; $k++) {
+      if ($hh.wave_height[$k] -eq $null) { continue }
+      $t = [datetime]::ParseExact($hh.time[$k], "yyyy-MM-dd'T'HH:mm", $INV)
+      $righe += [pscustomobject]@{ date = $t.Date; hour = $t.Hour; h = $hh.wave_height[$k]; p = $hh.wave_period[$k]; d = $hh.wave_direction[$k]
+        sh = $hh.swell_wave_height[$k]; sp = $hh.swell_wave_period[$k]; wh = $hh.wind_wave_height[$k]; wp = $hh.wind_wave_period[$k] }
+    }
+    $script:ONDE[$SPOT[$i].id] = $righe
   }
   return $out
+}
+# Onde di un giorno: l'ora con l'onda piu' alta tra $da e $a (la finestra del vento, o la fascia utile).
+function Get-Onde($righe, [datetime]$giorno, [int]$da, [int]$a) {
+  $r = @($righe | Where-Object { $_.date -eq $giorno -and $_.hour -ge $da -and $_.hour -le $a } | Sort-Object h -Descending | Select-Object -First 1)
+  if (-not $r.Count) { return $null }
+  $x = $r[0]
+  function Arr($v, $c) { if ($v -eq $null) { $null } else { [Math]::Round([double]$v, $c) } }
+  return [ordered]@{ h = (Arr $x.h 1); p = (Arr $x.p 0); d = (Arr $x.d 0); sh = (Arr $x.sh 1); sp = (Arr $x.sp 0); wh = (Arr $x.wh 1); wp = (Arr $x.wp 0); ora = $x.hour }
 }
 function Get-Meteo($righeOm, [datetime]$giorno, $fascia) {
   $periodi = @(@(8, 11), @(12, 16), @(17, 20))
@@ -674,7 +695,7 @@ Write-Host '  Open-Meteo (meteo e secondo modello)... ' -NoNewline
 $OM = @{}
 try { $OM = Read-OpenMeteo; Write-Host 'ok' -ForegroundColor Green } catch { Write-Host "ERRORE: $($_.Exception.Message)" -ForegroundColor Red }
 [void](Update-Tempi)
-Write-Host '  Temperatura dell''acqua... ' -NoNewline
+Write-Host '  Mare (acqua e onde)... ' -NoNewline
 $ACQUA = @{}
 try { $ACQUA = Read-Acqua; Write-Host 'ok' -ForegroundColor Green } catch { Write-Host "ERRORE: $($_.Exception.Message)" -ForegroundColor Red }
 [void](Update-Tempi)
@@ -931,6 +952,12 @@ foreach ($r in $spotRes) {
       $omOre = @($omS | Where-Object { $_.date -eq $g.data -and $_.hour -ge $ini -and $_.hour -le $fa[1] -and $_.wind -ne $null })
       $o.om = [ordered]@{ firing = (Get-Finestra $s $omOre $ini $fa[1]); max = $(if ($omOre.Count) { [int][Math]::Round(($omOre | Measure-Object wind -Maximum).Maximum) } else { $null }) }
     }
+    if ($ONDE -and $ONDE[$s.id]) {
+      $faO = Get-Fascia $g.data
+      $oraDa = $faO[0]; $oraA = $faO[1]
+      if ($g.firing -and $g.ore -match '^(\d+)\D+(\d+)$') { $oraDa = [int]$Matches[1]; $oraA = [int]$Matches[2] }
+      $o.onde = Get-Onde $ONDE[$s.id] $g.data $oraDa $oraA
+    }
     if ($g.firing) {
       $o.ore = $g.ore; $o.durata = $g.durata; $o.min = $g.min; $o.maxf = $g.maxf; $o.raffica = $g.raffica; $o.dir = $g.dir
       $o.pericolose = $g.pericolose; $o.rafficato = $g.rafficato; $o.sideoff = $g.sideoff; $o.ideale = $g.ideale; $o.attenzione = $g.attenzione
@@ -940,7 +967,8 @@ foreach ($r in $spotRes) {
   $staz = @(foreach ($sid in $s.stazioni) { $x = $STAZIONI | Where-Object { $_.id -eq $sid } | Select-Object -First 1; [ordered]@{ id = $x.id; nome = $x.nome; etichetta = $x.etichetta; pagina = $x.pagina } })
   $viaggio = $null
   if ($VIAGGI) { $viaggio = [ordered]@{ stima = $VIAGGI.stima.($s.id); traffico = $(if ($VIAGGI.traffico) { $VIAGGI.traffico.($s.id) } else { $null }); ora = $VIAGGI.trafficoOra } }
-  $datiSpot += [ordered]@{ viaggio = $viaggio; acqua = $ACQUA[$s.id]; id = $s.id; nome = $s.nome; breve = $s.breve; mappa = $(if ($s.mappa) { $s.mappa } else { $s.breve }); lon = $s.lon; lat = $s.lat; lab = $s.lab; wg = $s.wg; webcam = $s.webcam
+  $ondeOra = $(if ($ONDE -and $ONDE[$s.id]) { Get-Onde $ONDE[$s.id] $adesso.Date $adesso.Hour $adesso.Hour } else { $null })
+  $datiSpot += [ordered]@{ viaggio = $viaggio; acqua = $ACQUA[$s.id]; ondeOra = $ondeOra; id = $s.id; nome = $s.nome; breve = $s.breve; mappa = $(if ($s.mappa) { $s.mappa } else { $s.breve }); lon = $s.lon; lat = $s.lat; lab = $s.lab; wg = $s.wg; webcam = $s.webcam
     ok = $s.ok; terra = $s.terra; stazioni = $staz; errore = $r.errore
     wgSpot = $(if ($r.wg) { $r.wg.spot } else { '' }); init = $(if ($r.wg) { $r.wg.init } else { '' }); adesso = $ad; giorni = $tessere }
 }
