@@ -110,7 +110,7 @@ svg{display:block;width:100%;height:auto}
 .onde{display:flex;flex-direction:column;gap:1px;font-size:11.5px;align-self:start}
 .onde .o1{display:flex;align-items:center;gap:4px;white-space:nowrap;font-weight:600}
 .onde .o1.calmo{color:var(--ok)}.onde .o1.formato{color:var(--warn)}.onde .o1.grosso{color:var(--bad)}
-.ico-onda{width:22px;height:16px;flex:none;vertical-align:-3px}
+.ico-onda{display:inline-block;width:22px!important;height:16px!important;max-width:none;flex:none;vertical-align:-4px;margin-right:2px}
 .onde .o2{font-size:10.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .freccia{display:inline-block;font-size:11px;color:var(--muted);line-height:1}
 .attesa{color:var(--warn)}
@@ -176,7 +176,7 @@ body.pdf .grid{grid-template-columns:1fr}body.pdf .cal{grid-template-columns:rep
 </style>
 </head>
 <body>
-<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><symbol id="ico-onda" viewBox="0 0 48 36"><path d="M0 33 C5 33 7 22 14 19 C20 17 25.5 19.5 24.5 24 L20.5 26.5 C21.5 24.5 21 23 19.5 23 C17.5 23 17.5 30 26 33 Z" fill="#7cc4ec"/><path d="M12 33 C19 33 20 15 31 11 C39 8 47.5 12 46.5 18.5 L40 22.5 C42 20 41.5 17 38.5 17 C35 17 35 27 48 33 Z" fill="#1667b8"/><path d="M14 19 C20 17 25.5 19.5 24.5 24 L20.5 26.5" fill="none" stroke="#0b3d75" stroke-width="3.4" stroke-linejoin="miter" stroke-linecap="round"/><path d="M14 19 C20 17 25.5 19.5 24.5 24 L20.5 26.5" fill="none" stroke="#ffffff" stroke-width="1.8" stroke-linejoin="miter" stroke-linecap="round"/><path d="M31 11 C39 8 47.5 12 46.5 18.5 L40 22.5" fill="none" stroke="#0b3d75" stroke-width="4.2" stroke-linejoin="miter" stroke-linecap="round"/><path d="M31 11 C39 8 47.5 12 46.5 18.5 L40 22.5" fill="none" stroke="#ffffff" stroke-width="2.4" stroke-linejoin="miter" stroke-linecap="round"/></symbol></defs></svg>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><symbol id="ico-onda" viewBox="0 0 48 36"><path d="M0 33 C5 33 7 22 14 19 C20 17 25 20 24 24 C23.6 26 22 27.2 19.4 27.6 L21 25.2 C20.4 24.3 19.5 24.4 19 25 C17 27.5 19 31 26 33 Z" fill="#8fd0f0"/><path d="M12 33 C19 33 20 15 31 11 C39 8 47 12 46 18 C45.6 21 43.4 22.8 39.6 23.4 L42 19.6 C41 18.6 39.6 18.7 38.7 19.6 C36 22 37 30 48 33 Z" fill="#2389d6"/></symbol></defs></svg>
 <div class="wrap">
   <div class="testa"><h1>Radar kite <span class="ver" id="ver"></span></h1>
     <div class="agg"><span class="small" id="aggstato"></span><div class="aggbanner" id="aggbanner" hidden></div><button type="button" id="aggiorna" title="Rilancia il programma sul PC: rilegge previsioni e stazioni e ricarica la pagina">↻ Aggiorna</button></div></div>
@@ -706,6 +706,7 @@ var D = /*DATI*/null;
       links.append(
         link('Windy', 'https://www.windy.com/' + s.lat.toFixed(3) + '/' + s.lon.toFixed(3) + '?' + s.lat.toFixed(3) + ',' + s.lon.toFixed(3) + ',11'),
         link('Ventusky', 'https://www.ventusky.com/?p=' + s.lat.toFixed(3) + ';' + s.lon.toFixed(3) + ';10&l=wind-10m'));
+      if (s.surf) links.append(link(s.id === 'torva' ? 'Surf-forecast (Ostia)' : 'Surf-forecast', s.surf));
       head.append(sx, links);
       sec.append(head);
       if (s.errore) { sec.append(h('div', 'err', 'Previsione Windguru non letta: ' + s.errore)); box.append(sec); return; }
