@@ -4,11 +4,11 @@
    "id": "msn",
    "stazione": "Free Kiter MSN",
    "spot": "Marina di San Nicola",
-   "letto_alle": "2026-11-20T13:43:42",
-   "wind_kn": 8.4,
-   "gust_kn": 9.9,
-   "dir": "WSW",
-   "deg": 239.0,
+   "letto_alle": "2026-11-20T21:47:24",
+   "wind_kn": 11.9,
+   "gust_kn": 12.9,
+   "dir": "W",
+   "deg": 275.0,
    "offline": 0,
    "fonte": "https://stazioni3.soluzionimeteo.it/freekitermsn/"
   },
@@ -16,11 +16,11 @@
    "id": "lni_ostia",
    "stazione": "Lega Navale Ostia",
    "spot": "Ostia",
-   "letto_alle": "2026-11-19T22:03:28",
-   "wind_kn": 24.3,
-   "gust_kn": 27.8,
+   "letto_alle": "2026-11-20T21:47:39",
+   "wind_kn": 21.8,
+   "gust_kn": 24.3,
    "dir": "W",
-   "deg": 275.0,
+   "deg": 268.0,
    "offline": 0,
    "fonte": "https://www.leganavaleostia.it/situazione-attuale/"
   },
@@ -28,11 +28,11 @@
    "id": "rdt_civitavecchia",
    "stazione": "Riva di Traiano",
    "spot": "Civitavecchia Sant'Agostino",
-   "letto_alle": "2026-11-20T13:28:00",
-   "wind_kn": 7.0,
+   "letto_alle": "2026-11-20T21:44:00",
+   "wind_kn": 10.0,
    "gust_kn": 9.0,
-   "dir": "W",
-   "deg": 262.0,
+   "dir": "N",
+   "deg": 6.0,
    "offline": 0,
    "fonte": "https://www.rivaditraiano.com/meteo-obs/"
   },
@@ -40,8 +40,8 @@
    "id": "anzio_porto",
    "stazione": "Meteo Lazio Anzio Porto",
    "spot": "Anzio Levante",
-   "letto_alle": "2026-11-20T13:20:00",
-   "wind_kn": 17.7,
+   "letto_alle": "2026-11-20T21:20:00",
+   "wind_kn": 15.8,
    "gust_kn": null,
    "dir": "WSW",
    "deg": 247.5,
@@ -52,19 +52,15 @@
  "meta": [
   {
    "label": "Come",
-   "value": "Letto in automatico da GitHub Actions (MaMe-Roma/mame-wind-radar) alle 13:43 del 20/11/2026: lettura salvata, non in diretta."
+   "value": "Letto in automatico da GitHub Actions (MaMe-Roma/mame-wind-radar) alle 21:47 del 20/11/2026: lettura salvata, non in diretta."
   },
   {
    "label": "Letto",
-   "value": "2026-11-20T13:43:48"
+   "value": "2026-11-20T21:47:39"
   },
   {
    "label": "Raffica",
    "value": "MSN e Lega Navale: raffica attuale. Riva di Traiano: raffica dell'ultima osservazione. Anzio Porto: ultima raffica, spesso non disponibile; i dati arrivano con 20–30 minuti di ritardo."
-  },
-  {
-   "label": "Errori",
-   "value": "Lega Navale Ostia: URLError: <urlopen error timed out>"
   }
  ]
 }
