@@ -10,8 +10,8 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-$VERSIONE = '2.8'
-$DATA_VERSIONE = '19/11/2026'
+$VERSIONE = '2.9'
+$DATA_VERSIONE = '21/11/2026'
 $AUTORE = '@MadHatterMatt'
 
 # ---------------- Regole (modificabili) ----------------
@@ -21,27 +21,28 @@ $GIORNI = 8           # oggi + 7 giorni (fino allo stesso giorno della settimana
 $VIAGGIO_ORE = 1      # per oggi conta solo il vento da un'ora dopo l'avvio
 
 # Spot da nord a sud. ok = direzioni buone (gradi da cui arriva il vento), terra = vento da terra (mai firing);
-# tutto il resto e' side-off. Salto di Fondi: direzioni stimate dalla costa, da confermare.
+# tutto il resto e' side-off. Fonti kite (Kite and Windsurfing Guide): Sant'Agostino top con scirocco; Torvaianica come Ostia;
+# Salto di Fondi termica da ovest nel pomeriggio (kite a Sant'Anastasia); Fregene come Maccarese, maestrale e scirocco danno onda.
 # Lido di Latina: ponente ideale (vento da O-ONO, mare formato); col maestrale meglio spostarsi verso Capo Portiere.
 $SPOT = @(
-  @{ id = 'sag'; nome = "Civitavecchia Sant'Agostino"; breve = 'S. Agostino'; lon = 11.73579; lat = 42.17537; lab = @(11, -9, 'start'); wg = 49021; ok = @(180, 320); terra = @(350, 130); stazioni = @('rdt_civitavecchia'); webcam = ''
-     ideali = @(); attenzione = @() },
+  @{ id = 'sag'; nome = "Civitavecchia Sant'Agostino"; breve = 'S. Agostino'; lon = 11.73579; lat = 42.17537; lab = @(11, -9, 'start'); wg = 49021; ok = @(130, 320); terra = @(345, 120); stazioni = @('rdt_civitavecchia'); webcam = ''
+     ideali = @(@{ n = 'scirocco'; d = 135 }); attenzione = @() },
   @{ id = 'msn'; nome = 'Marina di San Nicola'; breve = 'San Nicola'; lon = 12.12663; lat = 41.92557; lab = @(11, -9, 'start'); wg = 49027; ok = @(170, 300); terra = @(330, 110); stazioni = @('msn', 'passoscuro'); webcam = ''
-     ideali = @(@{ n = 'ponente'; d = 270 }); attenzione = @(@{ n = 'libeccio: lavatrice, onde ~2 m'; d = 225 }) },
+     surf = 'https://it.surf-forecast.com/breaks/Off-The-Wall_1/forecasts/latest'; ideali = @(@{ n = 'ponente'; d = 270 }); attenzione = @(@{ n = 'libeccio: lavatrice, onde ~2 m'; d = 225 }) },
   # Fregene: stazione del Vela Sporting Club (su Weathercloud e Weather Underground IFIUMI2), webcam sulla loro pagina.
   @{ id = 'fregene'; nome = 'Fregene'; breve = 'Fregene'; lon = 12.18148; lat = 41.86864; lab = @(11, 4, 'start'); wg = 49029; ok = @(165, 320); terra = @(340, 130); stazioni = @('fregene'); webcam = 'https://www.velasportingclub.it/pages/la-nostra-stazione-meteo'
-     ideali = @(); attenzione = @(@{ n = 'libeccio: lavatrice'; d = 225 }) },
+     surf = 'https://it.surf-forecast.com/breaks/Focene/forecasts/latest'; ideali = @(); attenzione = @(@{ n = 'libeccio: lavatrice'; d = 225 }, @{ n = 'maestrale: onda formata'; d = 315 }) },
   @{ id = 'ostia'; nome = 'Ostia'; breve = 'Ostia'; lon = 12.37940; lat = 41.68148; lab = @(11, -9, 'start'); wg = 1518; ok = @(115, 325); terra = @(345, 95); stazioni = @('lni_ostia'); webcam = ''
-     ideali = @(@{ n = 'scirocco'; d = 135 }, @{ n = 'ponente'; d = 270 }); attenzione = @() },
+     surf = 'https://it.surf-forecast.com/breaks/Circoletto-Rome/forecasts/latest'; ideali = @(@{ n = 'scirocco'; d = 135 }, @{ n = 'ponente'; d = 270 }); attenzione = @() },
   @{ id = 'torva'; nome = 'Torvaianica'; breve = 'Torvaianica'; lon = 12.43412; lat = 41.64355; lab = @(11, 4, 'start'); wg = 49033; ok = @(115, 325); terra = @(345, 95); stazioni = @('torvaianica'); webcam = ''
-     ideali = @(); attenzione = @() },
+     surf = 'https://it.surf-forecast.com/breaks/Circoletto-Rome/forecasts/latest'; ideali = @(@{ n = 'scirocco'; d = 135 }, @{ n = 'ponente'; d = 270 }); attenzione = @() },
   @{ id = 'anzio'; nome = 'Anzio Levante'; breve = 'Anzio Levante'; mappa = 'Anzio'; lon = 12.63555; lat = 41.45040; lab = @(8, -12, 'start'); wg = 49035; ok = @(40, 230); terra = @(250, 20); stazioni = @('anzio_levante', 'anzio_porto'); webcam = 'https://vedetta.org/webcam/italia/lazio/roma/anzio-levante/'
-     ideali = @(@{ n = 'libeccio'; d = 225 }, @{ n = 'grecale'; d = 45 }); attenzione = @() },
+     surf = 'https://it.surf-forecast.com/breaks/Marinaretti-Anzio/forecasts/latest'; ideali = @(@{ n = 'libeccio'; d = 225 }, @{ n = 'grecale'; d = 45 }); attenzione = @() },
   # Lido di Latina: tra Foce Verde e Capo Portiere (scuola Ultimate Kiteboarding). Windguru non ha uno spot qui: uso Foce Verde, stessa baia.
   @{ id = 'latina'; nome = 'Lido di Latina'; breve = 'Lido di Latina'; mappa = 'Latina'; lon = 12.87552; lat = 41.40429; lab = @(11, 4, 'start'); wg = 49036; ok = @(120, 315); terra = @(335, 100); stazioni = @('latina_lido', 'latina_sud'); webcam = 'https://vedetta.org/webcam/italia/lazio/latina/lido-di-latina/'
      ideali = @(@{ n = 'ponente'; d = 270 }); attenzione = @(@{ n = 'maestrale: vai a Capo Portiere'; d = 315 }) },
   @{ id = 'fondi'; nome = 'Salto di Fondi'; breve = 'Salto di Fondi'; lon = 13.31390; lat = 41.29504; lab = @(11, 4, 'start'); wg = 49042; ok = @(110, 280); terra = @(300, 80); stazioni = @('saltodifondi'); webcam = ''
-     ideali = @(); attenzione = @() }
+     ideali = @(@{ n = 'ponente'; d = 270 }); attenzione = @() }
 )
 
 # tipo = come leggere la pagina; fresco = minuti oltre i quali la lettura e' vecchia.
@@ -968,7 +969,7 @@ foreach ($r in $spotRes) {
   $viaggio = $null
   if ($VIAGGI) { $viaggio = [ordered]@{ stima = $VIAGGI.stima.($s.id); traffico = $(if ($VIAGGI.traffico) { $VIAGGI.traffico.($s.id) } else { $null }); ora = $VIAGGI.trafficoOra } }
   $ondeOra = $(if ($ONDE -and $ONDE[$s.id]) { Get-Onde $ONDE[$s.id] $adesso.Date $adesso.Hour $adesso.Hour } else { $null })
-  $datiSpot += [ordered]@{ viaggio = $viaggio; acqua = $ACQUA[$s.id]; ondeOra = $ondeOra; id = $s.id; nome = $s.nome; breve = $s.breve; mappa = $(if ($s.mappa) { $s.mappa } else { $s.breve }); lon = $s.lon; lat = $s.lat; lab = $s.lab; wg = $s.wg; webcam = $s.webcam
+  $datiSpot += [ordered]@{ viaggio = $viaggio; acqua = $ACQUA[$s.id]; ondeOra = $ondeOra; id = $s.id; nome = $s.nome; breve = $s.breve; mappa = $(if ($s.mappa) { $s.mappa } else { $s.breve }); lon = $s.lon; lat = $s.lat; lab = $s.lab; wg = $s.wg; webcam = $s.webcam; surf = $s.surf
     ok = $s.ok; terra = $s.terra; stazioni = $staz; errore = $r.errore
     wgSpot = $(if ($r.wg) { $r.wg.spot } else { '' }); init = $(if ($r.wg) { $r.wg.init } else { '' }); adesso = $ad; giorni = $tessere }
 }
