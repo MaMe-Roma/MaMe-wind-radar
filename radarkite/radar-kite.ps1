@@ -18,9 +18,10 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-$VERSIONE = '3.2'
+$VERSIONE = '3.3'
 $DATA_VERSIONE = '21/11/2026'
 $AUTORE = '@MadHatterMatt'
+$CONTATTO = 'arch.mattia.merusi+radarkite@gmail.com'   # idee e suggerimenti (Gmail le filtra con il +radarkite)
 
 # ---------------- Regole (modificabili) ----------------
 $SOGLIA = 15          # nodi medi minimi
@@ -1129,7 +1130,7 @@ foreach ($ds in $datiSpot) { $ds.aggiornato = $META.spot[$ds.id] }
 foreach ($dz in $datiStazioni) { $dz.aggiornato = $META.stazioni[$dz.id] }
 
 $SCRITTURA = [DateTimeOffset]::Now.ToUnixTimeMilliseconds()
-$dati = [ordered]@{ scrittura = $SCRITTURA; aggiornando = ($FASE -eq 1); passatiCalcolati = $passatiCalcolati; omErrore = $erroreOm; mareErrore = $erroreMare; versione = $VERSIONE; dataVersione = $DATA_VERSIONE; autore = $AUTORE; creato = $META.creato; soglia = $SOGLIA; oreMin = $ORE_MIN; giorni = $datiGiorni; passati = $datiPassati; spot = $datiSpot; stazioni = $datiStazioni; diario = $datiDiario
+$dati = [ordered]@{ scrittura = $SCRITTURA; aggiornando = ($FASE -eq 1); passatiCalcolati = $passatiCalcolati; omErrore = $erroreOm; mareErrore = $erroreMare; versione = $VERSIONE; dataVersione = $DATA_VERSIONE; autore = $AUTORE; contatto = $CONTATTO; creato = $META.creato; soglia = $SOGLIA; oreMin = $ORE_MIN; giorni = $datiGiorni; passati = $datiPassati; spot = $datiSpot; stazioni = $datiStazioni; diario = $datiDiario
   partenza = [ordered]@{ scelta = $IMP.partenza; casa = (Get-NomePosto $IMP.casa); lavoro = (Get-NomePosto $IMP.lavoro); casaImp = $IMP.casa; lavoroImp = $IMP.lavoro; errore = $erroreViaggi; trovato = $(if ($VIAGGI) { $VIAGGI.trovato } else { '' }); lat = $(if ($VIAGGI) { $VIAGGI.lat } else { $null }); lon = $(if ($VIAGGI) { $VIAGGI.lon } else { $null }); google = [bool]$IMP.google_chiave } }
 Write-Tempo 'dati della pagina pronti'
 [void](Update-Tempi)

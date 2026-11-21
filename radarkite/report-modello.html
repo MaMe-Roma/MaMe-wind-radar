@@ -15,6 +15,9 @@ h1{font-weight:500;font-size:26px;margin:0 0 4px}
 h2{font-weight:500;font-size:19px;margin:26px 0 10px}
 .sub{color:var(--muted);font-size:13px;margin:0}
 .ver{font-size:13px;color:var(--muted);font-weight:400;margin-left:6px}
+.ver a{color:inherit;text-decoration:none;border-bottom:1px dotted currentColor}
+.ver a:hover{color:var(--fg)}
+.ver .idee{margin-left:2px;white-space:nowrap}
 .testa{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
 .agg{display:flex;align-items:center;gap:10px;flex:1 1 auto;justify-content:flex-end;min-width:0;flex-wrap:wrap}
 #aggiorna{font:inherit;font-size:14px;font-weight:600;background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:7px 16px;cursor:pointer}
@@ -360,8 +363,23 @@ var D = /*DATI*/null;
   }
   function hhmm(d) { return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
   var creato = new Date(D.creato);
-  document.getElementById('ver').textContent = 'v' + (D.versione || '?') + ' · ' + (D.dataVersione || '') + (D.autore ? ' · ' + D.autore : '');
-  document.getElementById('ver2').textContent = 'versione ' + (D.versione || '?') + ' del ' + (D.dataVersione || '') + (D.autore ? ', di ' + D.autore : '');
+  // Versione e autore; il nome e "idee e suggerimenti" aprono una mail gia' pronta (oggetto con la versione).
+  (function () {
+    var ver = document.getElementById('ver'), ver2 = document.getElementById('ver2');
+    ver.textContent = 'v' + (D.versione || '?') + ' · ' + (D.dataVersione || '');
+    ver2.textContent = 'versione ' + (D.versione || '?') + ' del ' + (D.dataVersione || '');
+    var posta = D.contatto ? 'mailto:' + D.contatto.replace('+', '%2B') + '?subject=' + encodeURIComponent('[Radar kite] idea o suggerimento – v' + D.versione) +
+      '&body=' + encodeURIComponent('Ciao Mattia,\n\n\n\n—\nRadar kite ' + D.versione + ' del ' + D.dataVersione) : null;
+    function a(testo, titolo, cls) { var x = h('a', cls || null, testo); x.href = posta; x.title = titolo; return x; }
+    if (D.autore) {
+      ver.append(document.createTextNode(' · '));
+      if (posta) ver.append(a(D.autore, 'Scrivi a ' + D.contatto)); else ver.append(document.createTextNode(D.autore));
+      ver2.append(document.createTextNode(', di ' + D.autore));
+    }
+    if (posta) {
+      ver.append(document.createTextNode(' · '), a('💡 idee e suggerimenti', 'Manda un\'idea, un suggerimento o una richiesta a ' + D.contatto, 'idee'));
+    }
+  })();
 
   // ---- Avviso "aggiornamento in corso": ben visibile, con i secondi passati (veri) e una barra a tappe.
   // La stima "di solito ~N s" viene dagli appunti sulle stazioni: la piu' lenta, o 60 s se una spesso non risponde.
