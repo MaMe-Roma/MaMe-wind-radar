@@ -484,18 +484,22 @@ if ($Link -like 'radarkite://indirizzi*') {
 # ---------------- Avvio automatico ogni ora (Utilita' di pianificazione di Windows) ----------------
 function Register-AvvioAutomatico {
   try {
+    # Controllo al massimo una volta al giorno (caricare le funzioni dell'Utilita' di pianificazione richiede qualche secondo).
+    $fileAvvio = Join-Path $script:dirCache 'avvio-automatico.txt'
+    $firma = "$($IMP.avvio_automatico)|$PSCommandPath"
+    if ((Test-Path $fileAvvio) -and (Get-Item $fileAvvio).LastWriteTime -gt (Get-Date).AddDays(-1) -and [IO.File]::ReadAllText($fileAvvio) -eq $firma) { return }
     $nome = 'Radar kite'
     $esistente = Get-ScheduledTask -TaskName $nome -ErrorAction SilentlyContinue
     if ($IMP.avvio_automatico -ne 'si') {
       if ($esistente) { Unregister-ScheduledTask -TaskName $nome -Confirm:$false; Write-Host '  Avvio automatico tolto.' }
-      return
+      [IO.File]::WriteAllText($fileAvvio, $firma); return
     }
     # Avvio senza finestre: conhost --headless (su Windows 11 -WindowStyle Hidden da solo apre comunque il Terminale).
     $ps = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
     $con = Join-Path $env:SystemRoot 'System32\conhost.exe'
     $arg = '--headless "' + $ps + '" -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + $PSCommandPath + '" -Automatico'
     if (-not (Test-Path $con)) { $con = $ps; $arg = $arg.Substring($arg.IndexOf('-NoProfile')) }
-    if ($esistente -and $esistente.Actions[0].Arguments -eq $arg) { return }
+    if ($esistente -and $esistente.Actions[0].Arguments -eq $arg) { [IO.File]::WriteAllText($fileAvvio, $firma); return }
     $azione = New-ScheduledTaskAction -Execute $con -Argument $arg -WorkingDirectory $cartella
     $trigger = New-ScheduledTaskTrigger -Daily -At '06:30'
     $ripeti = New-ScheduledTaskTrigger -Once -At '06:30' -RepetitionInterval (New-TimeSpan -Hours 1) -RepetitionDuration (New-TimeSpan -Hours 13)
@@ -503,6 +507,7 @@ function Register-AvvioAutomatico {
     $opz = New-ScheduledTaskSettingsSet -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit (New-TimeSpan -Minutes 10) -MultipleInstances IgnoreNew
     Register-ScheduledTask -TaskName $nome -Action $azione -Trigger $trigger -Settings $opz -Description 'Radar kite: previsioni e stazioni ogni ora dalle 6:30 alle 19:30' -Force | Out-Null
     Write-Host '  Avvio automatico attivo: ogni ora dalle 6:30 alle 19:30.' -ForegroundColor Green
+    [IO.File]::WriteAllText($fileAvvio, $firma)
   } catch {
     Write-Host "  (avvio automatico non attivato: $($_.Exception.Message))" -ForegroundColor Yellow
   }
@@ -699,7 +704,6 @@ function Save-Pdf([string]$fileHtml) {
 
 # ---------------- Esecuzione ----------------
 Write-Host "Radar kite $VERSIONE ($DATA_VERSIONE) di $AUTORE - $($adesso.ToString('dd/MM/yyyy HH:mm', $INV))" -ForegroundColor Cyan
-if (-not $Automatico -and -not $Link) { Register-AvvioAutomatico }
 # Tutte le richieste partono insieme: previsioni Windguru, Open-Meteo, acqua e stazioni.
 $FRESCHI = @()
 if ($Solo -like 'spot:*') {
@@ -715,6 +719,9 @@ if (-not $OmProva) { Start-Scarico (Get-UrlOpenMeteo) 'https://open-meteo.com/' 
 Start-Scarico (Get-UrlAcqua) 'https://open-meteo.com/' -Rigido -Secondi 15
 $T0 = Get-Date
 foreach ($st in $STAZIONI) { Start-Scarico $st.url $st.ref -Xhr:($st.tipo -eq 'weathercloud') -Rigido -Secondi 60 }
+Write-Tempo 'richieste partite (tutte insieme)'
+# Mentre arrivano le risposte: controllo dell'avvio automatico (solo avvii a mano).
+if (-not $Automatico -and -not $Link) { Register-AvvioAutomatico }
 $spotRes = @()
 foreach ($s in $SPOT) {
   Write-Host "  Windguru $($s.nome)... " -NoNewline
