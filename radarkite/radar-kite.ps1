@@ -10,7 +10,7 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-$VERSIONE = '3.1.1'
+$VERSIONE = '3.1.2'
 $DATA_VERSIONE = '21/11/2026'
 $AUTORE = '@MadHatterMatt'
 
@@ -69,6 +69,7 @@ $adesso = Get-Date
 $T_START = Get-Date
 # Cronometro nel resoconto (dati\ultimo-avvio.txt): secondi dall'avvio a ogni passaggio.
 function Write-Tempo([string]$cosa) { Write-Host ('  [{0,5:0.0} s] {1}' -f ((Get-Date) - $script:T_START).TotalSeconds, $cosa) -ForegroundColor DarkGray }
+try { Write-Host ('  [PowerShell partito {0:0.0} s prima del cronometro]' -f ($T_START - [Diagnostics.Process]::GetCurrentProcess().StartTime).TotalSeconds) -ForegroundColor DarkGray } catch { }
 
 # ---------------- Impostazioni personali e cartella dei dati ----------------
 $dirDati = Join-Path $cartella 'dati'
@@ -792,7 +793,7 @@ Write-Tempo 'stazioni lette'
 $LENTE = @{}
 try {
   $fileT = Join-Path $dirDati 'tempi-stazioni.csv'
-  $righeT = @(if (Test-Path $fileT) { [IO.File]::ReadAllLines($fileT) | Select-Object -Skip 1 | Where-Object { $_ } })
+  $righeT = @(); if (Test-Path $fileT) { $tt = [IO.File]::ReadAllLines($fileT); $righeT = @(for ($i = 1; $i -lt $tt.Length; $i++) { if ($tt[$i]) { $tt[$i] } }) }
   if ($FASE -eq 2) {
     $nuoveT = @(foreach ($st in $STAZIONI) {
       $l = $stRes[$st.id]; if (-not $l -or $l.errore -match 'sospes') { continue }
@@ -803,18 +804,23 @@ try {
     $righeT = @($righeT + $nuoveT | Select-Object -Last 3000)
     [IO.File]::WriteAllText($fileT, "data;stazione;secondi;esito`r`n" + (($righeT -join "`r`n") + "`r`n"), (New-Object Text.UTF8Encoding($false)))
   }
+  # Un solo passaggio sulle righe, diviso per stazione (ultime 30 di ognuna).
+  $perSt = @{}
+  foreach ($riga in $righeT) { $pz = $riga.Split(';'); if ($pz.Count -lt 2) { continue }; if (-not $perSt.ContainsKey($pz[1])) { $perSt[$pz[1]] = New-Object System.Collections.ArrayList }; [void]$perSt[$pz[1]].Add($pz) }
   foreach ($st in $STAZIONI) {
-    $sue = @($righeT | Where-Object { $_.Split(';')[1] -eq $st.id } | Select-Object -Last 30)
-    if ($sue.Count -lt 3) { continue }
-    $ok = @($sue | Where-Object { $_.Split(';')[3] -eq 'ok' -and $_.Split(';')[2] })
-    $media = if ($ok.Count) { [Math]::Round((@($ok | ForEach-Object { [double]::Parse($_.Split(';')[2], $INV) }) | Measure-Object -Average).Average, 1) } else { $null }
-    $LENTE[$st.id] = [ordered]@{ media = $media; fallite = $sue.Count - $ok.Count; prove = $sue.Count }
+    $lista = $perSt[$st.id]
+    if (-not $lista -or $lista.Count -lt 3) { continue }
+    $sue = if ($lista.Count -gt 30) { $lista.GetRange($lista.Count - 30, 30) } else { $lista }
+    $nOk = 0; $somma = 0.0
+    foreach ($pz in $sue) { if ($pz.Count -gt 3 -and $pz[3] -eq 'ok' -and $pz[2]) { $nOk++; $somma += [double]::Parse($pz[2], $INV) } }
+    $media = if ($nOk) { [Math]::Round($somma / $nOk, 1) } else { $null }
+    $LENTE[$st.id] = [ordered]@{ media = $media; fallite = $sue.Count - $nOk; prove = $sue.Count }
   }
 } catch { Write-Host "  (appunti stazioni non aggiornati: $($_.Exception.Message))" -ForegroundColor Yellow }
 
-# Righe firing (previsione + stazione che segna gia' firing adesso)
+# Righe firing (previsione + stazione che segna gia' firing adesso): servono solo al resoconto, nella seconda fase.
 $righeFiring = @()
-foreach ($r in $spotRes) {
+if ($FASE -eq 2) { foreach ($r in $spotRes) {
   $s = $r.s
   foreach ($g in $r.giorni) {
     if (-not $g.firing) { continue }
@@ -824,6 +830,7 @@ foreach ($r in $spotRes) {
     $righeFiring += [pscustomobject]@{ ordine = ($g.data - $adesso.Date).Days + 1; testo = ("{0} - {1}, ore {2}: {3} {4}-{5} nodi{6}{7}" -f $s.nome, $quando, $g.ore, $g.dir, $g.min, $g.maxf, $raff, $note)
       ideale = [bool]($g.note -match '^ideale'); pericolo = [bool]($g.note -contains 'raffiche pericolose') }
   }
+}
 }
 $righeFiring = @($righeFiring | Sort-Object ordine, @{ Expression = 'ideale'; Descending = $true })
 
@@ -858,7 +865,8 @@ function Add-Righe([string]$file, [string]$intestazione, $righe) {
 }
 $INT_LETTURE = 'data;stazione;spot;vento;raffica;gradi'
 $INT_PREV = 'giorno;spot;anticipo;fonte;ora;vento;raffica;gradi;salvata'
-try {
+# Lo storico si scrive nella seconda fase, con stazioni, Windguru e Open-Meteo insieme.
+if ($FASE -eq 2) { try {
   # Lo storico.csv delle versioni 1.x passa nei file mensili (una volta sola).
   $vecchio = Join-Path $cartella 'storico.csv'
   if (Test-Path $vecchio) {
@@ -915,7 +923,7 @@ try {
   Get-ChildItem -Path $dirDati -Filter '*.csv' | Where-Object { $_.Name -match '^(letture|previsioni)-(\d{4}-\d{2})\.csv$' -and $Matches[2] -lt $limite } | Remove-Item -Force
 } catch {
   Write-Host "  (storico non aggiornato: $($_.Exception.Message) riga $($_.InvocationInfo.ScriptLineNumber))" -ForegroundColor Yellow
-}
+} }
 
 # ---- Giorni passati e diario: non cambiano durante la giornata, si calcolano una volta al giorno ----
 # (dati\cache\calcoli.json). Si rifanno il giorno dopo, quando cambia il diario o col pulsante "ricalcola".
@@ -1109,7 +1117,8 @@ if ($FASE -eq 2) { try { [IO.File]::WriteAllText($fileMeta, (ConvertTo-Json -Inp
 foreach ($ds in $datiSpot) { $ds.aggiornato = $META.spot[$ds.id] }
 foreach ($dz in $datiStazioni) { $dz.aggiornato = $META.stazioni[$dz.id] }
 
-$dati = [ordered]@{ aggiornando = ($FASE -eq 1); passatiCalcolati = $passatiCalcolati; omErrore = $erroreOm; mareErrore = $erroreMare; versione = $VERSIONE; dataVersione = $DATA_VERSIONE; autore = $AUTORE; creato = $META.creato; soglia = $SOGLIA; oreMin = $ORE_MIN; giorni = $datiGiorni; passati = $datiPassati; spot = $datiSpot; stazioni = $datiStazioni; diario = $datiDiario
+$SCRITTURA = [DateTimeOffset]::Now.ToUnixTimeMilliseconds()
+$dati = [ordered]@{ scrittura = $SCRITTURA; aggiornando = ($FASE -eq 1); passatiCalcolati = $passatiCalcolati; omErrore = $erroreOm; mareErrore = $erroreMare; versione = $VERSIONE; dataVersione = $DATA_VERSIONE; autore = $AUTORE; creato = $META.creato; soglia = $SOGLIA; oreMin = $ORE_MIN; giorni = $datiGiorni; passati = $datiPassati; spot = $datiSpot; stazioni = $datiStazioni; diario = $datiDiario
   partenza = [ordered]@{ scelta = $IMP.partenza; casa = (Get-NomePosto $IMP.casa); lavoro = (Get-NomePosto $IMP.lavoro); casaImp = $IMP.casa; lavoroImp = $IMP.lavoro; errore = $erroreViaggi; trovato = $(if ($VIAGGI) { $VIAGGI.trovato } else { '' }); lat = $(if ($VIAGGI) { $VIAGGI.lat } else { $null }); lon = $(if ($VIAGGI) { $VIAGGI.lon } else { $null }); google = [bool]$IMP.google_chiave } }
 Write-Tempo 'dati della pagina pronti'
 [void](Update-Tempi)
@@ -1122,6 +1131,8 @@ $file = Join-Path $cartella 'report.html'
 $tmpRep = Join-Path $cartella 'report.tmp'
 [IO.File]::WriteAllText($tmpRep, $html, (New-Object Text.UTF8Encoding($true)))
 Move-Item -Path $tmpRep -Destination $file -Force
+# stato.js dice alla pagina aperta che c'e' un report nuovo: la pagina lo controlla 3 volte al secondo e si ricarica subito.
+try { $tmpSt = Join-Path $cartella 'stato.tmp'; [IO.File]::WriteAllText($tmpSt, "window.RK_SCRITTO = $SCRITTURA;", (New-Object Text.UTF8Encoding($false))); Move-Item -Path $tmpSt -Destination (Join-Path $cartella 'stato.js') -Force } catch { }
 if ($FASE -eq 1) {
   Write-Tempo 'pagina aperta (fase 1)'
   Write-Host '  Pagina aperta, leggo le stazioni...' -ForegroundColor Cyan
