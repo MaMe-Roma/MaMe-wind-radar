@@ -19,6 +19,17 @@ jobs:
           New-Item -ItemType Directory -Force "$rk\dati" | Out-Null
           $pv = @('giorno;spot;anticipo;fonte;ora;vento;raffica;gradi;salvata') + (8..16 | ForEach-Object { "$ieri;ostia;0;wg;$_;$(14 + [Math]::Min($_ - 8, 4));22;255;06:30" }) + (8..16 | ForEach-Object { "$ieri;ostia;0;om;$_;$(11 + [Math]::Min($_ - 8, 3));18;250;06:30" })
           [IO.File]::WriteAllLines("$rk\dati\previsioni-$mese.csv", $pv)
+          # Storico finto grande (come dopo settimane di avvii ogni ora): letture e previsioni dei giorni 1-19 del mese.
+          $ids = @(@('rdt_civitavecchia','sag'),@('msn','msn'),@('passoscuro','msn'),@('fregene','fregene'),@('lni_ostia','ostia'),@('torvaianica','torva'),@('anzio_levante','anzio'),@('anzio_porto','anzio'),@('latina_lido','latina'),@('latina_sud','latina'),@('saltodifondi','fondi'))
+          $lt = New-Object System.Collections.Generic.List[string]; $pf = New-Object System.Collections.Generic.List[string]
+          $m0 = (Get-Date).Date.AddDays(-(Get-Date).Day + 1)
+          for ($d = 0; $d -lt ((Get-Date).Day - 2); $d++) { $gg = $m0.AddDays($d).ToString('yyyy-MM-dd')
+            for ($q = 0; $q -lt 30; $q++) { $hh = 7 + [int]($q / 2.3); $mm = ($q * 7) % 60; foreach ($x in $ids) { $lt.Add("$gg $('{0:D2}' -f $hh):$('{0:D2}' -f $mm);$($x[0]);$($x[1]);$(8 + ($q % 12));$(12 + ($q % 12));$((200 + $q * 5) % 360)") } }
+            foreach ($sp in 'sag','msn','fregene','ostia','torva','anzio','latina','fondi') { foreach ($fo in 'wg','om') { foreach ($an in 0,1) { for ($h = 6; $h -le 20; $h++) { $pf.Add("$gg;$sp;$an;$fo;$h;$(10 + $h % 9);$(15 + $h % 9);240;06:30") } } } } }
+          $mo = (Get-Date).ToString('yyyy-MM')
+          [IO.File]::AppendAllLines("$rk\dati\letture-$mo.csv", [string[]](@('data;stazione;spot;vento;raffica;gradi') + $lt))
+          if ($mo -eq $mese) { [IO.File]::AppendAllLines("$rk\dati\previsioni-$mo.csv", [string[]]$pf) } else { [IO.File]::WriteAllLines("$rk\dati\previsioni-$mo.csv", [string[]](@('giorno;spot;anticipo;fonte;ora;vento;raffica;gradi;salvata') + $pf)) }
+          "storico finto: $($lt.Count) letture, $($pf.Count) previsioni"
           # Open-Meteo finto (dai server di GitHub il servizio va in timeout): 8 spot, 9 giorni, ora per ora.
           $oggi = (Get-Date).Date; $loc = @()
           for ($i = 0; $i -lt 8; $i++) {

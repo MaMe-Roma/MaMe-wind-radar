@@ -10,7 +10,7 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-$VERSIONE = '3.0'
+$VERSIONE = '3.1'
 $DATA_VERSIONE = '21/11/2026'
 $AUTORE = '@MadHatterMatt'
 
@@ -66,6 +66,9 @@ $INV = [Globalization.CultureInfo]::InvariantCulture
 $UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) RadarKite/1.0'
 $cartella = Split-Path -Parent $MyInvocation.MyCommand.Path
 $adesso = Get-Date
+$T_START = Get-Date
+# Cronometro nel resoconto (dati\ultimo-avvio.txt): secondi dall'avvio a ogni passaggio.
+function Write-Tempo([string]$cosa) { Write-Host ('  [{0,5:0.0} s] {1}' -f ((Get-Date) - $script:T_START).TotalSeconds, $cosa) -ForegroundColor DarkGray }
 
 # ---------------- Impostazioni personali e cartella dei dati ----------------
 $dirDati = Join-Path $cartella 'dati'
@@ -462,6 +465,7 @@ if ($Link -like 'radarkite://partenza*') {
   $forzaViaggi = $true
 }
 if ($Link -like 'radarkite://viaggi*') { $forzaViaggi = $true }
+$forzaStorico = [bool]($Link -like 'radarkite://storico*')
 $Solo = ''
 if ($Link -like 'radarkite://spot*') { $q = Get-Parametri $Link; if ($SPOT | Where-Object { $_.id -eq $q['id'] }) { $Solo = 'spot:' + $q['id'] } }
 if ($Link -like 'radarkite://stazione*') { $q = Get-Parametri $Link; if ($STAZIONI | Where-Object { $_.id -eq $q['id'] }) { $Solo = 'st:' + $q['id'] } }
@@ -726,6 +730,7 @@ foreach ($s in $SPOT) {
 }
 # Open-Meteo (meteo, secondo modello) e mare (acqua, onde) arrivano nella seconda fase, con le stazioni.
 $OM = @{}; $ACQUA = @{}; $ONDE = $null; $erroreOm = ''; $erroreMare = ''
+Write-Tempo 'previsioni Windguru lette'
 [void](Update-Tempi)
 $VIAGGI = $null; $erroreViaggi = ''
 if ($IMP[$IMP.partenza]) {
@@ -733,6 +738,7 @@ if ($IMP[$IMP.partenza]) {
   try { $VIAGGI = Get-Viaggi $forzaViaggi; Write-Host 'ok' -ForegroundColor Green } catch { $erroreViaggi = $_.Exception.Message; Write-Host "ERRORE: $erroreViaggi" -ForegroundColor Red }
 }
 
+Write-Tempo 'tempi di viaggio'
 # Due fasi: 1) la pagina si apre subito con le previsioni e le stazioni "in lettura";
 # 2) arrivano le stazioni, la pagina si aggiorna da sola e si fa il PDF. Gli avvii automatici fanno solo la 2.
 $fasi = if ($Automatico -or $Solo) { @(2) } else { @(1, 2) }
@@ -745,7 +751,9 @@ Write-Host '  Open-Meteo (meteo e secondo modello)... ' -NoNewline
 try { $OM = Read-OpenMeteo; Write-Host 'ok' -ForegroundColor Green } catch { $erroreOm = $_.Exception.Message; Write-Host "ERRORE: $erroreOm" -ForegroundColor Red }
 Write-Host '  Mare (acqua e onde)... ' -NoNewline
 try { $ACQUA = Read-Acqua; Write-Host 'ok' -ForegroundColor Green } catch { $erroreMare = $_.Exception.Message; Write-Host "ERRORE: $erroreMare" -ForegroundColor Red }
+Write-Tempo 'Open-Meteo e mare'
 Wait-Stazioni
+Write-Tempo 'stazioni arrivate'
 foreach ($st in $STAZIONI) {
   Write-Host "  Stazione $($st.nome)... " -NoNewline
   try {
@@ -762,6 +770,7 @@ foreach ($st in $STAZIONI) {
 }
 
 [void](Update-Tempi)
+Write-Tempo 'stazioni lette'
 # Appunti sulle stazioni: quanto ci mettono a rispondere e se rispondono (dati\tempi-stazioni.csv).
 $LENTE = @{}
 try {
@@ -811,13 +820,20 @@ if ($righeFiring.Count) {
 }
 }
 
+Write-Tempo 'righe firing e appunti'
 # ---------------- Storico (2 anni): letture e previsioni in dati\, un file per mese ----------------
 # letture-AAAA-MM.csv: le letture aggiornate delle stazioni a ogni avvio.
 # previsioni-AAAA-MM.csv: la prima previsione salvata ogni giorno (per oggi e per domani), Windguru e Open-Meteo.
 # Si aprono con Excel. Oltre i 2 anni i file vengono tolti.
 $UTF8 = New-Object Text.UTF8Encoding($false)
 function Get-FileMese([string]$tipo, [datetime]$d) { return (Join-Path $dirDati ("$tipo-" + $d.ToString('yyyy-MM', $INV) + '.csv')) }
-function Read-Righe([string]$file) { if (Test-Path $file) { return @([IO.File]::ReadAllLines($file) | Select-Object -Skip 1 | Where-Object { $_ }) } else { return @() } }
+function Read-Righe([string]$file) {
+  if (-not (Test-Path $file)) { return @() }
+  $a = [IO.File]::ReadAllLines($file)
+  $out = New-Object System.Collections.Generic.List[string]
+  for ($i = 1; $i -lt $a.Length; $i++) { if ($a[$i]) { $out.Add($a[$i]) } }
+  return $out.ToArray()
+}
 function Add-Righe([string]$file, [string]$intestazione, $righe) {
   if (-not @($righe).Count) { return }
   if (-not (Test-Path $file)) { [IO.File]::WriteAllText($file, $intestazione + "`r`n", $UTF8) }
@@ -836,7 +852,9 @@ try {
   }
   # Letture di adesso.
   $fileL = Get-FileMese 'letture' $adesso
-  $gia = Read-Righe $fileL
+  $tutte = @(Read-Righe $fileL)
+  $visti = New-Object 'System.Collections.Generic.HashSet[string]'
+  for ($i = [Math]::Max(0, $tutte.Count - 400); $i -lt $tutte.Count; $i++) { [void]$visti.Add($tutte[$i]) }
   $nuove = @()
   foreach ($st in $STAZIONI) {
     $l = $stRes[$st.id]
@@ -844,28 +862,37 @@ try {
     $suo = $SPOT | Where-Object { $_.stazioni -contains $st.id } | Select-Object -First 1
     $g = if ($l.gust -ne $null) { ([double]$l.gust).ToString($INV) } else { '' }
     $riga = $l.t.ToString('yyyy-MM-dd HH:mm', $INV) + ';' + $st.id + ';' + $suo.id + ';' + ([double]$l.wind).ToString($INV) + ';' + $g + ';' + ([double]$l.deg).ToString($INV)
-    if ($gia -notcontains $riga -and $nuove -notcontains $riga) { $nuove += $riga }
+    if ($visti.Add($riga)) { $nuove += $riga }
   }
   Add-Righe $fileL $INT_LETTURE $nuove
   # Previsione del giorno: la prima di oggi (anticipo 0) e quella per domani (anticipo 1), una volta sola.
+  $fileSalv = Join-Path $dirCache 'previsioni-salvate.txt'
+  $presenti = @{}
+  if (Test-Path $fileSalv) { foreach ($r in [IO.File]::ReadAllLines($fileSalv)) { if ($r) { $presenti[$r] = 1 } } }
+  else { foreach ($k in 0, 1) { foreach ($r in (Read-Righe (Get-FileMese 'previsioni' $adesso.Date.AddDays($k)))) { $p = $r.Split(';'); $presenti["$($p[0]);$($p[1]);$($p[2]);$($p[3])"] = 1 } } }
+  $salvate = @()
   for ($k = 0; $k -le 1; $k++) {
     $giorno = $adesso.Date.AddDays($k); $chiave = $giorno.ToString('yyyy-MM-dd', $INV)
     $fileP = Get-FileMese 'previsioni' $giorno
-    $presenti = @{}
-    foreach ($r in (Read-Righe $fileP)) { $p = $r.Split(';'); $presenti["$($p[0]);$($p[1]);$($p[2]);$($p[3])"] = 1 }
     $nuove = @()
     foreach ($r in $spotRes) {
       $fonti = @(@{ f = 'wg'; righe = $(if ($r.wg) { $r.wg.righe } else { @() }) }, @{ f = 'om'; righe = $(if ($OM[$r.s.id]) { $OM[$r.s.id] } else { @() }) })
       foreach ($fo in $fonti) {
-        if ($presenti["$chiave;$($r.s.id);$k;$($fo.f)"]) { continue }
+        $kk = "$chiave;$($r.s.id);$k;$($fo.f)"
+        if ($presenti[$kk]) { continue }
+        $prima = $nuove.Count
         foreach ($x in @($fo.righe | Where-Object { $_.date -eq $giorno -and $_.hour -ge 6 -and $_.hour -le 20 -and $_.wind -ne $null })) {
           $g = if ($x.gust -ne $null) { ([double]$x.gust).ToString($INV) } else { '' }
           $nuove += "$chiave;$($r.s.id);$k;$($fo.f);$($x.hour);$(([double]$x.wind).ToString('0.#', $INV));$g;$(([double]$x.deg).ToString('0', $INV));$($adesso.ToString('HH:mm', $INV))"
         }
+        if ($nuove.Count -gt $prima) { $presenti[$kk] = 1 }
       }
     }
     Add-Righe $fileP $INT_PREV $nuove
   }
+  # Il segno tiene solo oggi e domani.
+  $ieri = $adesso.Date.AddDays(-1).ToString('yyyy-MM-dd', $INV)
+  [IO.File]::WriteAllText($fileSalv, ((@($presenti.Keys | Where-Object { $_.Substring(0, 10) -gt $ieri } | Sort-Object) -join "`r`n") + "`r`n"), $UTF8)
   # Oltre i 2 anni si toglie.
   $limite = $adesso.AddMonths(-24).ToString('yyyy-MM', $INV)
   Get-ChildItem -Path $dirDati -Filter '*.csv' | Where-Object { $_.Name -match '^(letture|previsioni)-(\d{4}-\d{2})\.csv$' -and $Matches[2] -lt $limite } | Remove-Item -Force
@@ -873,6 +900,16 @@ try {
   Write-Host "  (storico non aggiornato: $($_.Exception.Message) riga $($_.InvocationInfo.ScriptLineNumber))" -ForegroundColor Yellow
 }
 
+# ---- Giorni passati e diario: non cambiano durante la giornata, si calcolano una volta al giorno ----
+# (dati\cache\calcoli.json). Si rifanno il giorno dopo, quando cambia il diario o col pulsante "ricalcola".
+$fileCalc = Join-Path $dirCache 'calcoli.json'
+$oggiTxt = $adesso.ToString('yyyy-MM-dd', $INV)
+$firmaDiario = if (Test-Path $fileDiario) { [string](Get-Item $fileDiario).LastWriteTimeUtc.Ticks } else { '' }
+$calc = $null
+if (-not $forzaStorico -and (Test-Path $fileCalc)) { try { $calc = ConvertFrom-Json ([IO.File]::ReadAllText($fileCalc)) } catch { $calc = $null } }
+$usaPassati = [bool]($calc -and $calc.giorno -eq $oggiTxt -and $calc.versione -eq $VERSIONE)
+$usaDiario = [bool]($usaPassati -and $calc.firmaDiario -eq $firmaDiario)
+if ($usaPassati) { $datiPassati = @($calc.passati | Where-Object { $_ }); $passatiCalcolati = [string]$calc.calcolati } else {
 # Giorni passati della settimana: letture orarie, previsione salvata quel giorno, verdetto.
 $lunedi = $adesso.Date.AddDays(-(([int]$adesso.DayOfWeek + 6) % 7))
 $mesi = @($lunedi, $adesso.Date) | ForEach-Object { $_.ToString('yyyy-MM', $INV) } | Select-Object -Unique
@@ -888,6 +925,9 @@ $previsioni = @(foreach ($m in $mesi) { foreach ($r in (Read-Righe (Join-Path $d
   [pscustomobject]@{ giorno = $p[0]; spot = $p[1]; anticipo = [int]$p[2]; fonte = $p[3]; hour = [int]$p[4]; wind = [double]::Parse($p[5], $INV)
     gust = $(if ($p[6]) { [double]::Parse($p[6], $INV) } else { $null }); deg = [double]::Parse($p[7], $INV); salvata = $p[8] }
 } })
+# Indici per giorno e spot: ogni ricerca guarda solo le righe di quel giorno.
+$idxL = @{}; foreach ($x in $letture) { $kx = "$($x.data)|$($x.spot)"; if (-not $idxL[$kx]) { $idxL[$kx] = New-Object System.Collections.ArrayList }; [void]$idxL[$kx].Add($x) }
+$idxP = @{}; foreach ($x in $previsioni) { $kx = "$($x.giorno)|$($x.spot)"; if (-not $idxP[$kx]) { $idxP[$kx] = New-Object System.Collections.ArrayList }; [void]$idxP[$kx].Add($x) }
 function Get-OreRegistrate($s, $lett) {
   $out = @()
   foreach ($gr in @($lett | Group-Object h)) {
@@ -905,7 +945,7 @@ for ($giorno = $lunedi; $giorno -lt $adesso.Date; $giorno = $giorno.AddDays(1)) 
   $chiave = $giorno.ToString('yyyy-MM-dd', $INV); $f = Get-Fascia $giorno
   $perSpot = @(); $dettaglio = @()
   foreach ($s in $SPOT) {
-    $lett = @($letture | Where-Object { $_.data -eq $chiave -and $_.spot -eq $s.id -and $_.h -ge $f[0] -and $_.h -le $f[1] })
+    $lett = @($idxL["$chiave|$($s.id)"] | Where-Object { $_ -and $_.h -ge $f[0] -and $_.h -le $f[1] })
     if ($lett.Count) {
       $buone = @($lett | Where-Object { (Get-Classe $s $_.deg) -ne 'terra' })
       $top = if ($buone.Count) { $buone | Sort-Object wind -Descending | Select-Object -First 1 } else { $lett | Sort-Object wind -Descending | Select-Object -First 1 }
@@ -913,7 +953,7 @@ for ($giorno = $lunedi; $giorno -lt $adesso.Date; $giorno = $giorno.AddDays(1)) 
         buono = ($top.wind -ge $SOGLIA -and (Get-Classe $s $top.deg) -ne 'terra'); oltre = @($buone | Where-Object { $_.wind -ge $SOGLIA }).Count }
     }
     # Confronto: previsione salvata quel giorno (se no quella del giorno prima) contro letture ora per ora.
-    $pv = @($previsioni | Where-Object { $_.giorno -eq $chiave -and $_.spot -eq $s.id })
+    $pv = @($idxP["$chiave|$($s.id)"] | Where-Object { $_ })
     $ant = if (@($pv | Where-Object { $_.anticipo -eq 0 -and $_.fonte -eq 'wg' }).Count) { 0 } else { 1 }
     $wgPrev = @($pv | Where-Object { $_.anticipo -eq $ant -and $_.fonte -eq 'wg' -and $_.hour -ge $f[0] -and $_.hour -le $f[1] } | Sort-Object hour)
     $omPrev = @($pv | Where-Object { $_.anticipo -eq $ant -and $_.fonte -eq 'om' -and $_.hour -ge $f[0] -and $_.hour -le $f[1] } | Sort-Object hour)
@@ -930,6 +970,9 @@ for ($giorno = $lunedi; $giorno -lt $adesso.Date; $giorno = $giorno.AddDays(1)) 
   $datiPassati += [ordered]@{ data = $chiave; spot = $perSpot; dettaglio = $dettaglio }
 }
 
+$passatiCalcolati = $adesso.ToString("yyyy-MM-dd'T'HH:mm:ss", $INV)
+}
+if ($usaDiario) { $datiDiario = @($calc.diario | Where-Object { $_ }) } else {
 # Diario delle uscite (ultime 30), con il vento letto durante l'uscita se c'e'.
 $datiDiario = @()
 if (Test-Path $fileDiario) {
@@ -1033,7 +1076,14 @@ if (-not $Solo -or -not $META.creato) {
 if ($FASE -eq 2) { try { [IO.File]::WriteAllText($fileMeta, (ConvertTo-Json -InputObject $META -Depth 4 -Compress), (New-Object Text.UTF8Encoding($false))) } catch { } }
 foreach ($ds in $datiSpot) { $ds.aggiornato = $META.spot[$ds.id] }
 foreach ($dz in $datiStazioni) { $dz.aggiornato = $META.stazioni[$dz.id] }
-$dati = [ordered]@{ aggiornando = ($FASE -eq 1); omErrore = $erroreOm; mareErrore = $erroreMare; versione = $VERSIONE; dataVersione = $DATA_VERSIONE; autore = $AUTORE; creato = $META.creato; soglia = $SOGLIA; oreMin = $ORE_MIN; giorni = $datiGiorni; passati = $datiPassati; spot = $datiSpot; stazioni = $datiStazioni; diario = $datiDiario
+}
+if (-not $usaPassati -or -not $usaDiario) {
+  $forzaStorico = $false
+  try { [IO.File]::WriteAllText($fileCalc, (ConvertTo-Json -InputObject ([ordered]@{ giorno = $oggiTxt; versione = $VERSIONE; firmaDiario = $firmaDiario; calcolati = $passatiCalcolati; passati = @($datiPassati); diario = @($datiDiario) }) -Depth 9 -Compress), $UTF8) } catch { }
+}
+Write-Tempo ('giorni passati e diario ' + $(if ($usaPassati -and $usaDiario) { 'gia'' pronti' } else { 'calcolati' }))
+
+$dati = [ordered]@{ aggiornando = ($FASE -eq 1); passatiCalcolati = $passatiCalcolati; omErrore = $erroreOm; mareErrore = $erroreMare; versione = $VERSIONE; dataVersione = $DATA_VERSIONE; autore = $AUTORE; creato = $META.creato; soglia = $SOGLIA; oreMin = $ORE_MIN; giorni = $datiGiorni; passati = $datiPassati; spot = $datiSpot; stazioni = $datiStazioni; diario = $datiDiario
   partenza = [ordered]@{ scelta = $IMP.partenza; casa = (Get-NomePosto $IMP.casa); lavoro = (Get-NomePosto $IMP.lavoro); casaImp = $IMP.casa; lavoroImp = $IMP.lavoro; errore = $erroreViaggi; trovato = $(if ($VIAGGI) { $VIAGGI.trovato } else { '' }); lat = $(if ($VIAGGI) { $VIAGGI.lat } else { $null }); lon = $(if ($VIAGGI) { $VIAGGI.lon } else { $null }); google = [bool]$IMP.google_chiave } }
 [void](Update-Tempi)
 $json = ConvertTo-Json -InputObject $dati -Depth 8 -Compress
@@ -1046,13 +1096,15 @@ $tmpRep = Join-Path $cartella 'report.tmp'
 [IO.File]::WriteAllText($tmpRep, $html, (New-Object Text.UTF8Encoding($true)))
 Move-Item -Path $tmpRep -Destination $file -Force
 if ($FASE -eq 1) {
+  Write-Tempo 'pagina aperta (fase 1)'
   Write-Host '  Pagina aperta, leggo le stazioni...' -ForegroundColor Cyan
   # Con -GiaAperta il file .bat ha gia' aperto l'ultimo report, che si ricarica da solo.
   if (-not $NonAprire -and -not $GiaAperta) { Start-Process $file }
 } else {
+  Write-Tempo 'pagina completa (fase 2)'
   Write-Host ''
   Write-Host "Report: $file"
-  if (-not $Solo) { Save-Pdf $file }
+  if (-not $Solo) { Save-Pdf $file; Write-Tempo 'PDF' }
   if (-not $NonAprire -and $fasi.Count -eq 1) { Start-Process $file }
 }
 }
