@@ -10,7 +10,7 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-$VERSIONE = '2.9'
+$VERSIONE = '3.0'
 $DATA_VERSIONE = '21/11/2026'
 $AUTORE = '@MadHatterMatt'
 
@@ -70,6 +70,8 @@ $adesso = Get-Date
 # ---------------- Impostazioni personali e cartella dei dati ----------------
 $dirDati = Join-Path $cartella 'dati'
 if (-not (Test-Path $dirDati)) { New-Item -ItemType Directory -Path $dirDati | Out-Null }
+$dirCache = Join-Path $dirDati 'cache'
+if (-not (Test-Path $dirCache)) { New-Item -ItemType Directory -Path $dirCache | Out-Null }
 # Avviato senza finestra dal file .bat: quello che il programma scrive va in dati\ultimo-avvio.txt.
 if ($Nascosto) { try { Start-Transcript -Path (Join-Path $dirDati 'ultimo-avvio.txt') -Force | Out-Null } catch { } }
 $fileImp = Join-Path $cartella 'impostazioni.txt'
@@ -149,30 +151,35 @@ $PRE = @{}
 $HTTP = $null
 $T0 = Get-Date
 $TEMPI = @{}
-function Start-Scarico([string]$url, [string]$referer, [switch]$Xhr, [switch]$Rigido) {
+function Start-Scarico([string]$url, [string]$referer, [switch]$Xhr, [switch]$Rigido, [int]$Secondi = 20) {
+  # Aggiornamento di un solo spot o stazione: quello che non va riletto viene dalla copia dell'ultimo avvio.
+  if ($script:Solo -and -not ($script:FRESCHI -contains $url)) { $c = Read-Cache $url; if ($c -ne $null) { $script:PRE[$url] = @{ testo = $c; rigido = [bool]$Rigido }; return } }
   if (-not $script:HTTP) {
     $hh = New-Object System.Net.Http.HttpClientHandler
     $hh.AutomaticDecompression = [System.Net.DecompressionMethods]::GZip -bor [System.Net.DecompressionMethods]::Deflate
     $script:HTTP = New-Object System.Net.Http.HttpClient($hh)
-    $script:HTTP.Timeout = [TimeSpan]::FromSeconds(60)
+    $script:HTTP.Timeout = [TimeSpan]::FromSeconds(70)
   }
+  $cts = New-Object System.Threading.CancellationTokenSource
+  $cts.CancelAfter([TimeSpan]::FromSeconds($Secondi))
   $req = New-Object System.Net.Http.HttpRequestMessage([System.Net.Http.HttpMethod]::Get, $url)
   [void]$req.Headers.TryAddWithoutValidation('User-Agent', $UA)
   if ($referer) { [void]$req.Headers.TryAddWithoutValidation('Referer', $referer) }
   [void]$req.Headers.TryAddWithoutValidation('Cache-Control', 'no-cache')
   if ($Xhr) { [void]$req.Headers.TryAddWithoutValidation('X-Requested-With', 'XMLHttpRequest') }
-  $script:PRE[$url] = @{ task = $script:HTTP.SendAsync($req); rigido = [bool]$Rigido }
+  $script:PRE[$url] = @{ task = $script:HTTP.SendAsync($req, $cts.Token); rigido = [bool]$Rigido; secondi = $Secondi }
 }
 function Get-Scaricato([string]$url) {
   $p = $script:PRE[$url]; $script:PRE.Remove($url)
+  if ($p.testo -ne $null) { return @{ testo = $p.testo; cache = $true } }
   try {
-    if (-not $p.task.Wait(65000)) { throw 'nessuna risposta in 60 secondi' }
+    if (-not $p.task.Wait(($p.secondi + 5) * 1000)) { throw "nessuna risposta in $($p.secondi) secondi" }
     $resp = $p.task.Result
     if (-not $resp.IsSuccessStatusCode) { throw "il sito risponde con errore $([int]$resp.StatusCode)" }
     return @{ testo = [Text.Encoding]::UTF8.GetString($resp.Content.ReadAsByteArrayAsync().Result) }
   } catch {
     $e = $_.Exception; while ($e.InnerException) { $e = $e.InnerException }
-    $msg = if ($e -is [System.Threading.Tasks.TaskCanceledException]) { 'nessuna risposta in 60 secondi' } else { $e.Message }
+    $msg = if ($e -is [System.Threading.Tasks.TaskCanceledException] -or $e -is [System.OperationCanceledException]) { "nessuna risposta in $($p.secondi) secondi" } else { $e.Message }
     if ($p.rigido) { throw $msg }
     return $null
   }
@@ -183,7 +190,7 @@ function Update-Tempi {
   $tutte = $true
   foreach ($st in $STAZIONI) {
     $p = $script:PRE[$st.url]
-    if (-not $p -or $script:TEMPI.ContainsKey($st.id)) { continue }
+    if (-not $p -or -not $p.task -or $script:TEMPI.ContainsKey($st.id)) { continue }
     if ($p.task.IsCompleted) { $script:TEMPI[$st.id] = [Math]::Round(((Get-Date) - $script:T0).TotalSeconds, 1) } else { $tutte = $false }
   }
   return $tutte
@@ -194,7 +201,7 @@ function Wait-Stazioni {
 }
 function Get-Testo([string]$url, [string]$referer, [switch]$Xhr) {
   # Se il download e' gia' partito uso quello; se e' fallito (e non e' una stazione) riprovo qui sotto.
-  if ($script:PRE.ContainsKey($url)) { $pr = Get-Scaricato $url; if ($pr) { return $pr.testo } }
+  if ($script:PRE.ContainsKey($url)) { $pr = Get-Scaricato $url; if ($pr) { if (-not $pr.cache) { Save-Cache $url $pr.testo }; return $pr.testo } }
   $intestazioni = @{ Referer = $referer; 'Cache-Control' = 'no-cache' }
   if ($Xhr) { $intestazioni['X-Requested-With'] = 'XMLHttpRequest' }
   for ($n = 1; ; $n++) {
@@ -206,12 +213,19 @@ function Get-Testo([string]$url, [string]$referer, [switch]$Xhr) {
       Start-Sleep -Seconds 3
     }
   }
-  if ($r.RawContentStream) {
-    # Decodifica sempre in UTF-8, cosi' le lettere accentate non si rovinano.
-    return [Text.Encoding]::UTF8.GetString($r.RawContentStream.ToArray())
-  }
-  return [string]$r.Content
+  # Decodifica sempre in UTF-8, cosi' le lettere accentate non si rovinano.
+  $testo = if ($r.RawContentStream) { [Text.Encoding]::UTF8.GetString($r.RawContentStream.ToArray()) } else { [string]$r.Content }
+  Save-Cache $url $testo
+  return $testo
 }
+# Copia dell'ultima risposta di ogni sito (dati\cache): serve per aggiornare un solo spot o una sola stazione.
+function Get-FileCache([string]$url) {
+  $sha = [Security.Cryptography.SHA1]::Create()
+  $hx = -join ($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($url)) | ForEach-Object { $_.ToString('x2') })
+  return (Join-Path $script:dirCache ($hx + '.txt'))
+}
+function Save-Cache([string]$url, [string]$testo) { try { [IO.File]::WriteAllText((Get-FileCache $url), $testo, (New-Object Text.UTF8Encoding($false))) } catch { } }
+function Read-Cache([string]$url) { try { $f = Get-FileCache $url; if (Test-Path $f) { return [IO.File]::ReadAllText($f) } } catch { }; return $null }
 
 function Get-Comp([double]$deg) { return $PUNTI[[int][Math]::Round(((($deg % 360) + 360) % 360) / 22.5) % 16] }
 
@@ -442,6 +456,9 @@ if ($Link -like 'radarkite://partenza*') {
   $forzaViaggi = $true
 }
 if ($Link -like 'radarkite://viaggi*') { $forzaViaggi = $true }
+$Solo = ''
+if ($Link -like 'radarkite://spot*') { $q = Get-Parametri $Link; if ($SPOT | Where-Object { $_.id -eq $q['id'] }) { $Solo = 'spot:' + $q['id'] } }
+if ($Link -like 'radarkite://stazione*') { $q = Get-Parametri $Link; if ($STAZIONI | Where-Object { $_.id -eq $q['id'] }) { $Solo = 'st:' + $q['id'] } }
 if ($Link -like 'radarkite://indirizzi*') {
   # Casa e lavoro scritti nella pagina: li salvo in impostazioni.txt e ricalcolo i tempi.
   $q = Get-Parametri $Link
@@ -674,11 +691,20 @@ function Save-Pdf([string]$fileHtml) {
 Write-Host "Radar kite $VERSIONE ($DATA_VERSIONE) di $AUTORE - $($adesso.ToString('dd/MM/yyyy HH:mm', $INV))" -ForegroundColor Cyan
 if (-not $Automatico -and -not $Link) { Register-AvvioAutomatico }
 # Tutte le richieste partono insieme: previsioni Windguru, Open-Meteo, acqua e stazioni.
-foreach ($s in $SPOT) { Start-Scarico "https://micro.windguru.cz/?s=$($s.wg)" 'https://micro.windguru.cz/' }
-if (-not $OmProva) { Start-Scarico (Get-UrlOpenMeteo) 'https://open-meteo.com/' }
-Start-Scarico (Get-UrlAcqua) 'https://open-meteo.com/'
+$FRESCHI = @()
+if ($Solo -like 'spot:*') {
+  $sx = $SPOT | Where-Object { $_.id -eq $Solo.Substring(5) } | Select-Object -First 1
+  $FRESCHI = @("https://micro.windguru.cz/?s=$($sx.wg)", (Get-UrlOpenMeteo), (Get-UrlAcqua)) + @($STAZIONI | Where-Object { $sx.stazioni -contains $_.id } | ForEach-Object { $_.url })
+  Write-Host "Aggiorno solo lo spot $($sx.nome)" -ForegroundColor Cyan
+} elseif ($Solo -like 'st:*') {
+  $FRESCHI = @($STAZIONI | Where-Object { $_.id -eq $Solo.Substring(3) } | ForEach-Object { $_.url })
+  Write-Host "Aggiorno solo la stazione $($Solo.Substring(3))" -ForegroundColor Cyan
+}
+foreach ($s in $SPOT) { Start-Scarico "https://micro.windguru.cz/?s=$($s.wg)" 'https://micro.windguru.cz/' -Secondi 20 }
+if (-not $OmProva) { Start-Scarico (Get-UrlOpenMeteo) 'https://open-meteo.com/' -Rigido -Secondi 15 }
+Start-Scarico (Get-UrlAcqua) 'https://open-meteo.com/' -Rigido -Secondi 15
 $T0 = Get-Date
-foreach ($st in $STAZIONI) { Start-Scarico $st.url $st.ref -Xhr:($st.tipo -eq 'weathercloud') -Rigido }
+foreach ($st in $STAZIONI) { Start-Scarico $st.url $st.ref -Xhr:($st.tipo -eq 'weathercloud') -Rigido -Secondi 60 }
 $spotRes = @()
 foreach ($s in $SPOT) {
   Write-Host "  Windguru $($s.nome)... " -NoNewline
@@ -692,13 +718,8 @@ foreach ($s in $SPOT) {
     Write-Host "ERRORE: $($_.Exception.Message) (riga $($_.InvocationInfo.ScriptLineNumber))" -ForegroundColor Red
   }
 }
-Write-Host '  Open-Meteo (meteo e secondo modello)... ' -NoNewline
-$OM = @{}
-try { $OM = Read-OpenMeteo; Write-Host 'ok' -ForegroundColor Green } catch { Write-Host "ERRORE: $($_.Exception.Message)" -ForegroundColor Red }
-[void](Update-Tempi)
-Write-Host '  Mare (acqua e onde)... ' -NoNewline
-$ACQUA = @{}
-try { $ACQUA = Read-Acqua; Write-Host 'ok' -ForegroundColor Green } catch { Write-Host "ERRORE: $($_.Exception.Message)" -ForegroundColor Red }
+# Open-Meteo (meteo, secondo modello) e mare (acqua, onde) arrivano nella seconda fase, con le stazioni.
+$OM = @{}; $ACQUA = @{}; $ONDE = $null; $erroreOm = ''; $erroreMare = ''
 [void](Update-Tempi)
 $VIAGGI = $null; $erroreViaggi = ''
 if ($IMP[$IMP.partenza]) {
@@ -708,12 +729,16 @@ if ($IMP[$IMP.partenza]) {
 
 # Due fasi: 1) la pagina si apre subito con le previsioni e le stazioni "in lettura";
 # 2) arrivano le stazioni, la pagina si aggiorna da sola e si fa il PDF. Gli avvii automatici fanno solo la 2.
-$fasi = if ($Automatico) { @(2) } else { @(1, 2) }
+$fasi = if ($Automatico -or $Solo) { @(2) } else { @(1, 2) }
 foreach ($FASE in $fasi) {
 $stRes = @{}
 if ($FASE -eq 1) {
   foreach ($st in $STAZIONI) { $stRes[$st.id] = @{ errore = 'in lettura' } }
 } else {
+Write-Host '  Open-Meteo (meteo e secondo modello)... ' -NoNewline
+try { $OM = Read-OpenMeteo; Write-Host 'ok' -ForegroundColor Green } catch { $erroreOm = $_.Exception.Message; Write-Host "ERRORE: $erroreOm" -ForegroundColor Red }
+Write-Host '  Mare (acqua e onde)... ' -NoNewline
+try { $ACQUA = Read-Acqua; Write-Host 'ok' -ForegroundColor Green } catch { $erroreMare = $_.Exception.Message; Write-Host "ERRORE: $erroreMare" -ForegroundColor Red }
 Wait-Stazioni
 foreach ($st in $STAZIONI) {
   Write-Host "  Stazione $($st.nome)... " -NoNewline
@@ -739,6 +764,7 @@ try {
   if ($FASE -eq 2) {
     $nuoveT = @(foreach ($st in $STAZIONI) {
       $l = $stRes[$st.id]; if (-not $l -or $l.errore -match 'sospes') { continue }
+      if ($Solo -and -not $TEMPI.ContainsKey($st.id)) { continue }
       $sec = if ($TEMPI.ContainsKey($st.id)) { ([double]$TEMPI[$st.id]).ToString('0.0', $INV) } else { '' }
       $adesso.ToString('yyyy-MM-dd HH:mm', $INV) + ';' + $st.id + ';' + $sec + ';' + $(if ($l.errore) { 'errore' } else { 'ok' })
     })
@@ -981,7 +1007,27 @@ foreach ($st in $STAZIONI) {
   $stato = if ($l.offline) { 'offline' } elseif ($l.fresca) { 'aggiornata' } else { 'vecchia' }
   $datiStazioni += [ordered]@{ id = $st.id; nome = $st.nome; pagina = $st.pagina; spot = $suo.id; data = $l.t.ToString('dd/MM', $INV); giorni = [int][Math]::Floor(($adesso - $l.t).TotalDays); wind = (Num $l.wind); gust = (Num $l.gust); deg = $l.deg; dir = (Get-Comp $l.deg); ora = $l.t.ToString('HH:mm', $INV); stato = $stato; lenta = $LENTE[$st.id] }
 }
-$dati = [ordered]@{ aggiornando = ($FASE -eq 1); versione = $VERSIONE; dataVersione = $DATA_VERSIONE; autore = $AUTORE; creato = $adesso.ToString("yyyy-MM-dd'T'HH:mm:ss", $INV); soglia = $SOGLIA; oreMin = $ORE_MIN; giorni = $datiGiorni; passati = $datiPassati; spot = $datiSpot; stazioni = $datiStazioni; diario = $datiDiario
+# Quando e' stato aggiornato ogni spot e ogni stazione (dati\cache\meta.json): con "Aggiorna spot" cambia solo il suo.
+$fileMeta = Join-Path $dirCache 'meta.json'
+$META = @{ creato = ''; spot = @{}; stazioni = @{} }
+try {
+  if (Test-Path $fileMeta) {
+    $mj = ConvertFrom-Json ([IO.File]::ReadAllText($fileMeta))
+    $META.creato = [string]$mj.creato
+    if ($mj.spot) { foreach ($pp in $mj.spot.PSObject.Properties) { $META.spot[$pp.Name] = [string]$pp.Value } }
+    if ($mj.stazioni) { foreach ($pp in $mj.stazioni.PSObject.Properties) { $META.stazioni[$pp.Name] = [string]$pp.Value } }
+  }
+} catch { }
+$oraTxt = $adesso.ToString("yyyy-MM-dd'T'HH:mm:ss", $INV)
+if (-not $Solo -or -not $META.creato) {
+  $META.creato = $oraTxt; foreach ($s in $SPOT) { $META.spot[$s.id] = $oraTxt }; foreach ($st in $STAZIONI) { $META.stazioni[$st.id] = $oraTxt }
+} elseif ($Solo -like 'spot:*') {
+  $META.spot[$sx.id] = $oraTxt; foreach ($sid in $sx.stazioni) { $META.stazioni[$sid] = $oraTxt }
+} else { $META.stazioni[$Solo.Substring(3)] = $oraTxt }
+if ($FASE -eq 2) { try { [IO.File]::WriteAllText($fileMeta, (ConvertTo-Json -InputObject $META -Depth 4 -Compress), (New-Object Text.UTF8Encoding($false))) } catch { } }
+foreach ($ds in $datiSpot) { $ds.aggiornato = $META.spot[$ds.id] }
+foreach ($dz in $datiStazioni) { $dz.aggiornato = $META.stazioni[$dz.id] }
+$dati = [ordered]@{ aggiornando = ($FASE -eq 1); omErrore = $erroreOm; mareErrore = $erroreMare; versione = $VERSIONE; dataVersione = $DATA_VERSIONE; autore = $AUTORE; creato = $META.creato; soglia = $SOGLIA; oreMin = $ORE_MIN; giorni = $datiGiorni; passati = $datiPassati; spot = $datiSpot; stazioni = $datiStazioni; diario = $datiDiario
   partenza = [ordered]@{ scelta = $IMP.partenza; casa = (Get-NomePosto $IMP.casa); lavoro = (Get-NomePosto $IMP.lavoro); casaImp = $IMP.casa; lavoroImp = $IMP.lavoro; errore = $erroreViaggi; trovato = $(if ($VIAGGI) { $VIAGGI.trovato } else { '' }); lat = $(if ($VIAGGI) { $VIAGGI.lat } else { $null }); lon = $(if ($VIAGGI) { $VIAGGI.lon } else { $null }); google = [bool]$IMP.google_chiave } }
 [void](Update-Tempi)
 $json = ConvertTo-Json -InputObject $dati -Depth 8 -Compress
@@ -1000,7 +1046,7 @@ if ($FASE -eq 1) {
 } else {
   Write-Host ''
   Write-Host "Report: $file"
-  Save-Pdf $file
+  if (-not $Solo) { Save-Pdf $file }
   if (-not $NonAprire -and $fasi.Count -eq 1) { Start-Process $file }
 }
 }
