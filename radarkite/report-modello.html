@@ -191,7 +191,7 @@ body.pdf .grid{grid-template-columns:1fr}body.pdf .cal{grid-template-columns:rep
   <p class="sub" id="sub"></p>
   <div class="barra" id="barra"></div>
 
-  <h2>Settimana</h2>
+  <h2 id="hsett">Settimana</h2>
   <div class="calwrap"><div class="cal" id="cal"></div></div>
   <div class="legend small"><span class="l1">firing</span><span class="l2">firing ma con raffiche oltre 35 kts</span><span class="l3">niente vento utile</span><span class="l4">giorni passati: letto dalle stazioni (✓ vento = almeno 15 kts da una direzione buona)</span><span>oltre 5 giorni la previsione è meno affidabile (più chiara)</span><span>Clicca un giorno per andare allo spot migliore.</span></div>
 
@@ -498,6 +498,14 @@ var D = /*DATI*/null;
     b.addEventListener('click', function () { lancia(url, chi); });
     return b;
   }
+
+  // Pulsante per rifare il confronto dei giorni passati (di solito si fa da solo una volta al giorno).
+  (function () {
+    var hs = document.getElementById('hsett'); if (!hs || PDF || !(D.passati || []).length) return;
+    var tc = dataLocale(D.passatiCalcolati);
+    var b = bottoneAggiorna('↻ ricalcola giorni passati', 'Rifà il confronto previsto/registrato dei giorni passati' + (tc ? ' (calcolato alle ' + hhmm(tc) + ')' : ''), 'radarkite://storico', null);
+    b.style.marginLeft = '10px'; b.style.verticalAlign = '3px'; hs.append(b);
+  })();
 
   // ---- Partenza e tempi di viaggio ----
   (function () {
