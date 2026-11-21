@@ -559,12 +559,12 @@ function Read-Acqua {
     $v = @($hh.sea_surface_temperature | Select-Object -First 24 | Where-Object { $_ -ne $null })
     $out[$SPOT[$i].id] = $(if ($v.Count) { [Math]::Round(($v | Measure-Object -Average).Average) } else { $null })
     # Onde ora per ora: totale, onda lunga (swell) e onde da vento.
-    $righe = @()
+    $righe = New-Object System.Collections.ArrayList
     for ($k = 0; $hh.wave_height -and $k -lt @($hh.time).Count; $k++) {
       if ($hh.wave_height[$k] -eq $null) { continue }
       $t = [datetime]::ParseExact($hh.time[$k], "yyyy-MM-dd'T'HH:mm", $INV)
-      $righe += [pscustomobject]@{ date = $t.Date; hour = $t.Hour; h = $hh.wave_height[$k]; p = $hh.wave_period[$k]; d = $hh.wave_direction[$k]
-        sh = $hh.swell_wave_height[$k]; sp = $hh.swell_wave_period[$k]; wh = $hh.wind_wave_height[$k]; wp = $hh.wind_wave_period[$k] }
+      [void]$righe.Add([pscustomobject]@{ date = $t.Date; hour = $t.Hour; h = $hh.wave_height[$k]; p = $hh.wave_period[$k]; d = $hh.wave_direction[$k]
+        sh = $hh.swell_wave_height[$k]; sp = $hh.swell_wave_period[$k]; wh = $hh.wind_wave_height[$k]; wp = $hh.wind_wave_period[$k] })
     }
     $script:ONDE[$SPOT[$i].id] = $righe
   }
@@ -572,29 +572,39 @@ function Read-Acqua {
 }
 # Onde di un giorno: l'ora con l'onda piu' alta tra $da e $a (la finestra del vento, o la fascia utile).
 function Get-Onde($righe, [datetime]$giorno, [int]$da, [int]$a) {
-  $r = @($righe | Where-Object { $_.date -eq $giorno -and $_.hour -ge $da -and $_.hour -le $a } | Sort-Object h -Descending | Select-Object -First 1)
-  if (-not $r.Count) { return $null }
-  $x = $r[0]
+  # L'ora con l'onda piu' alta nella fascia (a parita' di altezza, la prima).
+  $x = $null
+  foreach ($y in $righe) { if ($y.date -eq $giorno -and $y.hour -ge $da -and $y.hour -le $a -and ($x -eq $null -or [double]$y.h -gt [double]$x.h)) { $x = $y } }
+  if ($x -eq $null) { return $null }
   function Arr($v, $c) { if ($v -eq $null) { $null } else { [Math]::Round([double]$v, $c) } }
   return [ordered]@{ h = (Arr $x.h 1); p = (Arr $x.p 0); d = (Arr $x.d 0); sh = (Arr $x.sh 1); sp = (Arr $x.sp 0); wh = (Arr $x.wh 1); wp = (Arr $x.wp 0); ora = $x.hour }
 }
 function Get-Meteo($righeOm, [datetime]$giorno, $fascia) {
+  # Cicli semplici al posto di Where-Object/Measure-Object: stesso risultato, molto piu' veloce in PowerShell 5.1.
   $periodi = @(@(8, 11), @(12, 16), @(17, 20))
   $res = @()
   foreach ($p in $periodi) {
-    $r = @($righeOm | Where-Object { $_.date -eq $giorno -and $_.hour -ge $p[0] -and $_.hour -le $p[1] -and $_.code -ne $null -and $_.temp -ne $null })
-    if (-not $r.Count) { $res += $null; continue }
-    $pioggia = @($r | Where-Object { $_.rain -ne $null })
-    $res += [ordered]@{ codice = [int]($r | Measure-Object code -Maximum).Maximum; temp = [int][Math]::Round(($r | Measure-Object temp -Average).Average)
-      pioggia = $(if ($pioggia.Count) { [Math]::Round(($pioggia | Measure-Object rain -Sum).Sum, 1) } else { 0 }) }
+    $n = 0; $maxC = $null; $sumT = 0.0; $nP = 0; $sumP = 0.0
+    foreach ($x in $righeOm) {
+      if ($x.date -ne $giorno -or $x.hour -lt $p[0] -or $x.hour -gt $p[1] -or $x.code -eq $null -or $x.temp -eq $null) { continue }
+      $n++; $sumT += $x.temp
+      if ($maxC -eq $null -or [double]$x.code -gt $maxC) { $maxC = [double]$x.code }
+      if ($x.rain -ne $null) { $nP++; $sumP += $x.rain }
+    }
+    if (-not $n) { $res += $null; continue }
+    $res += [ordered]@{ codice = [int]$maxC; temp = [int][Math]::Round($sumT / $n)
+      pioggia = $(if ($nP) { [Math]::Round($sumP, 1) } else { 0 }) }
   }
-  $temporale = @($righeOm | Where-Object { $_.date -eq $giorno -and $_.hour -ge $fascia[0] -and $_.hour -le $fascia[1] -and $_.code -ge 95 }).Count -gt 0
+  $temporale = $false
+  foreach ($x in $righeOm) { if ($x.date -eq $giorno -and $x.hour -ge $fascia[0] -and $x.hour -le $fascia[1] -and $x.code -ge 95) { $temporale = $true; break } }
   return [ordered]@{ periodi = $res; temporale = $temporale }
 }
 
 # Finestra firing su righe orarie (previsione Open-Meteo, previsione salvata o letture): 15 kts per 2 ore di fila, direzione non da terra.
 function Get-Finestra($s, $righe, [int]$inizio, [int]$fine) {
-  $ord = @($righe | Where-Object { $_ -ne $null -and $_.hour -ge $inizio -and $_.hour -le $fine -and $_.wind -ne $null -and $_.deg -ne $null } | Sort-Object hour)
+  $ord = @(foreach ($x in $righe) { if ($x -ne $null -and $x.hour -ge $inizio -and $x.hour -le $fine -and $x.wind -ne $null -and $x.deg -ne $null) { $x } })
+  $inOrdine = $true; for ($i = 1; $i -lt $ord.Count; $i++) { if ($ord[$i].hour -le $ord[$i - 1].hour) { $inOrdine = $false; break } }
+  if (-not $inOrdine) { $ord = @($ord | Sort-Object hour) }
   $migliore = $null; $run = @()
   foreach ($r in ($ord + @($null))) {
     $ok = ($r -ne $null) -and ([double]$r.wind -ge $SOGLIA) -and ((Get-Classe $s ([double]$r.deg)) -ne 'terra')
@@ -606,7 +616,9 @@ function Get-Finestra($s, $righe, [int]$inizio, [int]$fine) {
     $run = @(); if ($ok) { $run = @($r) }
   }
   if (-not $migliore) { return $null }
-  return [ordered]@{ ore = "$($migliore[0].hour)-$($migliore[-1].hour)"; min = [int][Math]::Round(($migliore | Measure-Object wind -Minimum).Minimum); max = [int][Math]::Round(($migliore | Measure-Object wind -Maximum).Maximum) }
+  $mn = [double]::MaxValue; $mx = [double]::MinValue
+  foreach ($x in $migliore) { $w = [double]$x.wind; if ($w -lt $mn) { $mn = $w }; if ($w -gt $mx) { $mx = $w } }
+  return [ordered]@{ ore = "$($migliore[0].hour)-$($migliore[-1].hour)"; min = [int][Math]::Round($mn); max = [int][Math]::Round($mx) }
 }
 
 # ---------------- Tempo di viaggio dalla partenza scelta ----------------
@@ -1043,8 +1055,9 @@ foreach ($r in $spotRes) {
       $fa = Get-Fascia $g.data
       $ini = if ($g.oggi) { [Math]::Max($fa[0], $adesso.AddHours($VIAGGIO_ORE).Hour) } else { $fa[0] }
       $o.meteo = Get-Meteo $omGiorno $g.data $fa
-      $omOre = @($omGiorno | Where-Object { $_.date -eq $g.data -and $_.hour -ge $ini -and $_.hour -le $fa[1] -and $_.wind -ne $null })
-      $o.om = [ordered]@{ firing = (Get-Finestra $s $omOre $ini $fa[1]); max = $(if ($omOre.Count) { [int][Math]::Round(($omOre | Measure-Object wind -Maximum).Maximum) } else { $null }) }
+      $omOre = @(foreach ($x in $omGiorno) { if ($x.hour -ge $ini -and $x.hour -le $fa[1] -and $x.wind -ne $null) { $x } })
+      $omMax = $null; foreach ($x in $omOre) { if ($omMax -eq $null -or [double]$x.wind -gt $omMax) { $omMax = [double]$x.wind } }
+      $o.om = [ordered]@{ firing = (Get-Finestra $s $omOre $ini $fa[1]); max = $(if ($omOre.Count) { [int][Math]::Round($omMax) } else { $null }) }
     }
     if ($ONDE -and $ONDE[$s.id]) {
       $faO = Get-Fascia $g.data
