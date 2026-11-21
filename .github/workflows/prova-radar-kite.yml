@@ -48,6 +48,7 @@ jobs:
       - name: Avvio automatico, diario dal link, PDF
         shell: powershell
         run: |
+          $h0 = [IO.File]::ReadAllText("$PWD\radarkite\report.html"); "Dopo l'avvio: spot vuoti? $($h0 -match '"spot":null') - creato $([regex]::Match($h0, '"creato":"[^"]*"').Value)"
           $t = Get-ScheduledTask -TaskName 'Radar kite'; "Attivita': $($t.TaskName) - $($t.Actions[0].Arguments)"; $t.Triggers | ForEach-Object { "Inizio $($_.StartBoundary) ogni $($_.Repetition.Interval) per $($_.Repetition.Duration)" }
           $prima = (Get-Item radarkite\report.html).LastWriteTime
           Start-Process 'radarkite://uscita?d=2026-11-18&o=11:00&s=ostia&m=60&v=12&n=prova+dal+link'

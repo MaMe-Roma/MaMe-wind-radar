@@ -996,6 +996,12 @@ if (Test-Path $fileDiario) {
   }
 }
 
+}
+if (-not $usaPassati -or -not $usaDiario) {
+  $forzaStorico = $false
+  try { [IO.File]::WriteAllText($fileCalc, (ConvertTo-Json -InputObject ([ordered]@{ giorno = $oggiTxt; versione = $VERSIONE; firmaDiario = $firmaDiario; calcolati = $passatiCalcolati; passati = @($datiPassati); diario = @($datiDiario) }) -Depth 9 -Compress), $UTF8) } catch { }
+}
+Write-Tempo ('giorni passati e diario ' + $(if ($usaPassati -and $usaDiario) { 'gia'' pronti' } else { 'calcolati' }))
 # ---------------- Report HTML ----------------
 # I dati vanno dentro report-modello.html (grafica e calcoli di pagina), che diventa report.html.
 function Num($x) { if ($x -eq $null) { return $null } return [Math]::Round([double]$x, 1) }
@@ -1081,12 +1087,6 @@ if (-not $Solo -or -not $META.creato) {
 if ($FASE -eq 2) { try { [IO.File]::WriteAllText($fileMeta, (ConvertTo-Json -InputObject $META -Depth 4 -Compress), (New-Object Text.UTF8Encoding($false))) } catch { } }
 foreach ($ds in $datiSpot) { $ds.aggiornato = $META.spot[$ds.id] }
 foreach ($dz in $datiStazioni) { $dz.aggiornato = $META.stazioni[$dz.id] }
-}
-if (-not $usaPassati -or -not $usaDiario) {
-  $forzaStorico = $false
-  try { [IO.File]::WriteAllText($fileCalc, (ConvertTo-Json -InputObject ([ordered]@{ giorno = $oggiTxt; versione = $VERSIONE; firmaDiario = $firmaDiario; calcolati = $passatiCalcolati; passati = @($datiPassati); diario = @($datiDiario) }) -Depth 9 -Compress), $UTF8) } catch { }
-}
-Write-Tempo ('giorni passati e diario ' + $(if ($usaPassati -and $usaDiario) { 'gia'' pronti' } else { 'calcolati' }))
 
 $dati = [ordered]@{ aggiornando = ($FASE -eq 1); passatiCalcolati = $passatiCalcolati; omErrore = $erroreOm; mareErrore = $erroreMare; versione = $VERSIONE; dataVersione = $DATA_VERSIONE; autore = $AUTORE; creato = $META.creato; soglia = $SOGLIA; oreMin = $ORE_MIN; giorni = $datiGiorni; passati = $datiPassati; spot = $datiSpot; stazioni = $datiStazioni; diario = $datiDiario
   partenza = [ordered]@{ scelta = $IMP.partenza; casa = (Get-NomePosto $IMP.casa); lavoro = (Get-NomePosto $IMP.lavoro); casaImp = $IMP.casa; lavoroImp = $IMP.lavoro; errore = $erroreViaggi; trovato = $(if ($VIAGGI) { $VIAGGI.trovato } else { '' }); lat = $(if ($VIAGGI) { $VIAGGI.lat } else { $null }); lon = $(if ($VIAGGI) { $VIAGGI.lon } else { $null }); google = [bool]$IMP.google_chiave } }
