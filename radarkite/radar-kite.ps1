@@ -10,7 +10,7 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-$VERSIONE = '3.1'
+$VERSIONE = '3.1.1'
 $DATA_VERSIONE = '21/11/2026'
 $AUTORE = '@MadHatterMatt'
 
@@ -1030,20 +1030,27 @@ foreach ($r in $spotRes) {
   }
   $tessere = @()
   $omS = $OM[$s.id]
+  # Righe di meteo e onde divise per giorno una volta sola: ogni riquadro guarda solo le 24 ore del suo giorno
+  # invece di scorrere ogni volta tutti i 9 giorni (era la parte lenta della seconda fase).
+  $omG = @{}; $ondeG = @{}
+  if ($omS) { foreach ($x in $omS) { $kx = $x.date.ToString('yyyy-MM-dd', $INV); if (-not $omG[$kx]) { $omG[$kx] = New-Object System.Collections.ArrayList }; [void]$omG[$kx].Add($x) } }
+  if ($ONDE -and $ONDE[$s.id]) { foreach ($x in $ONDE[$s.id]) { $kx = $x.date.ToString('yyyy-MM-dd', $INV); if (-not $ondeG[$kx]) { $ondeG[$kx] = New-Object System.Collections.ArrayList }; [void]$ondeG[$kx].Add($x) } }
   foreach ($g in $r.giorni) {
+    $kg = ([datetime]$g.data).ToString('yyyy-MM-dd', $INV)
+    $omGiorno = if ($omG[$kg]) { $omG[$kg] } else { @() }
     $o = [ordered]@{ firing = $g.firing; max = $g.max; maxRaff = $g.maxRaff; maxDir = $g.maxDir }
     if ($omS) {
       $fa = Get-Fascia $g.data
       $ini = if ($g.oggi) { [Math]::Max($fa[0], $adesso.AddHours($VIAGGIO_ORE).Hour) } else { $fa[0] }
-      $o.meteo = Get-Meteo $omS $g.data $fa
-      $omOre = @($omS | Where-Object { $_.date -eq $g.data -and $_.hour -ge $ini -and $_.hour -le $fa[1] -and $_.wind -ne $null })
+      $o.meteo = Get-Meteo $omGiorno $g.data $fa
+      $omOre = @($omGiorno | Where-Object { $_.date -eq $g.data -and $_.hour -ge $ini -and $_.hour -le $fa[1] -and $_.wind -ne $null })
       $o.om = [ordered]@{ firing = (Get-Finestra $s $omOre $ini $fa[1]); max = $(if ($omOre.Count) { [int][Math]::Round(($omOre | Measure-Object wind -Maximum).Maximum) } else { $null }) }
     }
     if ($ONDE -and $ONDE[$s.id]) {
       $faO = Get-Fascia $g.data
       $oraDa = $faO[0]; $oraA = $faO[1]
       if ($g.firing -and $g.ore -match '^(\d+)\D+(\d+)$') { $oraDa = [int]$Matches[1]; $oraA = [int]$Matches[2] }
-      $o.onde = Get-Onde $ONDE[$s.id] $g.data $oraDa $oraA
+      $o.onde = $(if ($ondeG[$kg]) { Get-Onde $ondeG[$kg] $g.data $oraDa $oraA } else { $null })
     }
     if ($g.firing) {
       $o.ore = $g.ore; $o.durata = $g.durata; $o.min = $g.min; $o.maxf = $g.maxf; $o.raffica = $g.raffica; $o.dir = $g.dir
@@ -1054,7 +1061,8 @@ foreach ($r in $spotRes) {
   $staz = @(foreach ($sid in $s.stazioni) { $x = $STAZIONI | Where-Object { $_.id -eq $sid } | Select-Object -First 1; [ordered]@{ id = $x.id; nome = $x.nome; etichetta = $x.etichetta; pagina = $x.pagina } })
   $viaggio = $null
   if ($VIAGGI) { $viaggio = [ordered]@{ stima = $VIAGGI.stima.($s.id); traffico = $(if ($VIAGGI.traffico) { $VIAGGI.traffico.($s.id) } else { $null }); ora = $VIAGGI.trafficoOra } }
-  $ondeOra = $(if ($ONDE -and $ONDE[$s.id]) { Get-Onde $ONDE[$s.id] $adesso.Date $adesso.Hour $adesso.Hour } else { $null })
+  $kOggi = $adesso.ToString('yyyy-MM-dd', $INV)
+  $ondeOra = $(if ($ondeG[$kOggi]) { Get-Onde $ondeG[$kOggi] $adesso.Date $adesso.Hour $adesso.Hour } else { $null })
   $datiSpot += [ordered]@{ viaggio = $viaggio; acqua = $ACQUA[$s.id]; ondeOra = $ondeOra; id = $s.id; nome = $s.nome; breve = $s.breve; mappa = $(if ($s.mappa) { $s.mappa } else { $s.breve }); lon = $s.lon; lat = $s.lat; lab = $s.lab; wg = $s.wg; webcam = $s.webcam; surf = $s.surf
     ok = $s.ok; terra = $s.terra; stazioni = $staz; errore = $r.errore
     wgSpot = $(if ($r.wg) { $r.wg.spot } else { '' }); init = $(if ($r.wg) { $r.wg.init } else { '' }); adesso = $ad; giorni = $tessere }
@@ -1090,6 +1098,7 @@ foreach ($dz in $datiStazioni) { $dz.aggiornato = $META.stazioni[$dz.id] }
 
 $dati = [ordered]@{ aggiornando = ($FASE -eq 1); passatiCalcolati = $passatiCalcolati; omErrore = $erroreOm; mareErrore = $erroreMare; versione = $VERSIONE; dataVersione = $DATA_VERSIONE; autore = $AUTORE; creato = $META.creato; soglia = $SOGLIA; oreMin = $ORE_MIN; giorni = $datiGiorni; passati = $datiPassati; spot = $datiSpot; stazioni = $datiStazioni; diario = $datiDiario
   partenza = [ordered]@{ scelta = $IMP.partenza; casa = (Get-NomePosto $IMP.casa); lavoro = (Get-NomePosto $IMP.lavoro); casaImp = $IMP.casa; lavoroImp = $IMP.lavoro; errore = $erroreViaggi; trovato = $(if ($VIAGGI) { $VIAGGI.trovato } else { '' }); lat = $(if ($VIAGGI) { $VIAGGI.lat } else { $null }); lon = $(if ($VIAGGI) { $VIAGGI.lon } else { $null }); google = [bool]$IMP.google_chiave } }
+Write-Tempo 'dati della pagina pronti'
 [void](Update-Tempi)
 $json = ConvertTo-Json -InputObject $dati -Depth 8 -Compress
 $modello = [IO.File]::ReadAllText((Join-Path $cartella 'report-modello.html'), [Text.Encoding]::UTF8)
@@ -1105,12 +1114,12 @@ if ($FASE -eq 1) {
   Write-Host '  Pagina aperta, leggo le stazioni...' -ForegroundColor Cyan
   # Con -GiaAperta il file .bat ha gia' aperto l'ultimo report, che si ricarica da solo.
   if (-not $NonAprire -and -not $GiaAperta) { Start-Process $file }
-  # A pagina aperta, mentre arrivano le stazioni: controllo dell'avvio automatico (solo avvii a mano, una volta al giorno).
-  if (-not $Automatico -and -not $Link) { Register-AvvioAutomatico; Write-Tempo 'avvio automatico controllato' }
 } else {
   Write-Tempo 'pagina completa (fase 2)'
   Write-Host ''
   Write-Host "Report: $file"
+  # A pagina completa: controllo dell'avvio automatico (solo avvii a mano, una volta al giorno), poi il PDF.
+  if (-not $Automatico -and -not $Link) { Register-AvvioAutomatico; Write-Tempo 'avvio automatico controllato' }
   if (-not $Solo) { Save-Pdf $file; Write-Tempo 'PDF' }
   if (-not $NonAprire -and $fasi.Count -eq 1) { Start-Process $file }
 }
