@@ -41,6 +41,14 @@ jobs:
             $loc += [ordered]@{ latitude = 41; longitude = 12; hourly = [ordered]@{ time = $time; temperature_2m = $temp; weather_code = $code; precipitation = $rain; wind_speed_10m = $ws; wind_gusts_10m = $wg; wind_direction_10m = $wd } }
           }
           [IO.File]::WriteAllText("$PWD\om-prova.json", (ConvertTo-Json -InputObject $loc -Depth 6 -Compress))
+      - name: Diagnosi avvio PowerShell
+        shell: cmd
+        run: |
+          powershell -NoProfile -Command "$s=[Diagnostics.Process]::GetCurrentProcess().StartTime; 'solo .NET: ' + ([DateTime]::Now - $s).TotalSeconds"
+          powershell -NoProfile -Command "$s=[Diagnostics.Process]::GetCurrentProcess().StartTime; 'solo .NET: ' + ([DateTime]::Now - $s).TotalSeconds"
+          powershell -NoProfile -Command "$s=[Diagnostics.Process]::GetCurrentProcess().StartTime; $null = Split-Path C:\a\b; $null = Get-Date; 'con Split-Path e Get-Date: ' + ([DateTime]::Now - $s).TotalSeconds"
+          powershell -NoProfile -Command "$s=[Diagnostics.Process]::GetCurrentProcess().StartTime; $null = Split-Path C:\a\b; $null = Get-Date; 'con Split-Path e Get-Date: ' + ([DateTime]::Now - $s).TotalSeconds"
+          powershell -NoProfile -Command "$s=[DateTime]::Now; $e=$null; $null=[System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path 'radarkite\radar-kite.ps1').Path,[ref]$null,[ref]$e); 'solo lettura script: ' + ([DateTime]::Now - $s).TotalSeconds"
       - name: Avvia Radar kite 2.0
         shell: cmd
         run: |
@@ -77,5 +85,6 @@ jobs:
         shell: powershell
         run: |
           function Pezzi($tag, $file) { if (-not (Test-Path $file)) { return }; $b = [Convert]::ToBase64String([IO.File]::ReadAllBytes($file)); for ($i = 0; $i -lt $b.Length; $i += 40000) { "$tag" + ($i / 40000) + ':' + $b.Substring($i, [Math]::Min(40000, $b.Length - $i)) } }
+          "Tempi avvio:"; Get-Content radarkite\dati\tempi-avvio.csv -ErrorAction SilentlyContinue
           Pezzi 'HTML' 'radarkite\report.html'
           Pezzi 'PDF' 'pdfout\Radar kite.pdf'

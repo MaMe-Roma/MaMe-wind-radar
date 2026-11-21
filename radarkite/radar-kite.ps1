@@ -5,12 +5,13 @@
   Avvio: doppio clic su "Avvia Radar kite.bat" nella stessa cartella.
 #>
 param([switch]$NonAprire, [string]$SalvaGrezzi = '', [string]$Link = '', [switch]$Automatico, [string]$OmProva = '', [switch]$Nascosto, [switch]$GiaAperta)
+$T_INIZIO = [DateTime]::Now   # primo istante in cui il programma gira (prima di qualsiasi comando)
 
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-$VERSIONE = '3.1.2'
+$VERSIONE = '3.1.3'
 $DATA_VERSIONE = '21/11/2026'
 $AUTORE = '@MadHatterMatt'
 
@@ -68,7 +69,8 @@ $cartella = Split-Path -Parent $MyInvocation.MyCommand.Path
 $adesso = Get-Date
 $T_START = Get-Date
 # Cronometro nel resoconto (dati\ultimo-avvio.txt): secondi dall'avvio a ogni passaggio.
-function Write-Tempo([string]$cosa) { Write-Host ('  [{0,5:0.0} s] {1}' -f ((Get-Date) - $script:T_START).TotalSeconds, $cosa) -ForegroundColor DarkGray }
+$TAPPE = @{}
+function Write-Tempo([string]$cosa) { $script:TAPPE[$cosa] = ((Get-Date) - $script:T_START).TotalSeconds; Write-Host ('  [{0,5:0.0} s] {1}' -f ((Get-Date) - $script:T_START).TotalSeconds, $cosa) -ForegroundColor DarkGray }
 
 # ---------------- Impostazioni personali e cartella dei dati ----------------
 $dirDati = Join-Path $cartella 'dati'
@@ -77,7 +79,9 @@ $dirCache = Join-Path $dirDati 'cache'
 if (-not (Test-Path $dirCache)) { New-Item -ItemType Directory -Path $dirCache | Out-Null }
 # Avviato senza finestra dal file .bat: quello che il programma scrive va in dati\ultimo-avvio.txt.
 if ($Nascosto) { try { Start-Transcript -Path (Join-Path $dirDati 'ultimo-avvio.txt') -Force | Out-Null } catch { } }
-try { Write-Host ('  [PowerShell partito {0:0.0} s prima del cronometro]' -f ($T_START - [Diagnostics.Process]::GetCurrentProcess().StartTime).TotalSeconds) -ForegroundColor DarkGray } catch { }
+# Avvio di PowerShell: quanto ci mette a partire e leggere il programma, e quanto i primi comandi (caricamento dei moduli).
+$T_PS = $null; try { $T_PS = [Diagnostics.Process]::GetCurrentProcess().StartTime } catch { }
+if ($T_PS) { Write-Host ('  [PowerShell: {0:0.0} s per partire e leggere il programma, {1:0.0} s per i primi comandi]' -f ($T_INIZIO - $T_PS).TotalSeconds, ($T_START - $T_INIZIO).TotalSeconds) -ForegroundColor DarkGray }
 $fileImp = Join-Path $cartella 'impostazioni.txt'
 $IMP_TESTO = @'
 # Radar kite - impostazioni personali. Una per riga: nome = valore. Le righe con # sono note.
@@ -1148,4 +1152,13 @@ if ($FASE -eq 1) {
   if (-not $NonAprire -and $fasi.Count -eq 1) { Start-Process $file }
 }
 }
+# Un riga per avvio in dati\tempi-avvio.csv (anche per gli avvii dal pulsante, che non scrivono il resoconto).
+try {
+  $fileAv = Join-Path $dirDati 'tempi-avvio.csv'
+  function Sec($v) { if ($v -eq $null) { '' } else { ([double]$v).ToString('0.0', $INV) } }
+  $modo = if ($Automatico) { 'automatico' } elseif ($Solo) { $Solo } elseif ($Link) { ($Link -replace '^radarkite://', '' -replace '\?.*$', '') } else { 'a mano' }
+  $rigaAv = (@($adesso.ToString('yyyy-MM-dd HH:mm:ss', $INV), $modo, $VERSIONE, (Sec $(if ($T_PS) { ($T_INIZIO - $T_PS).TotalSeconds })), (Sec ($T_START - $T_INIZIO).TotalSeconds), (Sec $TAPPE['pagina aperta (fase 1)']), (Sec $TAPPE['pagina completa (fase 2)']), (Sec $TAPPE['PDF'])) -join ';')
+  if (-not (Test-Path $fileAv)) { [IO.File]::WriteAllText($fileAv, "data;modo;versione;powershell_s;primi_comandi_s;pagina_s;completa_s;pdf_s`r`n", (New-Object Text.UTF8Encoding($false))) }
+  [IO.File]::AppendAllText($fileAv, $rigaAv + "`r`n", (New-Object Text.UTF8Encoding($false)))
+} catch { }
 if ($Link) { Start-Sleep -Seconds 2 }
