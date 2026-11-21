@@ -404,6 +404,25 @@ var D = /*DATI*/null;
     return { mostra: mostra, fatto: fatto };
   })();
 
+  // Aspetta il report nuovo: legge stato.js (scritto dal programma dopo ogni report) 3 volte al secondo
+  // e ricarica appena cambia. Se stato.js non c'e' (programma vecchio) si ricarica ogni 2,5 secondi come prima.
+  var aspettando = false;
+  function aspettaReport(maxMs) {
+    if (aspettando || PDF) return; aspettando = true;
+    var inizio = Date.now(), errori = 0;
+    function ancora() { if (Date.now() - inizio < maxMs) setTimeout(giro, 330); }
+    function giro() {
+      var s = document.createElement('script');
+      s.src = 'stato.js?r=' + Date.now();
+      s.onload = function () {
+        s.remove();
+        if (window.RK_SCRITTO && D.scrittura && window.RK_SCRITTO !== D.scrittura) location.reload(); else ancora();
+      };
+      s.onerror = function () { s.remove(); if (++errori >= 3) setTimeout(function () { location.reload(); }, 2500); else ancora(); };
+      document.head.appendChild(s);
+    }
+    giro();
+  }
   // ---- Aggiorna: avvia il programma con il link radarkite:// e ricarica finche' non arriva il report nuovo ----
   (function () {
     var btn = document.getElementById('aggiorna'), st = document.getElementById('aggstato');
@@ -416,7 +435,7 @@ var D = /*DATI*/null;
         setTimeout(function () { segnaParziale(chi, t1, true); }, 0);
       } else if (Date.now() - t1 < 120000) {
         setTimeout(function () { segnaParziale(chi, t1, false); }, 0);
-        setTimeout(function () { location.reload(); }, 1500);
+        aspettaReport(120000);
       } else {
         history.replaceState(null, '', location.pathname + location.search);
         st.textContent = 'Il programma non ha risposto: guarda dati\\ultimo-avvio.txt nella cartella Radar kite.';
@@ -430,7 +449,7 @@ var D = /*DATI*/null;
         btn.disabled = true;
         st.textContent = '';
         avviso.mostra(1, t, 'leggo previsioni e stazioni…');
-        setTimeout(function () { location.reload(); }, 2000);
+        aspettaReport(180000);
       } else {
         history.replaceState(null, '', location.pathname + location.search);
         st.textContent = 'Il programma non ha risposto: guarda dati\\ultimo-avvio.txt nella cartella Radar kite.';
@@ -441,7 +460,7 @@ var D = /*DATI*/null;
       if (Date.now() - creato.getTime() < 150000) {
         btn.disabled = true; st.textContent = '';
         avviso.mostra(3, creato.getTime(), 'leggo stazioni, meteo e onde…');
-        setTimeout(function () { location.reload(); }, 2500);
+        aspettaReport(150000);
       } else st.textContent = 'Stazioni non lette: premi Aggiorna.';
     } else if (!m || m[2] || creato.getTime() >= +m[1] - 5000) avviso.fatto();
     btn.addEventListener('click', function () { lancia('radarkite://aggiorna'); });
@@ -455,6 +474,7 @@ var D = /*DATI*/null;
       btn.disabled = true;
       st.textContent = 'Conferma l\'apertura del programma…';
       history.replaceState(null, '', '#aggiorno-' + t + (chi ? '-' + chi : ''));
+      aspettaReport(chi ? 120000 : 180000);
       // Quando si apre la finestra del programma la pagina perde il focus; quando torna, si ricarica.
       // Non ricarico prima: chiuderebbe la richiesta del browser di aprire il programma.
       window.addEventListener('blur', function () {
