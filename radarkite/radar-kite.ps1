@@ -153,10 +153,14 @@ $T0 = Get-Date
 $TEMPI = @{}
 function Start-Scarico([string]$url, [string]$referer, [switch]$Xhr, [switch]$Rigido, [int]$Secondi = 20) {
   # Aggiornamento di un solo spot o stazione: quello che non va riletto viene dalla copia dell'ultimo avvio.
-  if ($script:Solo -and -not ($script:FRESCHI -contains $url)) { $c = Read-Cache $url; if ($c -ne $null) { $script:PRE[$url] = @{ testo = $c; rigido = [bool]$Rigido }; return } }
+  if ($script:Solo -and -not ($script:FRESCHI -contains $url)) {
+    $c = Read-Cache $url
+    if ($c -ne $null) { $script:PRE[$url] = @{ testo = $c; rigido = [bool]$Rigido }; return }
+    if ($script:STAZIONI | Where-Object { $_.url -eq $url }) { $script:PRE[$url] = @{ errore = 'non letta in questo aggiornamento'; rigido = $true }; return }
+  }
   if (-not $script:HTTP) {
     $hh = New-Object System.Net.Http.HttpClientHandler
-    $hh.AutomaticDecompression = [System.Net.DecompressionMethods]::GZip -bor [System.Net.DecompressionMethods]::Deflate
+    $hh.AutomaticDecompression = [System.Net.DecompressionMethods]::GZip
     $script:HTTP = New-Object System.Net.Http.HttpClient($hh)
     $script:HTTP.Timeout = [TimeSpan]::FromSeconds(70)
   }
@@ -167,11 +171,12 @@ function Start-Scarico([string]$url, [string]$referer, [switch]$Xhr, [switch]$Ri
   if ($referer) { [void]$req.Headers.TryAddWithoutValidation('Referer', $referer) }
   [void]$req.Headers.TryAddWithoutValidation('Cache-Control', 'no-cache')
   if ($Xhr) { [void]$req.Headers.TryAddWithoutValidation('X-Requested-With', 'XMLHttpRequest') }
-  $script:PRE[$url] = @{ task = $script:HTTP.SendAsync($req, $cts.Token); rigido = [bool]$Rigido; secondi = $Secondi }
+  $script:PRE[$url] = @{ task = $script:HTTP.SendAsync($req, $cts.Token); rigido = [bool]$Rigido; secondi = $Secondi; stazione = [bool]($script:STAZIONI | Where-Object { $_.url -eq $url }) }
 }
 function Get-Scaricato([string]$url) {
   $p = $script:PRE[$url]; $script:PRE.Remove($url)
   if ($p.testo -ne $null) { return @{ testo = $p.testo; cache = $true } }
+  if ($p.errore) { throw $p.errore }
   try {
     if (-not $p.task.Wait(($p.secondi + 5) * 1000)) { throw "nessuna risposta in $($p.secondi) secondi" }
     $resp = $p.task.Result
@@ -180,7 +185,8 @@ function Get-Scaricato([string]$url) {
   } catch {
     $e = $_.Exception; while ($e.InnerException) { $e = $e.InnerException }
     $msg = if ($e -is [System.Threading.Tasks.TaskCanceledException] -or $e -is [System.OperationCanceledException]) { "nessuna risposta in $($p.secondi) secondi" } else { $e.Message }
-    if ($p.rigido) { throw $msg }
+    # Stazioni: l'errore resta (la pagina e' gia' aperta). Open-Meteo e mare: se non e' un'attesa scaduta riprovo una volta.
+    if ($p.rigido -and ($p.stazione -or $msg -like 'nessuna risposta*')) { throw $msg }
     return $null
   }
 }
