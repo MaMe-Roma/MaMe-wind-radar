@@ -720,8 +720,6 @@ Start-Scarico (Get-UrlAcqua) 'https://open-meteo.com/' -Rigido -Secondi 15
 $T0 = Get-Date
 foreach ($st in $STAZIONI) { Start-Scarico $st.url $st.ref -Xhr:($st.tipo -eq 'weathercloud') -Rigido -Secondi 60 }
 Write-Tempo 'richieste partite (tutte insieme)'
-# Mentre arrivano le risposte: controllo dell'avvio automatico (solo avvii a mano).
-if (-not $Automatico -and -not $Link) { Register-AvvioAutomatico }
 $spotRes = @()
 foreach ($s in $SPOT) {
   Write-Host "  Windguru $($s.nome)... " -NoNewline
@@ -1107,6 +1105,8 @@ if ($FASE -eq 1) {
   Write-Host '  Pagina aperta, leggo le stazioni...' -ForegroundColor Cyan
   # Con -GiaAperta il file .bat ha gia' aperto l'ultimo report, che si ricarica da solo.
   if (-not $NonAprire -and -not $GiaAperta) { Start-Process $file }
+  # A pagina aperta, mentre arrivano le stazioni: controllo dell'avvio automatico (solo avvii a mano, una volta al giorno).
+  if (-not $Automatico -and -not $Link) { Register-AvvioAutomatico; Write-Tempo 'avvio automatico controllato' }
 } else {
   Write-Tempo 'pagina completa (fase 2)'
   Write-Host ''
