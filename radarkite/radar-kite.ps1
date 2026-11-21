@@ -69,7 +69,6 @@ $adesso = Get-Date
 $T_START = Get-Date
 # Cronometro nel resoconto (dati\ultimo-avvio.txt): secondi dall'avvio a ogni passaggio.
 function Write-Tempo([string]$cosa) { Write-Host ('  [{0,5:0.0} s] {1}' -f ((Get-Date) - $script:T_START).TotalSeconds, $cosa) -ForegroundColor DarkGray }
-try { Write-Host ('  [PowerShell partito {0:0.0} s prima del cronometro]' -f ($T_START - [Diagnostics.Process]::GetCurrentProcess().StartTime).TotalSeconds) -ForegroundColor DarkGray } catch { }
 
 # ---------------- Impostazioni personali e cartella dei dati ----------------
 $dirDati = Join-Path $cartella 'dati'
@@ -78,6 +77,7 @@ $dirCache = Join-Path $dirDati 'cache'
 if (-not (Test-Path $dirCache)) { New-Item -ItemType Directory -Path $dirCache | Out-Null }
 # Avviato senza finestra dal file .bat: quello che il programma scrive va in dati\ultimo-avvio.txt.
 if ($Nascosto) { try { Start-Transcript -Path (Join-Path $dirDati 'ultimo-avvio.txt') -Force | Out-Null } catch { } }
+try { Write-Host ('  [PowerShell partito {0:0.0} s prima del cronometro]' -f ($T_START - [Diagnostics.Process]::GetCurrentProcess().StartTime).TotalSeconds) -ForegroundColor DarkGray } catch { }
 $fileImp = Join-Path $cartella 'impostazioni.txt'
 $IMP_TESTO = @'
 # Radar kite - impostazioni personali. Una per riga: nome = valore. Le righe con # sono note.
