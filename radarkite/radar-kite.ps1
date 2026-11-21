@@ -6,12 +6,19 @@
 #>
 param([switch]$NonAprire, [string]$SalvaGrezzi = '', [string]$Link = '', [switch]$Automatico, [string]$OmProva = '', [switch]$Nascosto, [switch]$GiaAperta)
 $T_INIZIO = [DateTime]::Now   # primo istante in cui il programma gira (prima di qualsiasi comando)
+# Avvio rapido: senza questo, al primo comando PowerShell cerca i comandi in tutte le cartelle di moduli del PC
+# (sul PC di Mattia ~11 secondi a ogni avvio). Uso solo i moduli di Windows e carico subito i due che servono.
+# Vale solo per questo programma, non cambia niente nel resto del PC.
+try {
+  $env:PSModulePath = [IO.Path]::Combine($PSHOME, 'Modules')
+  foreach ($mod in 'Microsoft.PowerShell.Management', 'Microsoft.PowerShell.Utility') { Import-Module ([IO.Path]::Combine($PSHOME, 'Modules', $mod, "$mod.psd1")) }
+} catch { }
 
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-$VERSIONE = '3.1.3'
+$VERSIONE = '3.2'
 $DATA_VERSIONE = '21/11/2026'
 $AUTORE = '@MadHatterMatt'
 
