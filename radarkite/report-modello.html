@@ -114,6 +114,14 @@ svg{display:block;width:100%;height:auto}
 .onde .o2{font-size:10.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .freccia{display:inline-block;font-size:11px;color:var(--muted);line-height:1}
 .attesa{color:var(--warn)}
+.rbtn{font:inherit;font-size:12px;font-weight:600;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:2px 9px;cursor:pointer}
+.rbtn:hover{border-color:var(--muted)}.rbtn:disabled{opacity:.5;cursor:default}
+.sta .rbtn{padding:0 6px;margin-left:4px}
+.spot.aggiorno,.sta.aggiorno{border-color:#f1b0a3;background:#fdeeea}
+@media (prefers-color-scheme:dark){.spot.aggiorno,.sta.aggiorno{border-color:#7a3a2e;background:#3a2420}}
+.aggspot{color:#d9533c;font-size:12px;font-weight:700;white-space:nowrap}
+.spot.fresco,.sta.fresco{outline:2px solid var(--ok);outline-offset:1px;transition:outline-color 1s}
+body.pdf .rbtn{display:none}
 .aggbanner{--ab:#d9533c;--abbg:#fdeeea;--abln:#f1b0a3;--abtx:#8a3a2c;flex:0 1 520px;min-width:280px;margin:0;padding:6px 12px 6px;border-radius:10px;background:var(--abbg);border:1px solid var(--abln);color:var(--ab);animation:abpulse 2.4s ease-in-out infinite}
 @media (prefers-color-scheme:dark){.aggbanner{--ab:#ff8a73;--abbg:#3a2420;--abln:#7a3a2e;--abtx:#f2c4b9}}
 .aggbanner[hidden]{display:none}
@@ -399,8 +407,21 @@ var D = /*DATI*/null;
   // ---- Aggiorna: avvia il programma con il link radarkite:// e ricarica finche' non arriva il report nuovo ----
   (function () {
     var btn = document.getElementById('aggiorna'), st = document.getElementById('aggstato');
-    var m = /^#aggiorno-(\d+)$/.exec(location.hash);
-    if (m) {
+    var m = /^#aggiorno-(\d+)(?:-((?:spot|st)\.[\w-]+))?$/.exec(location.hash);
+    if (m && m[2]) {
+      // Aggiornamento di un solo spot o di una sola stazione: aspetto il suo orario, gli altri non cambiano.
+      var t1 = +m[1], chi = m[2], agg = orarioDi(chi);
+      if (agg && agg.getTime() >= t1 - 5000) {
+        history.replaceState(null, '', location.pathname + location.search);
+        setTimeout(function () { segnaParziale(chi, t1, true); }, 0);
+      } else if (Date.now() - t1 < 120000) {
+        setTimeout(function () { segnaParziale(chi, t1, false); }, 0);
+        setTimeout(function () { location.reload(); }, 1500);
+      } else {
+        history.replaceState(null, '', location.pathname + location.search);
+        st.textContent = 'Il programma non ha risposto: guarda dati\\ultimo-avvio.txt nella cartella Radar kite.';
+      }
+    } else if (m) {
       var t = +m[1];
       if (creato.getTime() >= t - 5000) {
         history.replaceState(null, '', location.pathname + location.search);
@@ -419,28 +440,28 @@ var D = /*DATI*/null;
     if (D.aggiornando && !PDF) {
       if (Date.now() - creato.getTime() < 150000) {
         btn.disabled = true; st.textContent = '';
-        avviso.mostra(3, creato.getTime(), 'leggo le stazioni…');
+        avviso.mostra(3, creato.getTime(), 'leggo stazioni, meteo e onde…');
         setTimeout(function () { location.reload(); }, 2500);
       } else st.textContent = 'Stazioni non lette: premi Aggiorna.';
-    } else if (!m || creato.getTime() >= +m[1] - 5000) avviso.fatto();
+    } else if (!m || m[2] || creato.getTime() >= +m[1] - 5000) avviso.fatto();
     btn.addEventListener('click', function () { lancia('radarkite://aggiorna'); });
   })();
   // Avvia il programma sul PC con un link radarkite:// (aggiorna, partenza, ricalcolo tempi, uscita nel diario)
   // e ricarica la pagina quando torna il report nuovo.
-  function lancia(url) {
+  function lancia(url, chi) {
     var btn = document.getElementById('aggiorna'), st = document.getElementById('aggstato');
     (function () {
       var t = Date.now(), partito = false;
       btn.disabled = true;
       st.textContent = 'Conferma l\'apertura del programma…';
-      history.replaceState(null, '', '#aggiorno-' + t);
+      history.replaceState(null, '', '#aggiorno-' + t + (chi ? '-' + chi : ''));
       // Quando si apre la finestra del programma la pagina perde il focus; quando torna, si ricarica.
       // Non ricarico prima: chiuderebbe la richiesta del browser di aprire il programma.
       window.addEventListener('blur', function () {
         if (partito) return;
         partito = true;
         st.textContent = '';
-        avviso.mostra(1, t, 'leggo previsioni e stazioni…');
+        if (chi) segnaParziale(chi, t, false); else avviso.mostra(1, t, 'leggo previsioni e stazioni…');
         setTimeout(function () { location.reload(); }, 40000);
       });
       window.addEventListener('focus', function () { if (partito) setTimeout(function () { location.reload(); }, 1500); });
@@ -452,6 +473,30 @@ var D = /*DATI*/null;
       }, 60000);
       location.href = url;
     })();
+  }
+
+  // ---- Aggiornamento di un solo spot (spot.id) o di una sola stazione (st.id) ----
+  function dataLocale(x) { if (!x) return null; var p = /(\d+)-(\d+)-(\d+)T(\d+):(\d+):(\d+)/.exec(x); return p ? new Date(+p[1], +p[2] - 1, +p[3], +p[4], +p[5], +p[6]) : null; }
+  function orarioDi(chi) {
+    var tipo = chi.split('.')[0], id = chi.slice(tipo.length + 1);
+    var x = (tipo === 'spot' ? D.spot : D.stazioni).filter(function (o) { return o.id === id; })[0];
+    return x ? dataLocale(x.aggiornato) : null;
+  }
+  function segnaParziale(chi, t, fatto) {
+    var tipo = chi.split('.')[0], id = chi.slice(tipo.length + 1);
+    var el = document.getElementById((tipo === 'spot' ? 'spot-' : 'st-') + id); if (!el) return;
+    if (fatto) { el.classList.add('fresco'); setTimeout(function () { el.classList.remove('fresco'); }, 5000); return; }
+    el.classList.add('aggiorno');
+    el.querySelectorAll('.rbtn').forEach(function (b) { b.disabled = true; });
+    var lab = el.querySelector('.aggspot');
+    if (!lab) { lab = h('span', 'aggspot'); (el.querySelector('.shead > div') || el.querySelector('.top') || el).append(lab); }
+    function batti() { lab.textContent = ' ↻ aggiorno ' + (tipo === 'spot' ? 'questo spot' : 'la stazione') + '… ' + Math.max(0, Math.round((Date.now() - t) / 1000)) + ' s'; }
+    batti(); setInterval(batti, 1000);
+  }
+  function bottoneAggiorna(testo, titolo, url, chi) {
+    var b = h('button', 'rbtn', testo); b.type = 'button'; b.title = titolo;
+    b.addEventListener('click', function () { lancia(url, chi); });
+    return b;
   }
 
   // ---- Partenza e tempi di viaggio ----
@@ -511,8 +556,9 @@ var D = /*DATI*/null;
     var dove = P.trovato ? 'partenza: ' + (/^coordinate/.test(P.trovato) ? P.trovato : P.trovato.split(',').slice(0, 3).join(',')) + ' · ' : '';
     b.append(sel, mod, ric, h('span', 'small', dove + (conTraffico ? 'tempi col traffico' + (ora && ora.ora ? ' delle ' + ora.ora : '') + ' (Google)' : 'tempi stimati senza traffico · per il traffico vero usa i pulsanti Waze o Maps degli spot')));
   })();
+  var avvisiSub = (!D.aggiornando && D.omErrore ? ' · ⚠ Open-Meteo non disponibile (meteo e secondo modello)' : '') + (!D.aggiornando && D.mareErrore ? ' · ⚠ dati del mare non disponibili' : '');
   document.getElementById('sub').textContent = 'Aggiornato ' + GG[creato.getDay()] + ' ' + creato.getDate() + ' ' + MESI[creato.getMonth()] + ' alle ' + hhmm(creato) +
-    ' · firing = almeno ' + D.soglia + ' kts per ' + D.oreMin + ' ore di fila da una direzione buona, nella fascia oraria utile · oggi tramonto ' + hhmm(soleUTC(41.7187, 12.3024, creato, false)) + '.';
+    ' · firing = almeno ' + D.soglia + ' kts per ' + D.oreMin + ' ore di fila da una direzione buona, nella fascia oraria utile · oggi tramonto ' + hhmm(soleUTC(41.7187, 12.3024, creato, false)) + '.' + avvisiSub;
 
   // ---- Calendario ----
   (function () {
@@ -648,9 +694,11 @@ var D = /*DATI*/null;
     var box = document.getElementById('stazioni');
     D.stazioni.forEach(function (st) {
       var spot = D.spot.filter(function (s) { return s.id === st.spot; })[0];
-      var t = h('div', 'sta');
+      var t = h('div', 'sta'); t.id = 'st-' + st.id;
       var top = h('div', 'top'); var a = link(st.nome, st.pagina); a.className = 'nm';
-      top.append(a, h('span', 'small', spot ? spot.breve : ''));
+      var dx = h('span', 'small', spot ? spot.breve + ' ' : '');
+      dx.append(bottoneAggiorna('↻', 'Rilegge solo questa stazione', 'radarkite://stazione?id=' + st.id, 'st.' + st.id));
+      top.append(a, dx);
       t.append(top);
       // Appunti: stazioni di solito lente o che spesso non rispondono.
       var L = st.lenta, nota = null;
@@ -684,7 +732,9 @@ var D = /*DATI*/null;
         ad.append(document.createTextNode(' ' + a.dir + ' · ' + fonte + a.ora));
         sx.append(ad);
       }
-      if (D.aggiornando) sx.append(h('span', 'small attesa', ' · ⏳ stazioni in lettura'));
+      if (D.aggiornando) sx.append(h('span', 'small attesa', ' · ⏳ stazioni, meteo e onde in lettura'));
+      var aggS = dataLocale(s.aggiornato);
+      if (aggS && Math.abs(aggS - creato) > 60000) sx.append(h('span', 'small', ' · spot aggiornato alle ' + hhmm(aggS)));
       var mv = minuti(s);
       if (mv != null) sx.append(h('span', 'info', '🚗 ' + mv + ' min' + (s.viaggio.traffico != null ? ' col traffico' : ' (stima)')));
       var dest = s.lat.toFixed(5) + ',' + s.lon.toFixed(5), Pt = D.partenza || {};
@@ -700,6 +750,7 @@ var D = /*DATI*/null;
       }
       if (s.acqua != null) sx.append(h('span', 'info', '🌡️ acqua ' + s.acqua + '° · muta ' + muta(s.acqua)));
       var links = h('div', 'links');
+      links.append(bottoneAggiorna('↻ Aggiorna spot', 'Rilegge solo questo spot: vento adesso, previsioni della settimana, onde e meteo', 'radarkite://spot?id=' + s.id, 'spot.' + s.id));
       if (s.webcam) links.append(link('Webcam', s.webcam));
       links.append(link('Windguru', 'https://www.windguru.cz/' + s.wg));
       (s.stazioni || []).forEach(function (st) { links.append(link(st.etichetta || 'Stazione', st.pagina)); });
