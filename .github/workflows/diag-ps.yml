@@ -1,0 +1,22 @@
+name: Diagnosi avvio PowerShell
+on:
+  push:
+    branches: [prova-diag]
+jobs:
+  diag:
+    runs-on: windows-latest
+    steps:
+      - name: Da cmd
+        shell: cmd
+        run: |
+          echo PSModulePath da cmd: %PSModulePath%
+          powershell -NoProfile -Command "$s=[Diagnostics.Process]::GetCurrentProcess().StartTime; $null = Split-Path C:\a\b; 'A normale: ' + ([DateTime]::Now - $s).TotalSeconds"
+          powershell -NoProfile -Command "$s=[Diagnostics.Process]::GetCurrentProcess().StartTime; $env:PSModulePath = $PSHOME + '\Modules'; $null = Split-Path C:\a\b; $null = Get-Date; 'B solo moduli di Windows: ' + ([DateTime]::Now - $s).TotalSeconds"
+          powershell -NoProfile -Command "$s=[Diagnostics.Process]::GetCurrentProcess().StartTime; Import-Module ($PSHOME + '\Modules\Microsoft.PowerShell.Management\Microsoft.PowerShell.Management.psd1'); Import-Module ($PSHOME + '\Modules\Microsoft.PowerShell.Utility\Microsoft.PowerShell.Utility.psd1'); $null = Split-Path C:\a\b; $null = Get-Date; 'C import esplicito: ' + ([DateTime]::Now - $s).TotalSeconds"
+          powershell -NoProfile -Command "$s=[Diagnostics.Process]::GetCurrentProcess().StartTime; $env:PSModulePath = $PSHOME + '\Modules'; $null = Split-Path C:\a\b; $null = Get-Date; $null = Get-ScheduledTask -TaskName nessuno -ErrorAction SilentlyContinue; 'D solo moduli Windows + ScheduledTasks: ' + ([DateTime]::Now - $s).TotalSeconds"
+          powershell -NoProfile -Command "$s=[Diagnostics.Process]::GetCurrentProcess().StartTime; $null = Split-Path C:\a\b; 'E normale di nuovo: ' + ([DateTime]::Now - $s).TotalSeconds"
+      - name: Da PowerShell
+        shell: powershell
+        run: |
+          "PSModulePath da powershell: $env:PSModulePath"
+          powershell -NoProfile -Command "`$s=[Diagnostics.Process]::GetCurrentProcess().StartTime; `$null = Split-Path C:\a\b; 'F figlio di powershell: ' + ([DateTime]::Now - `$s).TotalSeconds"
