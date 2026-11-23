@@ -19,7 +19,7 @@ $ProgressPreference = 'SilentlyContinue'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
 $VERSIONE = '3.4'
-$DATA_VERSIONE = '21/11/2026'
+$DATA_VERSIONE = '23/11/2026'
 $AUTORE = '@MadHatterMatt'
 $CONTATTO = 'arch.mattia.merusi+radarkite@gmail.com'   # idee e suggerimenti (Gmail le filtra con il +radarkite)
 
