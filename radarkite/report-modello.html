@@ -27,7 +27,7 @@ a{color:inherit}
 .u{font-size:12px;color:var(--muted);margin-left:3px}
 .g{font-size:12px;font-weight:600;color:var(--gust);margin-left:7px;white-space:nowrap}
 /* Calendario */
-.calwrap{overflow-x:auto;padding-top:10px}
+.calwrap{overflow-x:auto;padding:10px 6px 6px}
 .cal{display:grid;grid-template-columns:repeat(7,minmax(118px,1fr));gap:8px;min-width:860px}
 .cal .wd{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;padding:0 2px}
 .cg{font:inherit;color:inherit;text-align:left;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:9px 10px;min-height:112px;display:flex;flex-direction:column;gap:2px}
@@ -59,20 +59,22 @@ a{color:inherit}
 .legend .l3::before{background:var(--panel)}
 .legend .l4::before{background:transparent;border-style:dashed}
 /* Mappa e stazioni */
-.grid{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(0,1fr);gap:16px;align-items:start}
+.grid{display:grid;grid-template-columns:minmax(0,1fr);gap:12px;align-items:start}
 @media (max-width:760px){.grid{grid-template-columns:1fr}}
 .mapbox{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px}
 svg{display:block;width:100%;height:auto}
 .sea{fill:var(--sea)}.land{fill:var(--land);stroke:var(--muted);stroke-width:.8}
-.town circle{fill:var(--muted)}.town text{fill:var(--muted);font-size:10px}
-.seaname{fill:var(--muted);font-size:11px;font-style:italic;opacity:.8}
+.town circle{fill:var(--muted)}.town text{fill:var(--muted);font-size:calc(10px * var(--f, 1))}
+.seaname{fill:var(--muted);font-size:calc(11px * var(--f, 1));font-style:italic;opacity:.8}
 .lab{font-size:12px;font-weight:600;fill:var(--fg);paint-order:stroke;stroke:var(--bg);stroke-width:3px}
 .kn{font-size:12px;font-weight:700;fill:var(--fg);paint-order:stroke;stroke:var(--bg);stroke-width:3px;font-variant-numeric:tabular-nums}
 .kg{font-size:11px;font-weight:700;fill:var(--gust)}
 .ku{font-size:10px;font-weight:500;fill:var(--muted)}
 .ksub{font-size:9px;fill:var(--muted);paint-order:stroke;stroke:var(--bg);stroke-width:3px}
 .spotmk{cursor:pointer}
-.stlist{display:flex;flex-direction:column;gap:8px}
+.stlist{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-auto-rows:1fr;gap:10px}
+@media (max-width:760px){.stlist{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:480px){.stlist{grid-template-columns:1fr;grid-auto-rows:auto}}
 .sta{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
 .sta.on{border-color:var(--ok);box-shadow:inset 0 0 0 2px var(--ok)}
 .sta .top{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
@@ -163,6 +165,14 @@ body.pdf .rbtn{display:none}
 body.pdf .aggbanner{display:none}
 @media (max-width:600px){.aggbanner{flex:1 1 100%;min-width:0}.abtesto{display:none}.abriga{gap:6px}}
 .pform .aiuto{flex:1 1 100%;line-height:1.5}
+/* Copia per il telefono */
+.copiatel{display:flex;gap:8px 10px;align-items:center;flex-wrap:wrap;margin-top:6px;font-size:13px}
+.copiatel select,.copiatel input,.copiatel button{font:inherit;font-size:13px;color:var(--fg);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:4px 8px}
+.copiatel select{max-width:100%}.copiatel input{flex:1 1 320px;min-width:0}.copiatel button{cursor:pointer;font-weight:600}
+.copiatel .info{color:var(--muted);text-decoration:none;border-bottom:1px dotted currentColor;cursor:pointer}
+.copiatel .ok{color:var(--ok)}.copiatel .ko{color:var(--bad);font-weight:600}
+.copiaiuto{margin-top:6px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--panel);font-size:13px;line-height:1.5}
+.copiaiuto[hidden],.copiatel [hidden]{display:none}
 .perr{flex:1 1 100%;margin-top:8px;padding:8px 12px;border:1px solid var(--bad);border-radius:8px;color:var(--bad);font-size:13px;font-weight:600}
 body.pdf .perr{display:none}
 .pform .pcampo{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted);flex:1 1 300px}
@@ -195,7 +205,7 @@ table.tab th{font-weight:600;color:var(--muted);font-size:12px}
 .stat{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
 .stat span{font-size:12px;border:1px solid var(--line);border-radius:999px;padding:2px 10px}
 /* PDF per il telefono: niente pulsanti e una pagina sola lunga quanto il report */
-body.pdf .agg,body.pdf .pform,body.pdf .barra button,body.pdf .barra select,body.pdf .diario form,body.pdf .legend span:last-child{display:none}
+body.pdf .agg,body.pdf #barra,body.pdf #copiatel,body.pdf .pform,body.pdf .barra button,body.pdf .barra select,body.pdf .diario form,body.pdf .legend span:last-child{display:none}
 body.pdf .grid{grid-template-columns:1fr}body.pdf .cal{grid-template-columns:repeat(7,minmax(0,1fr));min-width:0;gap:5px}body.pdf .cg{padding:7px 6px;font-size:12px}body.pdf .cgv{display:flex;flex-wrap:wrap;align-items:baseline;column-gap:3px}body.pdf .cgv b{font-size:14px}body.pdf .cgspot{font-size:12.5px}body.pdf .cgn{font-size:17px}body.pdf .calwrap,body.pdf .scroll{overflow:visible}body.pdf .days{grid-template-columns:repeat(4,minmax(0,1fr))}
 @media print{*{-webkit-print-color-adjust:exact;print-color-adjust:exact}.cg,.d,.spot,.sta,.conf{break-inside:avoid}}
 </style>
@@ -207,6 +217,7 @@ body.pdf .grid{grid-template-columns:1fr}body.pdf .cal{grid-template-columns:rep
     <div class="agg"><span class="small" id="aggstato"></span><div class="aggbanner" id="aggbanner" hidden></div><button type="button" id="aggiorna" title="Rilancia il programma sul PC: rilegge previsioni e stazioni e ricarica la pagina">↻ Aggiorna</button></div></div>
   <p class="sub" id="sub"></p>
   <div class="barra" id="barra"></div>
+  <div class="copiatel" id="copiatel"></div>
 
   <h2 id="hsett">Settimana</h2>
   <div class="calwrap"><div class="cal" id="cal"></div></div>
@@ -632,6 +643,67 @@ var D = /*DATI*/null;
     var dove = P.trovato ? 'partenza: ' + (/^coordinate/.test(P.trovato) ? P.trovato : P.trovato.split(',').slice(0, 3).join(',')) + ' · ' : '';
     b.append(sel, mod, ric, h('span', 'small', dove + (conTraffico ? 'tempi col traffico' + (ora && ora.ora ? ' delle ' + ora.ora : '') + ' (Google)' : 'tempi stimati senza traffico · per il traffico vero usa i pulsanti Waze o Maps degli spot')));
   })();
+  // ---- Copia per il telefono: cartella dove il programma salva il PDF a ogni aggiornamento ----
+  (function () {
+    var b = document.getElementById('copiatel'), C = D.copia; if (!b || !C || PDF) { if (b) b.remove(); return; }
+    var sel = h('select'), scelta = C.scelta || 'auto', trovata = false;
+    function opz(valore, testo) { var o = h('option', null, testo); o.value = valore; sel.append(o); return o; }
+    (C.candidati || []).forEach(function (c) {
+      var o = opz(c.cartella, c.nome + ' — ' + c.cartella);
+      if (scelta === c.cartella || (scelta === 'auto' && C.cartella === c.cartella)) { o.selected = true; trovata = true; }
+    });
+    if (!trovata && scelta !== 'no' && scelta !== 'auto' && scelta) { opz(scelta, 'Cartella scelta — ' + scelta).selected = true; trovata = true; }
+    var altra = opz('altra', 'Un\'altra cartella…');
+    var nessuna = opz('no', 'Nessuna copia'); if (scelta === 'no' || (!trovata && scelta === 'auto' && !C.cartella)) nessuna.selected = true;
+    var campo = h('input'); campo.type = 'text'; campo.placeholder = 'Incolla il percorso della cartella (es. D:\\Cloud\\Radar kite)'; campo.hidden = true;
+    var salva = h('button', null, '✓ Salva cartella'); salva.type = 'button'; salva.hidden = true;
+    var stato = h('span', 'small');
+    var info = h('a', 'info small', 'ⓘ a cosa serve'); info.href = '#';
+    var aiuto = h('div', 'copiaiuto'); aiuto.hidden = true;
+    aiuto.innerHTML = 'Ogni volta che Radar kite si aggiorna (a mano, oppure da solo ogni ora dalle 6:30 alle 19:30 se il PC è acceso e non in sospensione: ' +
+      'il programma non deve restare aperto) salva il PDF di questa pagina nella cartella scelta, sempre con lo stesso nome: <b>Radar kite.pdf</b>. ' +
+      'Se è una cartella di Dropbox, Google Drive o OneDrive, sul telefono apri il file dall\'app e hai sempre l\'ultima rilevazione, anche fuori casa: ' +
+      'mettilo tra i preferiti o «disponibile offline». Nella cartella trovi anche un LEGGIMI che spiega la stessa cosa. ' +
+      'Per un\'altra cartella: in Esplora file aprila, clic sulla barra dell\'indirizzo in alto, copia e incolla qui.';
+    info.addEventListener('click', function (e) { e.preventDefault(); aiuto.hidden = !aiuto.hidden; });
+    sel.addEventListener('change', function () {
+      var v = sel.value;
+      if (v === 'altra') { campo.hidden = false; salva.hidden = false; campo.focus(); return; }
+      campo.hidden = true; salva.hidden = true;
+      lancia('radarkite://copia?c=' + encodeURIComponent(v));
+    });
+    salva.addEventListener('click', function () {
+      var v = campo.value.trim().replace(/^"|"$/g, '');
+      if (!v) { campo.focus(); return; }
+      lancia('radarkite://copia?c=' + encodeURIComponent(v));
+    });
+    // Ora dell'ultimo PDF: da stato.js (scritto subito dopo il PDF), altrimenti dal report.
+    function mostraStato(u) {
+      u = u || '';
+      if (!C.cartella || scelta === 'no') { stato.textContent = 'nessuna copia per il telefono'; stato.className = 'small'; return; }
+      var p = u.split('|');
+      if (p[0] === 'ok') { var t = new Date(p[1]); stato.textContent = '✓ ultimo PDF salvato ' + (t.toDateString() === new Date().toDateString() ? 'alle ' + hhmm(t) : 'il ' + t.getDate() + '/' + (t.getMonth() + 1) + ' alle ' + hhmm(t)); stato.className = 'small ok'; }
+      else if (p[0] === 'errore') { stato.textContent = '⚠ PDF non salvato: ' + p.slice(1).join('|'); stato.className = 'small ko'; }
+      else { stato.textContent = 'il PDF si salva al prossimo aggiornamento'; stato.className = 'small'; }
+    }
+    mostraStato(C.ultimo);
+    b.append(h('span', null, '📱 Copia per il telefono'), sel, campo, salva, stato, info);
+    b.after(aiuto);
+    if (C.errore) { b.after(h('div', 'perr', '⚠ Cartella non salvata: ' + C.errore + '.')); campo.value = ''; altra.selected = true; campo.hidden = false; salva.hidden = false; }
+    // Dopo un aggiornamento il PDF arriva qualche secondo dopo la pagina: rileggo stato.js finché non c'è quello nuovo.
+    var inizio = Date.now(), creatoMs = creato.getTime();
+    (function giro() {
+      var s = document.createElement('script'); s.src = 'stato.js?pdf=' + Date.now();
+      s.onload = function () {
+        s.remove();
+        if (window.RK_PDF) mostraStato(window.RK_PDF);
+        var p = String(window.RK_PDF || '').split('|'), nuovo = p[0] === 'errore' || (p[0] === 'ok' && new Date(p[1]).getTime() >= creatoMs - 60000);
+        if (!nuovo && Date.now() - inizio < 90000 && !D.aggiornando) setTimeout(giro, 2000);
+      };
+      s.onerror = function () { s.remove(); };
+      document.head.appendChild(s);
+    })();
+  })();
   var avvisiSub = (!D.aggiornando && D.omErrore ? ' · ⚠ Open-Meteo non disponibile (meteo e secondo modello)' : '') + (!D.aggiornando && D.mareErrore ? ' · ⚠ dati del mare non disponibili' : '');
   document.getElementById('sub').textContent = 'Aggiornato ' + GG[creato.getDay()] + ' ' + creato.getDate() + ' ' + MESI[creato.getMonth()] + ' alle ' + hhmm(creato) +
     ' · firing = almeno ' + D.soglia + ' kts per ' + D.oreMin + ' ore di fila da una direzione buona, nella fascia oraria utile · oggi tramonto ' + hhmm(soleUTC(41.7187, 12.3024, creato, false)) + '.' + avvisiSub;
@@ -703,20 +775,26 @@ var D = /*DATI*/null;
   // Ogni spot: pallino, freccia del vento e, accanto, un blocco con il nome e sotto "kts vento raffica".
   // Il blocco va dal lato scelto per lo spot; se una freccia, un pallino o un altro blocco lo coprirebbe, prova altre posizioni.
   (function () {
-    var box = document.getElementById('spots');
+    var box = document.getElementById('spots'), svg = box.ownerSVGElement, fUsato = 0;
+    // Mappa larga: pallini, frecce, nomi e numeri restano della misura di prima (f = quanto rimpicciolire rispetto alla mappa).
+    function disegna() {
+    var w = svg.getBoundingClientRect().width || 644, f = Math.min(1, Math.max(0.5, 644 / w));
+    if (Math.abs(f - fUsato) < 0.04) return; fUsato = f;
+    svg.style.setProperty('--f', f);
+    while (box.firstChild) box.removeChild(box.firstChild);
     // Scritte fisse della mappa (citta' e lago): i blocchi non ci vanno sopra.
     var occupati = [{ x0: 68, x1: 125, y0: 42, y1: 56 }, { x0: 243, x1: 280, y0: 152, y1: 167 }, { x0: 340, x1: 387, y0: 371, y1: 392 }, { x0: 155, x1: 212, y0: 90, y1: 103 }], spots = [];
     D.spot.forEach(function (s) {
       var xy = P(s.lon, s.lat), x = xy[0], y = xy[1], a = s.adesso, o = { s: s, x: x, y: y, a: a, on: false };
-      occupati.push({ x0: x - 10, x1: x + 10, y0: y - 10, y1: y + 10 });
+      occupati.push({ x0: x - 10 * f, x1: x + 10 * f, y0: y - 10 * f, y1: y + 10 * f });
       if (a) {
         var deg = Number(a.deg), cl = classe(s, deg);
         o.on = a.fonte !== 'vecchia' && a.wind >= D.soglia && cl !== 'terra';
         o.deg = deg;
         o.colore = a.fonte === 'vecchia' ? 'var(--muted)' : (cl === 'terra' ? 'var(--bad)' : (o.on ? 'var(--ok)' : 'var(--fg)'));
         var ux = Math.sin(deg * Math.PI / 180), uy = -Math.cos(deg * Math.PI / 180);
-        var ax = [x + ux * 12, x + ux * 37], ay = [y + uy * 12, y + uy * 37];
-        occupati.push({ x0: Math.min(ax[0], ax[1]) - 6, x1: Math.max(ax[0], ax[1]) + 6, y0: Math.min(ay[0], ay[1]) - 6, y1: Math.max(ay[0], ay[1]) + 6 });
+        var ax = [x + ux * 12 * f, x + ux * 37 * f], ay = [y + uy * 12 * f, y + uy * 37 * f];
+        occupati.push({ x0: Math.min(ax[0], ax[1]) - 6 * f, x1: Math.max(ax[0], ax[1]) + 6 * f, y0: Math.min(ay[0], ay[1]) - 6 * f, y1: Math.max(ay[0], ay[1]) + 6 * f });
       }
       spots.push(o);
     });
@@ -726,18 +804,19 @@ var D = /*DATI*/null;
     }
     spots.forEach(function (o) {
       var s = o.s, x = o.x, y = o.y, a = o.a, nome = s.mappa || s.breve;
-      var g = el('g', { 'class': 'spotmk' });
+      var g = el('g', { 'class': 'spotmk' }), gi = el('g', { transform: 'translate(' + x + ',' + y + ') scale(' + f + ')' });
+      g.append(gi);
       if (a) {
-        var fr = el('g', { transform: 'translate(' + x + ',' + y + ') rotate(' + o.deg + ')' });
+        var fr = el('g', { transform: 'rotate(' + o.deg + ')' });
         var asta = el('line', { x1: 0, y1: -36, x2: 0, y2: -21, stroke: o.colore, 'stroke-width': 2.5, 'stroke-linecap': 'round' });
         if (a.fonte !== 'stazione') asta.setAttribute('stroke-dasharray', '4 3');
         fr.append(asta, el('path', { d: 'M0,-13L-5,-22L5,-22Z', fill: o.colore }));
-        g.append(fr);
+        gi.append(fr);
       }
-      g.append(el('circle', { cx: x, cy: y, r: 14, fill: o.on ? 'var(--ok)' : 'var(--muted)', opacity: 0.18 }),
-        el('circle', { cx: x, cy: y, r: 7, fill: o.on ? 'var(--ok)' : 'var(--panel)', stroke: o.on ? 'var(--ok)' : 'var(--fg)', 'stroke-width': 2 }));
+      gi.append(el('circle', { cx: 0, cy: 0, r: 14, fill: o.on ? 'var(--ok)' : 'var(--muted)', opacity: 0.18 }),
+        el('circle', { cx: 0, cy: 0, r: 7, fill: o.on ? 'var(--ok)' : 'var(--panel)', stroke: o.on ? 'var(--ok)' : 'var(--fg)', 'stroke-width': 2 }));
       // Rotellina intorno al pallino mentre arrivano le stazioni di questo spot.
-      var rot = el('g', { 'class': 'mkrot', id: 'mkrot-' + s.id }); rot.append(el('circle', { cx: x, cy: y, r: 11 })); g.append(rot);
+      var rot = el('g', { 'class': 'mkrot', id: 'mkrot-' + s.id }); rot.append(el('circle', { cx: 0, cy: 0, r: 11 })); gi.append(rot);
       // Testo del blocco: "kts" una volta sola, poi vento medio e raffica in rosso.
       var knT = a ? n(a.wind) : '', gT = a && a.gust != null ? n(a.gust) : '';
       var largNum = a ? 22 + knT.length * 7.2 + (gT ? gT.length * 6.5 + 4 : 0) : 0;
@@ -747,24 +826,27 @@ var D = /*DATI*/null;
         [0, -32, 'middle'], [0, 24, 'middle'], [16, -24, 'start'], [16, 28, 'start'], [-16, -24, 'end'], [-16, 28, 'end']];
       var scelta = null, bScelta = null;
       for (var i = 0; i < prove.length && !scelta; i++) {
-        var p = prove[i], bx = x + p[0], by = y + p[1];
-        var x0 = p[2] === 'start' ? bx : (p[2] === 'end' ? bx - larg : bx - larg / 2);
-        var b = { x0: x0, x1: x0 + larg, y0: by - 11, y1: by - 11 + alto };
+        var p = prove[i], bx = x + p[0] * f, by = y + p[1] * f, lf = larg * f;
+        var x0 = p[2] === 'start' ? bx : (p[2] === 'end' ? bx - lf : bx - lf / 2);
+        var b = { x0: x0, x1: x0 + lf, y0: by - 11 * f, y1: by - 11 * f + alto * f };
         if (libero(b)) { scelta = p; bScelta = b; }
       }
-      if (!scelta) { scelta = prove[0]; var x00 = scelta[2] === 'start' ? x + scelta[0] : (scelta[2] === 'end' ? x + scelta[0] - larg : x + scelta[0] - larg / 2); bScelta = { x0: x00, x1: x00 + larg, y0: y + scelta[1] - 11, y1: y + scelta[1] - 11 + alto }; }
+      if (!scelta) { scelta = prove[0]; var lf0 = larg * f, x00 = scelta[2] === 'start' ? x + scelta[0] * f : (scelta[2] === 'end' ? x + scelta[0] * f - lf0 : x + scelta[0] * f - lf0 / 2); bScelta = { x0: x00, x1: x00 + lf0, y0: y + (scelta[1] - 11) * f, y1: y + (scelta[1] - 11 + alto) * f }; }
       occupati.push(bScelta);
-      var tx = x + scelta[0], ty = y + scelta[1];
-      g.append(el('text', { x: tx, y: ty, 'text-anchor': scelta[2], 'class': 'lab' }, nome));
+      var tx = scelta[0], ty = scelta[1];
+      gi.append(el('text', { x: tx, y: ty, 'text-anchor': scelta[2], 'class': 'lab' }, nome));
       if (a) {
         var t = el('text', { x: tx, y: ty + 14, 'text-anchor': scelta[2], 'class': 'kn' });
         t.append(el('tspan', { 'class': 'ku' }, 'kts'), el('tspan', { dx: 4 }, knT));
         if (gT) t.append(el('tspan', { 'class': 'kg', dx: 4 }, gT));
-        g.append(t);
+        gi.append(t);
       }
       g.addEventListener('click', function () { document.getElementById('spot-' + s.id).scrollIntoView({ block: 'start' }); });
       box.append(g);
     });
+    }
+    disegna();
+    var tm; window.addEventListener('resize', function () { clearTimeout(tm); tm = setTimeout(disegna, 250); });
   })();
 
   // ---- Stazioni ----

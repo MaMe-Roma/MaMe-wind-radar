@@ -18,7 +18,7 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-$VERSIONE = '3.3'
+$VERSIONE = '3.4'
 $DATA_VERSIONE = '21/11/2026'
 $AUTORE = '@MadHatterMatt'
 $CONTATTO = 'arch.mattia.merusi+radarkite@gmail.com'   # idee e suggerimenti (Gmail le filtra con il +radarkite)
@@ -104,14 +104,15 @@ partenza = casa
 # si = il programma parte da solo ogni ora dalle 6:30 alle 19:30 (se il PC e' acceso); no = solo a mano.
 avvio_automatico = si
 #
-# Copia PDF del report per il telefono: auto = nella cartella Dropbox se c'e'; no = niente; oppure il percorso di una cartella.
-dropbox = auto
+# Copia PDF per il telefono (si sceglie anche dalla pagina, riga "Copia per il telefono"):
+# auto = Dropbox\Radar kite se c'e'; no = nessuna copia; oppure il percorso di una cartella.
+copia_telefono = auto
 #
 # Facoltativo: chiave Google Maps Platform (Routes API) per il tempo di viaggio col traffico. Vuoto = solo stima.
 google_chiave =
 '@
 function Read-Impostazioni {
-  $imp = @{ casa = ''; lavoro = ''; partenza = 'casa'; avvio_automatico = 'si'; dropbox = 'auto'; google_chiave = '' }
+  $imp = @{ casa = ''; lavoro = ''; partenza = 'casa'; avvio_automatico = 'si'; dropbox = 'auto'; copia_telefono = ''; google_chiave = '' }
   if (-not (Test-Path $fileImp)) { [IO.File]::WriteAllText($fileImp, $IMP_TESTO, (New-Object Text.UTF8Encoding($true))) }
   foreach ($r in [IO.File]::ReadAllLines($fileImp)) {
     if ($r -match '^\s*#' -or $r -notmatch '=') { continue }
@@ -129,6 +130,39 @@ function Set-Impostazione([string]$nome, [string]$valore) {
   [IO.File]::WriteAllLines($fileImp, [string[]]$righe, (New-Object Text.UTF8Encoding($true)))
 }
 $IMP = Read-Impostazioni
+# Copia per il telefono: vecchia voce "dropbox" se la nuova non c'e' ancora.
+if (-not $IMP.copia_telefono) { $IMP.copia_telefono = $(if ($IMP.dropbox) { $IMP.dropbox } else { 'auto' }) }
+
+# Cartelle cloud trovate sul PC (Dropbox, Google Drive, OneDrive, iCloud): la copia va nella sottocartella "Radar kite".
+function Get-CartelleCloud {
+  $lista = New-Object System.Collections.ArrayList
+  $agg = {
+    param($nome, $radice)
+    if (-not $radice) { return }
+    try { if (-not [IO.Directory]::Exists($radice)) { return } } catch { return }
+    foreach ($x in $lista) { if ($x.radice -eq $radice) { return } }
+    [void]$lista.Add([ordered]@{ nome = $nome; radice = $radice; cartella = [IO.Path]::Combine($radice, 'Radar kite') })
+  }
+  $info = [IO.Path]::Combine($env:LOCALAPPDATA, 'Dropbox', 'info.json')
+  if ([IO.File]::Exists($info)) { try { $j = ConvertFrom-Json ([IO.File]::ReadAllText($info)); if ($j.personal.path) { & $agg 'Dropbox' $j.personal.path }; if ($j.business.path) { & $agg 'Dropbox (lavoro)' $j.business.path } } catch { } }
+  & $agg 'Dropbox' ([IO.Path]::Combine($env:USERPROFILE, 'Dropbox'))
+  # Google Drive per desktop: unita' tipo G:\Il mio Drive, oppure cartella nel profilo
+  try { foreach ($d in [IO.DriveInfo]::GetDrives()) { if ($d.DriveType -ne 'Fixed') { continue }; foreach ($n in 'Il mio Drive', 'My Drive') { & $agg 'Google Drive' ([IO.Path]::Combine($d.Name, $n)) } } } catch { }
+  foreach ($n in 'Il mio Drive', 'My Drive', 'Google Drive') { & $agg 'Google Drive' ([IO.Path]::Combine($env:USERPROFILE, $n)) }
+  if ($env:OneDriveConsumer) { & $agg 'OneDrive' $env:OneDriveConsumer }
+  if ($env:OneDrive) { & $agg 'OneDrive' $env:OneDrive }
+  if ($env:OneDriveCommercial) { & $agg 'OneDrive (lavoro)' $env:OneDriveCommercial }
+  & $agg 'iCloud Drive' ([IO.Path]::Combine($env:USERPROFILE, 'iCloudDrive'))
+  return , $lista
+}
+$CLOUD = Get-CartelleCloud
+function Get-CartellaCopia {
+  $v = $IMP.copia_telefono
+  if (-not $v -or $v -eq 'no') { return $null }
+  if ($v -eq 'auto') { foreach ($x in $CLOUD) { if ($x.nome -like 'Dropbox*') { return $x.cartella } }; return $null }
+  return $v
+}
+$erroreCopia = ''
 if (-not $IMP.casa -and -not $Automatico -and -not $Link -and -not $Nascosto -and [Environment]::UserInteractive -and $Host.Name -eq 'ConsoleHost') {
   Write-Host ''
   Write-Host 'Da dove parti di solito per andare agli spot? Serve per il tempo di viaggio.' -ForegroundColor Cyan
@@ -482,6 +516,19 @@ $forzaStorico = [bool]($Link -like 'radarkite://storico*')
 $Solo = ''
 if ($Link -like 'radarkite://spot*') { $q = Get-Parametri $Link; if ($SPOT | Where-Object { $_.id -eq $q['id'] }) { $Solo = 'spot:' + $q['id'] } }
 if ($Link -like 'radarkite://stazione*') { $q = Get-Parametri $Link; if ($STAZIONI | Where-Object { $_.id -eq $q['id'] }) { $Solo = 'st:' + $q['id'] } }
+if ($Link -like 'radarkite://copia*') {
+  # Cartella per la copia del PDF scelta nella pagina: la controllo e la salvo in impostazioni.txt.
+  $q = Get-Parametri $Link
+  $val = (([string]$q['c']) -replace '[\r\n"<>|*?]', '').Trim()
+  if ($val.Length -gt 3) { $val = $val.TrimEnd('\') }
+  $nuvola = $false; foreach ($x in $CLOUD) { if ($x.cartella -eq $val) { $nuvola = $true } }
+  if ($val -eq 'no' -or $val -eq 'auto' -or $nuvola) { }
+  elseif (-not $val) { $erroreCopia = 'scrivi il percorso di una cartella' }
+  elseif (-not [IO.Path]::IsPathRooted($val)) { $erroreCopia = "percorso non completo: $val (deve iniziare con la lettera del disco, es. C:\...)" }
+  elseif (-not [IO.Directory]::Exists($val)) { $erroreCopia = "cartella non trovata: $val" }
+  if ($erroreCopia) { Write-Host "  Copia per il telefono: $erroreCopia" -ForegroundColor Yellow }
+  else { Set-Impostazione 'copia_telefono' $val; $IMP.copia_telefono = $val; Write-Host "  Copia per il telefono: $val" -ForegroundColor Green }
+}
 if ($Link -like 'radarkite://indirizzi*') {
   # Casa e lavoro scritti nella pagina: li salvo in impostazioni.txt e ricalcolo i tempi.
   $q = Get-Parametri $Link
@@ -702,19 +749,44 @@ function Get-Viaggi([bool]$forza) {
 }
 
 # ---------------- PDF del report nella cartella Dropbox ----------------
-function Save-Pdf([string]$fileHtml) {
-  $dest = $IMP.dropbox
-  if (-not $dest -or $dest -eq 'no') { return }
-  if ($dest -eq 'auto') {
-    $dest = $null
-    $info = Join-Path $env:LOCALAPPDATA 'Dropbox\info.json'
-    if (Test-Path $info) { try { $j = ConvertFrom-Json ([IO.File]::ReadAllText($info)); if ($j.personal.path) { $dest = $j.personal.path } elseif ($j.business.path) { $dest = $j.business.path } } catch {} }
-    if (-not $dest -and (Test-Path (Join-Path $env:USERPROFILE 'Dropbox'))) { $dest = Join-Path $env:USERPROFILE 'Dropbox' }
-    if (-not $dest) { return }
-    $dest = Join-Path $dest 'Radar kite'
-  }
+$LEGGIMI_COPIA = @'
+RADAR KITE - copia per il telefono
+
+Questa cartella la riempie Radar kite. Dentro c'e' "Radar kite.pdf": la pagina del radar con
+l'ultima rilevazione (vento previsto, stazioni, meteo, onde), sempre con lo stesso nome.
+
+Si aggiorna ogni volta che Radar kite si aggiorna: a mano, oppure da solo ogni ora dalle 6:30
+alle 19:30, se il PC e' acceso e non in sospensione (il programma non deve restare aperto).
+
+Sul telefono: apri il file dall'app (Dropbox, Google Drive, OneDrive...) e mettilo tra i
+preferiti o "disponibile offline": cosi' hai sempre l'ultima rilevazione a portata di mano,
+anche fuori casa.
+
+Per cambiare cartella o non fare piu' la copia: nella pagina di Radar kite, riga
+"Copia per il telefono". Questa cartella si puo' cancellare quando vuoi.
+'@
+$fileCopiaInfo = Join-Path $dirCache 'copia-telefono.txt'
+$PDF_ULTIMO = ''; if (Test-Path $fileCopiaInfo) { try { $PDF_ULTIMO = [IO.File]::ReadAllText($fileCopiaInfo).Trim() } catch { } }
+function Write-Stato {
+  # stato.js: segno del report nuovo (la pagina aperta si ricarica) e ora dell'ultimo PDF per il telefono.
   try {
-    if (-not (Test-Path $dest)) { New-Item -ItemType Directory -Path $dest -Force | Out-Null }
+    $pdfJs = ($script:PDF_ULTIMO -replace "[\\']", '')
+    $tmpSt = Join-Path $cartella 'stato.tmp'
+    [IO.File]::WriteAllText($tmpSt, "window.RK_SCRITTO = $script:SCRITTURA; window.RK_PDF = '$pdfJs';", (New-Object Text.UTF8Encoding($false)))
+    Move-Item -Path $tmpSt -Destination (Join-Path $cartella 'stato.js') -Force
+  } catch { }
+}
+function Save-Pdf([string]$fileHtml) {
+  $dest = Get-CartellaCopia
+  if (-not $dest) { return }
+  try {
+    if (-not [IO.Directory]::Exists($dest)) {
+      $padre = [IO.Path]::GetDirectoryName($dest)
+      if (-not $padre -or -not [IO.Directory]::Exists($padre)) { Write-Host "  (PDF non creato: cartella non trovata $dest)" -ForegroundColor Yellow; $script:PDF_ULTIMO = 'errore|cartella non trovata'; Write-Stato; return }
+      [void][IO.Directory]::CreateDirectory($dest)
+    }
+    $leggimi = Join-Path $dest 'LEGGIMI - Radar kite.txt'
+    if (-not (Test-Path -LiteralPath $leggimi)) { try { [IO.File]::WriteAllText($leggimi, $LEGGIMI_COPIA.Replace("`n", "`r`n"), (New-Object Text.UTF8Encoding($true))) } catch { } }
     $browser = @("${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe", "$env:ProgramFiles\Microsoft\Edge\Application\msedge.exe", "$env:ProgramFiles\Google\Chrome\Application\chrome.exe", "${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.exe", "$env:LOCALAPPDATA\Google\Chrome\Application\chrome.exe", "$env:ProgramFiles\BraveSoftware\Brave-Browser\Application\brave.exe", "$env:LOCALAPPDATA\BraveSoftware\Brave-Browser\Application\brave.exe") | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
     if (-not $browser) { Write-Host '  (PDF non creato: non trovo Edge, Chrome o Brave)' -ForegroundColor Yellow; return }
     $pdf = Join-Path $dest 'Radar kite.pdf'
@@ -723,8 +795,13 @@ function Save-Pdf([string]$fileHtml) {
     $p = Start-Process -FilePath $browser -ArgumentList $argomenti -WindowStyle Hidden -PassThru
     if (-not $p.WaitForExit(60000)) { try { $p.Kill() } catch {} }
     Remove-Item -Path $tmp -Recurse -Force -ErrorAction SilentlyContinue
-    if (Test-Path $pdf) { Write-Host "  PDF per il telefono: $pdf" -ForegroundColor Green }
-  } catch { Write-Host "  (PDF non creato: $($_.Exception.Message))" -ForegroundColor Yellow }
+    if ((Test-Path -LiteralPath $pdf) -and (Get-Item -LiteralPath $pdf).LastWriteTime -gt $adesso.AddMinutes(-1)) {
+      Write-Host "  PDF per il telefono: $pdf" -ForegroundColor Green
+      $script:PDF_ULTIMO = 'ok|' + (Get-Date).ToString('yyyy-MM-ddTHH:mm:ss', $INV)
+    } else { $script:PDF_ULTIMO = 'errore|il browser non ha creato il PDF' }
+  } catch { Write-Host "  (PDF non creato: $($_.Exception.Message))" -ForegroundColor Yellow; $script:PDF_ULTIMO = 'errore|' + $_.Exception.Message }
+  try { [IO.File]::WriteAllText($fileCopiaInfo, $script:PDF_ULTIMO) } catch { }
+  Write-Stato
 }
 
 # ---------------- Esecuzione ----------------
@@ -1130,7 +1207,7 @@ foreach ($ds in $datiSpot) { $ds.aggiornato = $META.spot[$ds.id] }
 foreach ($dz in $datiStazioni) { $dz.aggiornato = $META.stazioni[$dz.id] }
 
 $SCRITTURA = [DateTimeOffset]::Now.ToUnixTimeMilliseconds()
-$dati = [ordered]@{ scrittura = $SCRITTURA; aggiornando = ($FASE -eq 1); passatiCalcolati = $passatiCalcolati; omErrore = $erroreOm; mareErrore = $erroreMare; versione = $VERSIONE; dataVersione = $DATA_VERSIONE; autore = $AUTORE; contatto = $CONTATTO; creato = $META.creato; soglia = $SOGLIA; oreMin = $ORE_MIN; giorni = $datiGiorni; passati = $datiPassati; spot = $datiSpot; stazioni = $datiStazioni; diario = $datiDiario
+$dati = [ordered]@{ scrittura = $SCRITTURA; aggiornando = ($FASE -eq 1); passatiCalcolati = $passatiCalcolati; omErrore = $erroreOm; mareErrore = $erroreMare; versione = $VERSIONE; dataVersione = $DATA_VERSIONE; autore = $AUTORE; contatto = $CONTATTO; copia = [ordered]@{ scelta = $IMP.copia_telefono; cartella = (Get-CartellaCopia); candidati = @($CLOUD); errore = $erroreCopia; ultimo = $PDF_ULTIMO }; creato = $META.creato; soglia = $SOGLIA; oreMin = $ORE_MIN; giorni = $datiGiorni; passati = $datiPassati; spot = $datiSpot; stazioni = $datiStazioni; diario = $datiDiario
   partenza = [ordered]@{ scelta = $IMP.partenza; casa = (Get-NomePosto $IMP.casa); lavoro = (Get-NomePosto $IMP.lavoro); casaImp = $IMP.casa; lavoroImp = $IMP.lavoro; errore = $erroreViaggi; trovato = $(if ($VIAGGI) { $VIAGGI.trovato } else { '' }); lat = $(if ($VIAGGI) { $VIAGGI.lat } else { $null }); lon = $(if ($VIAGGI) { $VIAGGI.lon } else { $null }); google = [bool]$IMP.google_chiave } }
 Write-Tempo 'dati della pagina pronti'
 [void](Update-Tempi)
@@ -1144,7 +1221,7 @@ $tmpRep = Join-Path $cartella 'report.tmp'
 [IO.File]::WriteAllText($tmpRep, $html, (New-Object Text.UTF8Encoding($true)))
 Move-Item -Path $tmpRep -Destination $file -Force
 # stato.js dice alla pagina aperta che c'e' un report nuovo: la pagina lo controlla 3 volte al secondo e si ricarica subito.
-try { $tmpSt = Join-Path $cartella 'stato.tmp'; [IO.File]::WriteAllText($tmpSt, "window.RK_SCRITTO = $SCRITTURA;", (New-Object Text.UTF8Encoding($false))); Move-Item -Path $tmpSt -Destination (Join-Path $cartella 'stato.js') -Force } catch { }
+Write-Stato
 if ($FASE -eq 1) {
   Write-Tempo 'pagina aperta (fase 1)'
   Write-Host '  Pagina aperta, leggo le stazioni...' -ForegroundColor Cyan

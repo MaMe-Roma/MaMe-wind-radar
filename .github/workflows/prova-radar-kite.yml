@@ -86,5 +86,14 @@ jobs:
         run: |
           function Pezzi($tag, $file) { if (-not (Test-Path $file)) { return }; $b = [Convert]::ToBase64String([IO.File]::ReadAllBytes($file)); for ($i = 0; $i -lt $b.Length; $i += 40000) { "$tag" + ($i / 40000) + ':' + $b.Substring($i, [Math]::Min(40000, $b.Length - $i)) } }
           "Tempi avvio:"; Get-Content radarkite\dati\tempi-avvio.csv -ErrorAction SilentlyContinue
+          "Copia (vecchia voce dropbox):"; Get-ChildItem pdfout -ErrorAction SilentlyContinue | ForEach-Object { "  " + $_.Name + " " + $_.Length }
+          $n = Join-Path $env:TEMP 'rk copia'; New-Item -ItemType Directory $n -Force | Out-Null
+          powershell -NoProfile -ExecutionPolicy Bypass -File radarkite\radar-kite.ps1 -NonAprire -OmProva "$PWD\om-prova.json" -Link "radarkite://copia?c=C%3A%5Cnon%5Cesiste" | Select-String 'Copia per il telefono'
+          $h1 = [IO.File]::ReadAllText("$PWD\radarkite\report.html"); "errore nella pagina: " + [regex]::Match($h1, '"errore":"cartella[^"]*"').Value
+          powershell -NoProfile -ExecutionPolicy Bypass -File radarkite\radar-kite.ps1 -NonAprire -OmProva "$PWD\om-prova.json" -Link ("radarkite://copia?c=" + [uri]::EscapeDataString($n)) | Select-String 'Copia per il telefono|PDF per il telefono|PDF non creato'
+          "Nella cartella nuova:"; Get-ChildItem $n | ForEach-Object { "  " + $_.Name + " " + $_.Length }
+          Select-String 'copia_telefono' radarkite\impostazioni.txt | ForEach-Object { "  " + $_.Line }
+          "stato.js: " + (Get-Content radarkite\stato.js)
+          $h2 = [IO.File]::ReadAllText("$PWD\radarkite\report.html"); "copia nella pagina: " + [regex]::Match($h2, '"copia":\{[^}]*').Value
           Pezzi 'HTML' 'radarkite\report.html'
           Pezzi 'PDF' 'pdfout\Radar kite.pdf'
