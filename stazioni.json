@@ -4,11 +4,11 @@
    "id": "msn",
    "stazione": "Free Kiter MSN",
    "spot": "Marina di San Nicola",
-   "letto_alle": "2026-11-24T15:44:13",
-   "wind_kn": 8.7,
-   "gust_kn": 9.0,
-   "dir": "S",
-   "deg": 187.0,
+   "letto_alle": "2026-11-25T00:39:27",
+   "wind_kn": 1.6,
+   "gust_kn": 1.9,
+   "dir": "ESE",
+   "deg": 112.0,
    "offline": 0,
    "fonte": "https://stazioni3.soluzionimeteo.it/freekitermsn/"
   },
@@ -28,11 +28,11 @@
    "id": "rdt_civitavecchia",
    "stazione": "Riva di Traiano",
    "spot": "Civitavecchia Sant'Agostino",
-   "letto_alle": "2026-11-24T15:41:00",
-   "wind_kn": 7.0,
-   "gust_kn": 8.0,
-   "dir": "SSW",
-   "deg": 212.0,
+   "letto_alle": "2026-11-25T00:28:00",
+   "wind_kn": 8.0,
+   "gust_kn": 10.0,
+   "dir": "ESE",
+   "deg": 113.0,
    "offline": 0,
    "fonte": "https://www.rivaditraiano.com/meteo-obs/"
   },
@@ -40,11 +40,11 @@
    "id": "anzio_porto",
    "stazione": "Meteo Lazio Anzio Porto",
    "spot": "Anzio Levante",
-   "letto_alle": "2026-11-24T15:20:00",
-   "wind_kn": 12.3,
+   "letto_alle": "2026-11-25T00:20:00",
+   "wind_kn": 18.7,
    "gust_kn": null,
-   "dir": "ESE",
-   "deg": 112.5,
+   "dir": "E",
+   "deg": 90.0,
    "offline": 0,
    "fonte": "https://www.meteoregionelazio.it/rete/stazione.php?id=RM-050"
   }
@@ -52,11 +52,11 @@
  "meta": [
   {
    "label": "Come",
-   "value": "Letto in automatico da GitHub Actions (MaMe-Roma/mame-wind-radar) alle 15:44 del 24/11/2026: lettura salvata, non in diretta."
+   "value": "Letto in automatico da GitHub Actions (MaMe-Roma/mame-wind-radar) alle 00:39 del 25/11/2026: lettura salvata, non in diretta."
   },
   {
    "label": "Letto",
-   "value": "2026-11-24T15:44:35"
+   "value": "2026-11-25T00:39:38"
   },
   {
    "label": "Raffica",
