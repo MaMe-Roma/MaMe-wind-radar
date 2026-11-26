@@ -1,0 +1,21 @@
+[package]
+name = "motore"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Radar kite 4.0: motore (download, calcoli firing, dati della pagina)"
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "rk-motore"
+path = "src/bin/rk-motore.rs"
+
+[dependencies]
+chrono = "0.4"
+html-escape = "0.2"
+regex = "1"
+serde_json = { version = "1", features = ["preserve_order"] }
+sha1_smol = { version = "1", features = ["std"] }
+ureq = { version = "2", features = ["gzip"] }

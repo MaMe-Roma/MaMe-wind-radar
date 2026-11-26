@@ -1,0 +1,99 @@
+name: Radar kite 4.0 (app Rust)
+on:
+  push:
+    branches: [app-rust]
+  workflow_dispatch: {}
+
+jobs:
+  confronto:
+    name: Stessi numeri della 3.4 (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fuso orario di Roma
+        run: tzutil /s "W. Europe Standard Time"
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: radarkite-app
+      - name: Compila il motore 4.0
+        run: cargo build --release -p motore --manifest-path radarkite-app/Cargo.toml
+      - name: Open-Meteo finto, uguale per 3.4 e 4.0 (dai server di GitHub il servizio va in timeout)
+        shell: powershell
+        run: |
+          $oggi = (Get-Date).Date; $loc = @()
+          for ($i = 0; $i -lt 8; $i++) {
+            $time = @(); $temp = @(); $code = @(); $rain = @(); $ws = @(); $wg = @(); $wd = @()
+            for ($hh = 0; $hh -lt 216; $hh++) {
+              $t = $oggi.AddHours($hh); $time += $t.ToString("yyyy-MM-dd'T'HH:mm"); $temp += 14 + [int]($t.Hour -gt 11 -and $t.Hour -lt 17) * 3 + ($hh % 7) * 0.3
+              $code += @(0, 2, 3, 61, 95)[([int]($hh / 24) + $i) % 5]; $rain += 0.25; $ws += 8 + [int]($t.Hour -ge 10 -and $t.Hour -le 15) * 9 + $i + ($hh % 5) * 0.5; $wg += 14 + $i; $wd += (200 + $hh * 7 + $i * 20) % 360
+            }
+            $loc += [ordered]@{ latitude = 41; longitude = 12; hourly = [ordered]@{ time = $time; temperature_2m = $temp; weather_code = $code; precipitation = $rain; wind_speed_10m = $ws; wind_gusts_10m = $wg; wind_direction_10m = $wd } }
+          }
+          [IO.File]::WriteAllText("$PWD\om-prova.json", (ConvertTo-Json -InputObject $loc -Depth 6 -Compress))
+      - name: Radar kite 3.4 (scarica e salva la cache)
+        shell: cmd
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File radarkite\radar-kite.ps1 -Automatico -OmProva "%CD%\om-prova.json" | findstr /v /c:"*" /c:"Stazione "
+      - name: Radar kite 4.0 sulla stessa cache
+        shell: powershell
+        run: |
+          $h = [IO.File]::ReadAllText("$PWD\radarkite\report.html")
+          $creato = [regex]::Match($h, '"creato":"([^"]*)"').Groups[1].Value
+          New-Item -ItemType Directory -Force out4 | Out-Null
+          & radarkite-app\target\release\rk-motore.exe --cartella out4 --cache radarkite\dati\cache --solo-cache --adesso $creato --om-prova "$PWD\om-prova.json" --automatico | Select-String -NotMatch '^\s+\*'
+      - name: Confronto dell'oggetto D
+        run: python radarkite-app/prove/confronta.py radarkite/report.html out4/report.html
+
+  app:
+    name: App su ${{ matrix.nome }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            nome: Windows
+          - os: macos-latest
+            nome: Mac Apple Silicon
+          - os: macos-15-intel
+            nome: Mac Intel
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: radarkite-app
+      - name: Compila l'app
+        run: cargo build --release -p radar-kite --manifest-path radarkite-app/Cargo.toml
+      - name: Prova (Windows) - l'app si apre e il motore scrive la pagina
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          $env:RK_CARTELLA = "$PWD\prova-app"
+          $p = Start-Process -FilePath "radarkite-app\target\release\radar-kite.exe" -PassThru
+          $rep = "$PWD\prova-app\report.html"; $ok = $false
+          for ($i = 0; $i -lt 60; $i++) { Start-Sleep 2; if ((Test-Path $rep) -and ([IO.File]::ReadAllText($rep) -match '"aggiornando":false')) { $ok = $true; break } }
+          "app ancora aperta: $(-not $p.HasExited) - pagina completa: $ok dopo $($i * 2) s - dimensione exe: $([Math]::Round((Get-Item radarkite-app\target\release\radar-kite.exe).Length / 1MB, 1)) MB"
+          Get-Content "$PWD\prova-app\dati\ultimo-avvio.txt" -ErrorAction SilentlyContinue | Select-String 'Windguru|Open-Meteo|Mare|pagina'
+          if (-not $p.HasExited) { Stop-Process -Id $p.Id -Force }
+          if (-not $ok) { exit 1 }
+      - name: Prova (Mac) - l'app si apre e il motore scrive la pagina
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          export RK_CARTELLA="$PWD/prova-app"
+          radarkite-app/target/release/radar-kite & PID=$!
+          ok=false
+          for i in $(seq 1 60); do sleep 2; if grep -q '"aggiornando":false' "$RK_CARTELLA/report.html" 2>/dev/null; then ok=true; break; fi; done
+          if kill -0 $PID 2>/dev/null; then aperta=true; else aperta=false; fi
+          echo "app ancora aperta: $aperta - pagina completa: $ok dopo $((i * 2)) s - $(uname -m) - $(du -h radarkite-app/target/release/radar-kite | cut -f1)"
+          grep -E 'Windguru|Open-Meteo|Mare|pagina' "$RK_CARTELLA/dati/ultimo-avvio.txt" || true
+          kill $PID 2>/dev/null || true
+          $ok
+      - name: Programma da provare (Windows)
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: radar-kite-4.0-prova-windows
+          path: radarkite-app/target/release/radar-kite.exe
+          retention-days: 14

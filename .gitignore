@@ -1,2 +1,4 @@
 __pycache__/
 *.pyc
+radarkite-app/target/
+radarkite-app/src-tauri/gen/

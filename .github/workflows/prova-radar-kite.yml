@@ -1,5 +1,7 @@
 name: Prova Radar kite (Windows)
-on: push
+on:
+  push:
+    branches: [prova-radar-kite]
 jobs:
   prova:
     runs-on: windows-latest

@@ -1,0 +1,1076 @@
+﻿<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Radar kite</title>
+<style>
+:root{--bg:#f6f5f1;--panel:#fff;--fg:#1d1d1b;--muted:#6b6a65;--line:#e2e0d8;--sea:#e3ecef;--land:#fbfaf6;--ok:#1f8a4c;--okbg:#e6f4ec;--bad:#c2412d;--warn:#b7791f;--warnbg:#fbf1de;--gust:#c2412d}
+@media (prefers-color-scheme:dark){:root{--bg:#171716;--panel:#22221f;--fg:#efeee9;--muted:#a3a19a;--line:#3a3934;--sea:#1d2a2f;--land:#262622;--ok:#4cc27e;--okbg:#1d3326;--bad:#ef7a64;--warn:#e0a84a;--warnbg:#3a2f1c;--gust:#ef7a64}}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:1100px;margin:0 auto;padding:16px 16px 32px}
+h1{font-weight:500;font-size:26px;margin:0 0 4px}
+h2{font-weight:500;font-size:19px;margin:26px 0 10px}
+.sub{color:var(--muted);font-size:13px;margin:0}
+.ver{font-size:13px;color:var(--muted);font-weight:400;margin-left:6px}
+.ver a{color:inherit;text-decoration:none;border-bottom:1px dotted currentColor}
+.ver a:hover{color:var(--fg)}
+.ver .idee{margin-left:2px;white-space:nowrap}
+.testa{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.agg{display:flex;align-items:center;gap:10px;flex:1 1 auto;justify-content:flex-end;min-width:0;flex-wrap:wrap}
+#aggiorna{font:inherit;font-size:14px;font-weight:600;background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:7px 16px;cursor:pointer}
+#aggiorna:hover{border-color:var(--muted)}#aggiorna:disabled{opacity:.6;cursor:default}
+.small{font-size:12px;color:var(--muted)}
+a{color:inherit}
+.u{font-size:12px;color:var(--muted);margin-left:3px}
+.g{font-size:12px;font-weight:600;color:var(--gust);margin-left:7px;white-space:nowrap}
+/* Calendario */
+.calwrap{overflow-x:auto;padding:10px 6px 6px}
+.cal{display:grid;grid-template-columns:repeat(7,minmax(118px,1fr));gap:8px;min-width:860px}
+.cal .wd{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;padding:0 2px}
+.cg{font:inherit;color:inherit;text-align:left;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:9px 10px;min-height:112px;display:flex;flex-direction:column;gap:2px}
+.cg.fuori{background:transparent;border-style:dashed;opacity:.45}
+.cg.calm .cgspot{color:var(--muted)}
+.cg.fire{background:var(--okbg);border-color:var(--ok);box-shadow:inset 0 0 0 1px var(--ok);cursor:pointer}
+.cg.risk{background:var(--warnbg);border-color:var(--warn);box-shadow:inset 0 0 0 1px var(--warn);cursor:pointer}
+.cg.fire:hover,.cg.risk:hover{transform:translateY(-1px)}
+/* Giorni passati: spenti, quasi come quelli senza dati, cosi' risalta solo oggi */
+.cg.past{background:transparent;min-height:112px;opacity:.5;filter:grayscale(.7)}
+.cg .ck{font-size:11px;font-weight:700;color:var(--ok)}
+.cg.past.vuoto{border-style:dashed;opacity:.4}
+/* Oggi: bordo spesso ed etichetta OGGI piena, qualunque sia il vento */
+.cg.oggi{outline:3px solid var(--fg);outline-offset:1px}
+.cg{position:relative}
+.cgoggi{position:absolute;top:-9px;right:8px;background:var(--fg);color:var(--bg);border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700;letter-spacing:.06em}
+.cg.lontano{opacity:.72}
+.cg.sel{box-shadow:inset 0 0 0 3px var(--fg)}
+.cgtop{display:flex;align-items:baseline;gap:5px;white-space:nowrap}
+.cgn{font-size:20px;font-weight:500}
+.cgm{font-size:11px;color:var(--muted)}
+.cgspot{font-weight:600;font-size:14px;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cgv b{font-size:17px;font-weight:600;white-space:nowrap}
+.cgx{font-size:11px;color:var(--muted)}
+.legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:8px}
+.legend .l1::before,.legend .l2::before,.legend .l3::before,.legend .l4::before{content:"";display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px;border:1px solid var(--line)}
+.legend .l1::before{background:var(--okbg);border-color:var(--ok)}
+.legend .l2::before{background:var(--warnbg);border-color:var(--warn)}
+.legend .l3::before{background:var(--panel)}
+.legend .l4::before{background:transparent;border-style:dashed}
+/* Mappa e stazioni */
+.grid{display:grid;grid-template-columns:minmax(0,1fr);gap:12px;align-items:start}
+@media (max-width:760px){.grid{grid-template-columns:1fr}}
+.mapbox{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px}
+svg{display:block;width:100%;height:auto}
+.sea{fill:var(--sea)}.land{fill:var(--land);stroke:var(--muted);stroke-width:.8}
+.town circle{fill:var(--muted)}.town text{fill:var(--muted);font-size:calc(10px * var(--f, 1))}
+.seaname{fill:var(--muted);font-size:calc(11px * var(--f, 1));font-style:italic;opacity:.8}
+.lab{font-size:12px;font-weight:600;fill:var(--fg);paint-order:stroke;stroke:var(--bg);stroke-width:3px}
+.kn{font-size:12px;font-weight:700;fill:var(--fg);paint-order:stroke;stroke:var(--bg);stroke-width:3px;font-variant-numeric:tabular-nums}
+.kg{font-size:11px;font-weight:700;fill:var(--gust)}
+.ku{font-size:10px;font-weight:500;fill:var(--muted)}
+.ksub{font-size:9px;fill:var(--muted);paint-order:stroke;stroke:var(--bg);stroke-width:3px}
+.spotmk{cursor:pointer}
+.stlist{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-auto-rows:1fr;gap:10px}
+@media (max-width:760px){.stlist{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:480px){.stlist{grid-template-columns:1fr;grid-auto-rows:auto}}
+.sta{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.sta.on{border-color:var(--ok);box-shadow:inset 0 0 0 2px var(--ok)}
+.sta .top{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+.sta .nm{font-weight:600;font-size:14px;text-decoration:none}
+.sta .nm:hover{text-decoration:underline}
+.big2{font-size:26px;font-weight:500;line-height:1.1;font-variant-numeric:tabular-nums}
+/* Spot */
+.spot{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:12px;scroll-margin-top:12px}
+.shead{display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap}
+.sname{font-weight:600;font-size:17px}
+.links{display:flex;gap:6px;flex-wrap:wrap}
+.nav{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:600;border:1px solid var(--line);border-radius:999px;padding:1px 9px 1px 7px;margin-left:5px;text-decoration:none;color:inherit;background:var(--panel);white-space:nowrap;vertical-align:1px}
+.nav:hover{border-color:var(--muted)}
+.nav svg{color:var(--ok);flex:none;width:11px!important;height:11px!important;min-width:0;max-width:none;display:inline-block}
+.links a{font-size:12px;text-decoration:none;border:1px solid var(--line);border-radius:999px;padding:2px 10px}
+.links a:hover{border-color:var(--muted)}
+.days{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:6px;margin:10px 0 6px}
+@media (max-width:980px){.days{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media (max-width:560px){.days{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.d.lontano{opacity:.72}
+.d{border:1px solid var(--line);border-radius:8px;padding:8px 9px;transition:box-shadow .3s;display:grid;grid-template-rows:subgrid;grid-row:span 7;row-gap:4px;align-content:start}
+.d>*{margin:0!important}
+.d.fire{background:var(--okbg);border-color:var(--ok)}
+.d.risk{background:var(--warnbg);border-color:var(--warn)}
+.d.flash{box-shadow:0 0 0 3px var(--fg)}
+.dtop{display:flex;justify-content:space-between;align-items:baseline;gap:4px;font-size:12px;color:var(--muted)}
+.best{font-size:10px;font-weight:700;color:var(--fg);text-transform:uppercase;letter-spacing:.04em}
+.dv{display:flex;align-items:baseline;flex-wrap:wrap;margin:3px 0 2px;font-variant-numeric:tabular-nums}
+.dv .big{font-size:21px;font-weight:500;line-height:1.1}
+.chips{display:flex;gap:4px;flex-wrap:wrap;align-content:flex-start;align-items:flex-start;align-self:start}
+.chip{font-size:10.5px;font-weight:600;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;border:1px solid var(--line);border-radius:7px;padding:1px 6px;color:var(--muted);background:var(--panel)}
+.chip.ok{color:var(--ok);border-color:var(--ok)}.chip.bad{color:var(--bad);border-color:var(--bad)}.chip.warn{color:var(--warn);border-color:var(--warn)}
+.err{color:var(--bad);font-size:13px;margin-top:6px}
+.foot{color:var(--muted);font-size:12px;margin-top:20px;line-height:1.5}
+/* 2.0: partenza, meteo, confronto, diario */
+.pform{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:flex-end;margin:8px 0 0;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--panel)}
+.pform[hidden],.perr[hidden]{display:none}
+.onde{display:flex;flex-direction:column;gap:1px;font-size:11.5px;align-self:start}
+.onde .o1{display:flex;align-items:center;gap:4px;white-space:nowrap;font-weight:600}
+.onde .o1.calmo{color:var(--ok)}.onde .o1.formato{color:var(--warn)}.onde .o1.grosso{color:var(--bad)}
+.ico-onda{display:inline-block;width:22px!important;height:16px!important;max-width:none;flex:none;vertical-align:-4px;margin-right:2px}
+.onde .o2{font-size:10.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.freccia{display:inline-block;font-size:11px;color:var(--muted);line-height:1}
+.attesa{color:var(--warn)}
+.rbtn{font:inherit;font-size:12px;font-weight:600;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:2px 9px;cursor:pointer}
+.rbtn:hover{border-color:var(--muted)}.rbtn:disabled{opacity:.5;cursor:default}
+.sta .rbtn{padding:0 6px;margin-left:4px}
+.spot.aggiorno,.sta.aggiorno{border-color:#f1b0a3;background:#fdeeea}
+@media (prefers-color-scheme:dark){.spot.aggiorno,.sta.aggiorno{border-color:#7a3a2e;background:#3a2420}}
+.aggspot{color:#d9533c;font-size:12px;font-weight:700;white-space:nowrap}
+/* Rotellina di caricamento (stazioni e mappa) */
+@keyframes giro{to{transform:rotate(360deg)}}
+.rot{display:inline-block;width:11px;height:11px;margin-right:6px;border:2px solid #d9533c;border-right-color:transparent;border-radius:50%;box-sizing:border-box;vertical-align:-1px;animation:giro .8s linear infinite}
+.carico{display:none;color:#d9533c;font-weight:600}
+body.caricando .sta,.sta.lettura{border-color:#f1b0a3;background:#fdeeea}
+@media (prefers-color-scheme:dark){body.caricando .sta,.sta.lettura{border-color:#7a3a2e;background:#3a2420}.rot{border-color:#ff8a73;border-right-color:transparent}.carico{color:#ff8a73}}
+body.caricando .sta .carico{display:block}
+.aggspot .rot{margin:0 4px 0 6px;width:10px;height:10px}
+body.caricando .sta .dv,body.caricando .sta .vecchi,.sta.aggiorno .dv,.sta.aggiorno .vecchi{opacity:.45}
+.mkrot{display:none}
+body.caricando .mkrot,.mkrot.on{display:inline}
+.mkrot circle{fill:none;stroke:#d9533c;stroke-width:2.5;stroke-linecap:round;stroke-dasharray:20 50;transform-box:fill-box;transform-origin:center;animation:giro .9s linear infinite}
+@media (prefers-reduced-motion:reduce){.rot,.mkrot circle{animation-duration:2.4s}}
+body.pdf .mkrot,body.pdf .carico{display:none!important}
+.spot.fresco,.sta.fresco{outline:2px solid var(--ok);outline-offset:1px;transition:outline-color 1s}
+body.pdf .rbtn{display:none}
+.aggbanner{--ab:#d9533c;--abbg:#fdeeea;--abln:#f1b0a3;--abtx:#8a3a2c;flex:0 1 520px;min-width:280px;margin:0;padding:6px 12px 6px;border-radius:10px;background:var(--abbg);border:1px solid var(--abln);color:var(--ab);animation:abpulse 2.4s ease-in-out infinite}
+@media (prefers-color-scheme:dark){.aggbanner{--ab:#ff8a73;--abbg:#3a2420;--abln:#7a3a2e;--abtx:#f2c4b9}}
+.aggbanner[hidden]{display:none}
+.abriga{display:flex;align-items:center;gap:8px;font-size:13px;white-space:nowrap}
+.abriga b{letter-spacing:.06em}
+.abicona{display:inline-block;font-size:18px;font-weight:700;line-height:1;animation:abgira 1.4s linear infinite}
+.abtesto{color:var(--abtx);font-size:12px;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.abtempo{margin-left:auto;font-variant-numeric:tabular-nums;font-size:12px;font-weight:600}
+.abbarra{height:4px;border-radius:2px;background:var(--abln);margin-top:5px;overflow:hidden;opacity:.9}
+.abpieno{height:100%;width:0;background:var(--ab);border-radius:2px;transition:width .9s linear}
+.abbarra.indet .abpieno{width:30%!important;animation:abscorre 1.6s ease-in-out infinite}
+.abtappe{display:flex;gap:12px;font-size:10.5px;margin-top:3px;white-space:nowrap;color:var(--abtx);opacity:.75}
+.abtappe .fatto{color:var(--ok);opacity:1}.abtappe .ora{font-weight:700;opacity:1}
+.aggbanner.ok{--ab:var(--ok);--abbg:var(--okbg);--abln:var(--ok);--abtx:var(--ok)}
+.aggbanner.vecchio{--ab:#a86b00;--abbg:#fbf3e2;--abln:#e6c27a;--abtx:#8a5a00}
+@media (prefers-color-scheme:dark){.aggbanner.vecchio{--ab:#e9b85c;--abbg:#33291a;--abln:#7a6330;--abtx:#e9c88a}}
+.aggbanner.ok,.aggbanner.vecchio{animation:none;flex:0 1 auto;min-width:0;padding:7px 12px}
+@keyframes abpulse{0%,100%{box-shadow:0 0 0 0 rgba(217,83,60,0)}50%{box-shadow:0 0 0 5px rgba(217,83,60,.2)}}
+@keyframes abgira{to{transform:rotate(360deg)}}
+@keyframes abscorre{0%{transform:translateX(-100%)}100%{transform:translateX(340%)}}
+@media (prefers-reduced-motion:reduce){.aggbanner,.abicona,.abbarra.indet .abpieno{animation:none}}
+body.pdf .aggbanner{display:none}
+@media (max-width:600px){.aggbanner{flex:1 1 100%;min-width:0}.abtesto{display:none}.abriga{gap:6px}}
+.pform .aiuto{flex:1 1 100%;line-height:1.5}
+/* Copia per il telefono */
+.copiatel{display:flex;gap:8px 10px;align-items:center;flex-wrap:wrap;margin-top:6px;font-size:13px}
+.copiatel select,.copiatel input,.copiatel button{font:inherit;font-size:13px;color:var(--fg);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:4px 8px}
+.copiatel select{max-width:100%}.copiatel input{flex:1 1 320px;min-width:0}.copiatel button{cursor:pointer;font-weight:600}
+.copiatel .info{color:var(--muted);text-decoration:none;border-bottom:1px dotted currentColor;cursor:pointer}
+.copiatel .ok{color:var(--ok)}.copiatel .ko{color:var(--bad);font-weight:600}
+.copiaiuto{margin-top:6px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--panel);font-size:13px;line-height:1.5}
+.copiaiuto[hidden],.copiatel [hidden]{display:none}
+.perr{flex:1 1 100%;margin-top:8px;padding:8px 12px;border:1px solid var(--bad);border-radius:8px;color:var(--bad);font-size:13px;font-weight:600}
+body.pdf .perr{display:none}
+.pform .pcampo{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted);flex:1 1 300px}
+.pform input{font:inherit;font-size:13px;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:6px 8px}
+.barra{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px;font-size:13px}
+.barra select,.barra button,.pform button,.diario input,.diario select,.diario button{font:inherit;font-size:13px;color:var(--fg);background:var(--panel);border:1px solid var(--line);border-radius:7px;padding:4px 8px}
+.barra button,.pform button,.diario button{cursor:pointer;font-weight:600}
+.info{font-size:12px;color:var(--muted);margin-left:8px;white-space:nowrap}
+.meteo{display:flex;gap:3px;font-size:11.5px;margin-top:4px;color:var(--muted);flex-wrap:nowrap;letter-spacing:-.2px}
+.meteo span{white-space:nowrap}
+.om{font-size:10.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:-.1px}
+.om b.si{color:var(--ok)}.om b.no{color:var(--bad)}
+.cgic{font-size:13px}
+.cgt{color:var(--bad);font-weight:700}
+.overlay{position:fixed;inset:0;background:var(--bg);overflow:auto;z-index:20}
+.ovbox{max-width:1100px;margin:0 auto;padding:16px 16px 40px}
+.ovtesta{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.ovtesta h2{margin:0}
+.ovtesta button{font:inherit;font-weight:600;background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:6px 14px;cursor:pointer}
+.conf{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-top:12px}
+.verd{margin:6px 0;font-weight:600}.verd.si{color:var(--ok)}.verd.no{color:var(--bad)}
+table.tab{border-collapse:collapse;width:100%;font-size:13px;margin-top:6px;font-variant-numeric:tabular-nums}
+table.tab th,table.tab td{text-align:left;padding:4px 6px;border-bottom:1px solid var(--line)}
+table.tab th{font-weight:600;color:var(--muted);font-size:12px}
+.cg.past.clic{cursor:pointer}
+.cg.past.clic:hover{opacity:.75}
+.diario{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.diario form{display:flex;gap:8px;flex-wrap:wrap;align-items:end}
+.diario label{display:flex;flex-direction:column;font-size:11px;color:var(--muted);gap:2px}
+.stat{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+.stat span{font-size:12px;border:1px solid var(--line);border-radius:999px;padding:2px 10px}
+/* PDF per il telefono: niente pulsanti e una pagina sola lunga quanto il report */
+body.pdf .agg,body.pdf #barra,body.pdf #copiatel,body.pdf .pform,body.pdf .barra button,body.pdf .barra select,body.pdf .diario form,body.pdf .legend span:last-child{display:none}
+body.pdf .grid{grid-template-columns:1fr}body.pdf .cal{grid-template-columns:repeat(7,minmax(0,1fr));min-width:0;gap:5px}body.pdf .cg{padding:7px 6px;font-size:12px}body.pdf .cgv{display:flex;flex-wrap:wrap;align-items:baseline;column-gap:3px}body.pdf .cgv b{font-size:14px}body.pdf .cgspot{font-size:12.5px}body.pdf .cgn{font-size:17px}body.pdf .calwrap,body.pdf .scroll{overflow:visible}body.pdf .days{grid-template-columns:repeat(4,minmax(0,1fr))}
+@media print{*{-webkit-print-color-adjust:exact;print-color-adjust:exact}.cg,.d,.spot,.sta,.conf{break-inside:avoid}}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><symbol id="ico-onda" viewBox="0 0 48 36"><path d="M0 33 C5 33 7 22 14 19 C20 17 25 20 24 24 C23.6 26 22 27.2 19.4 27.6 L21 25.2 C20.4 24.3 19.5 24.4 19 25 C17 27.5 19 31 26 33 Z" fill="#8fd0f0"/><path d="M12 33 C19 33 20 15 31 11 C39 8 47 12 46 18 C45.6 21 43.4 22.8 39.6 23.4 L42 19.6 C41 18.6 39.6 18.7 38.7 19.6 C36 22 37 30 48 33 Z" fill="#2389d6"/></symbol></defs></svg>
+<div class="wrap">
+  <div class="testa"><h1>Radar kite <span class="ver" id="ver"></span></h1>
+    <div class="agg"><span class="small" id="aggstato"></span><div class="aggbanner" id="aggbanner" hidden></div><button type="button" id="aggiorna" title="Rilancia il programma sul PC: rilegge previsioni e stazioni e ricarica la pagina">↻ Aggiorna</button></div></div>
+  <p class="sub" id="sub"></p>
+  <div class="barra" id="barra"></div>
+  <div class="copiatel" id="copiatel"></div>
+
+  <h2 id="hsett">Settimana</h2>
+  <div class="calwrap"><div class="cal" id="cal"></div></div>
+  <div class="legend small"><span class="l1">firing</span><span class="l2">firing ma con raffiche oltre 35 kts</span><span class="l3">niente vento utile</span><span class="l4">giorni passati: letto dalle stazioni (✓ vento = almeno 15 kts da una direzione buona)</span><span>oltre 5 giorni la previsione è meno affidabile (più chiara)</span><span>Clicca un giorno per andare allo spot migliore.</span></div>
+
+  <h2>Adesso</h2>
+  <div class="grid">
+    <div class="mapbox">
+      <svg viewBox="0 0 553 417" role="img" aria-label="Mappa della costa da Tarquinia a Terracina con il vento adesso negli spot">
+        <rect class="sea" x="0" y="0" width="553" height="417"></rect>
+        <path class="land" fill-rule="evenodd" d="M543.8,376.3L530.8,368.1L524.9,371.3L509.2,366.6L500.0,371.0L499.3,380.5L503.5,383.0L498.8,383.9L473.2,372.6L459.5,359.0L457.6,361.8L430.8,354.6L426.1,359.3L405.2,361.5L387.3,377.6L380.7,378.2L372.7,372.2L376.9,367.8L376.9,355.5L370.1,361.5L360.7,339.7L337.9,318.9L313.2,316.4L309.4,319.5L286.1,304.0L276.0,308.2L260.0,280.7L231.1,244.7L212.5,228.6L184.7,214.7L189.2,212.5L181.9,213.4L182.4,194.5L161.9,158.5L140.9,146.8L134.8,137.7L109.6,120.3L90.1,123.1L84.0,107.3L77.4,102.9L73.6,99.1L79.8,104.2L79.5,102.3L78.6,102.9L78.4,101.0L74.8,98.8L74.8,94.7L71.3,94.1L57.9,58.4L40.9,37.9L0.0,14.1L0.0,0.0L552.9,0.0L552.9,388.6L543.8,376.3ZM170.1,94.7L180.5,105.8L195.1,101.7L196.5,91.2L190.8,83.7L185.6,82.1L170.1,89.4L170.1,94.7Z"></path>
+        <text class="seaname" x="30" y="345">Mar Tirreno</text>
+        <g class="town"><circle cx="72.0" cy="52.4" r="2"></circle><text x="77" y="49">Tarquinia</text></g>
+        <g class="town"><circle cx="246.1" cy="163.2" r="2.5"></circle><text x="251" y="161">Roma</text></g>
+        <g class="town"><circle cx="383.5" cy="374.1" r="2"></circle><text x="378" y="388" text-anchor="end">Circeo</text></g>
+        <text class="seaname" x="183" y="99" text-anchor="middle" font-size="8">Bracciano</text>
+        <g id="spots"></g>
+      </svg>
+      <div class="small" style="padding:4px 4px 0">La freccia punta sullo spot dalla direzione da cui arriva il vento: verde da 15 kts in su da una direzione buona, rossa se viene da terra, tratteggiata se è la previsione dell'ora (stazione non aggiornata). Sotto il nome dello spot, in nodi (kts), il vento medio e in rosso la raffica. Costa © OpenStreetMap contributors.</div>
+    </div>
+    <div class="stlist" id="stazioni"></div>
+  </div>
+
+  <h2>Spot</h2>
+  <div id="spotlist"></div>
+
+  <h2>Diario uscite</h2>
+  <div class="diario" id="diario"></div>
+
+  <p class="foot">Previsioni: Windguru (modello GFS, pagine micro) e Open-Meteo (meteo, secondo modello del vento, temperatura dell'acqua). Stazioni lette direttamente dai siti. Tempi di viaggio: stima senza traffico da OpenStreetMap (OSRM); col traffico solo con la chiave Google. Lo storico (2 anni) è nella cartella «dati» e si apre con Excel. «Aggiorna» rilancia il programma sul PC (la prima volta il browser chiede il permesso di aprirlo). Radar kite <span id="ver2"></span>. Vento live: <a href="https://mame-roma.github.io/MaMe-wind-radar/">mame-roma.github.io/MaMe-wind-radar</a></p>
+</div>
+<div class="overlay" id="giorno" hidden><div class="ovbox"><div class="ovtesta"><button type="button" id="ovchiudi">← torna</button><h2 id="ovtitolo"></h2></div><div id="ovcorpo"></div></div></div>
+<script>
+var D = /*DATI*/null;
+(function () {
+  var NS = 'http://www.w3.org/2000/svg';
+  var M = { lon0: 11.45, lat1: 42.42, k: 315.7279, c: 0.745243 }, MW = 553, MH = 417;
+  var MESI = ['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic'];
+  var GG = ['dom', 'lun', 'mar', 'mer', 'gio', 'ven', 'sab'];
+
+  var PDF = location.hash === '#pdf';
+  // App 4.0: i link verso i siti si aprono nel browser del PC, non nella finestra dell'app.
+  if (D && D.app) document.addEventListener('click', function (e) {
+    var a = e.target.closest && e.target.closest('a[href^="http"]'); if (!a) return;
+    e.preventDefault(); location.href = 'radarkite://apri?u=' + encodeURIComponent(a.href);
+  });
+  function P(lon, lat) { return [(lon - M.lon0) * M.c * M.k, (M.lat1 - lat) * M.k]; }
+  function classe(s, deg) {
+    if (deg >= s.ok[0] && deg <= s.ok[1]) return 'ok';
+    if (deg >= s.terra[0] || deg <= s.terra[1]) return 'terra';
+    return 'side';
+  }
+  function n(v) { return v == null ? '—' : String(Math.round(v * 10) / 10).replace('.', ','); }
+  function h(tag, cls, txt) { var e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; }
+  function el(tag, attrs, txt) { var e = document.createElementNS(NS, tag); for (var k in attrs) e.setAttribute(k, attrs[k]); if (txt != null) e.textContent = txt; return e; }
+  function link(testo, url) { var a = h('a', null, testo + ' ↗'); a.href = url; a.target = '_blank'; a.rel = 'noopener'; return a; }
+  function dataLoc(s) { var p = s.split('-'); return new Date(+p[0], +p[1] - 1, +p[2]); }
+  function iso(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+  function ore(o) { return o ? o.replace('-', '–') : ''; }
+  function direzioni(t) { var x = (t || '').split('/'); return x.length > 2 ? x[0] + '→' + x[x.length - 1] : x.join('/'); }
+  function vento(base, raffica) {
+    var f = document.createDocumentFragment();
+    f.append(h('span', 'big', base), h('span', 'u', 'kts'));
+    if (raffica != null) f.append(h('span', 'g', n(raffica) + ' kts'));
+    return f;
+  }
+
+  function icona(c) {
+    if (c == null) return '';
+    if (c >= 95) return '⛈️'; if (c === 85 || c === 86) return '🌨️'; if (c >= 80) return '🌦️'; if (c >= 71) return '🌨️';
+    if (c >= 61) return '🌧️'; if (c >= 51) return '🌦️'; if (c >= 45) return '🌫️'; if (c === 3) return '☁️'; if (c === 2) return '⛅'; if (c === 1) return '🌤️'; return '☀️';
+  }
+  function muta(t) {
+    if (t == null) return '';
+    if (t >= 24) return 'lycra o shorty'; if (t >= 21) return '3/2'; if (t >= 18) return '4/3'; if (t >= 15) return '5/4 e calzari';
+    return '5/4 o 6/5, calzari, guanti e cappuccio';
+  }
+  function minuti(s) { var v = s.viaggio; if (!v) return null; return v.traffico != null ? v.traffico : v.stima; }
+  function durata(m) { var o = Math.floor(m / 60), r = m % 60; return o ? o + ' h' + (r ? ' ' + r + ' min' : '') : r + ' min'; }
+  function forbice(f) { return f.min === f.max ? String(f.min) : f.min + '–' + f.max; }
+  // Nome corto dello spot (come sulla mappa: Anzio, Latina).
+  function corto(breve) { var s = D.spot.filter(function (x) { return x.breve === breve; })[0]; return s ? (s.mappa || s.breve) : breve; }
+  // Tempo del giorno per il calendario: la condizione piu' importante nelle ore utili (pioggia prima di nuvole,
+  // nuvole prima di sole) e la temperatura piu' alta, allo spot migliore o, se non c'e' vento, allo spot piu' ventoso.
+  function meteoGiorno(k, lista) {
+    var rif = lista.length ? lista[0].s : null;
+    if (!rif) D.spot.forEach(function (s) { var g = s.giorni[k]; if (g && g.meteo && (!rif || (g.max || 0) > (rif.giorni[k].max || 0))) rif = s; });
+    var gm = rif && rif.giorni[k] && rif.giorni[k].meteo; if (!gm) return null;
+    var fino = /-(\d+)/.exec(D.giorni[k].fascia || ''), n = fino && +fino[1] > 17 ? 3 : 2, c = null, t = null;
+    for (var i = 0; i < n; i++) { var pp = gm.periodi[i]; if (!pp) continue; if (pp.codice != null && (c == null || pp.codice > c)) c = pp.codice; if (pp.temp != null && (t == null || pp.temp > t)) t = pp.temp; }
+    return c == null && t == null ? null : { codice: c, temp: t };
+  }
+  // Navigatori: Google Maps con partenza e arrivo (nel PDF solo l'arrivo, cosi' parte da dove sei);
+  // Waze parte sempre dalla tua posizione.
+  function naviga(testo, url, titolo) {
+    var a = h('a', 'nav'); a.href = url; a.target = '_blank'; a.rel = 'noopener'; a.title = titolo;
+    a.innerHTML = '<svg viewBox="0 0 24 24" width="11" height="11" aria-hidden="true"><path d="M3 11 21 3l-8 18-2-8z" fill="currentColor"/></svg>';
+    a.append(testo); return a;
+  }
+  // ---- Onde (Open-Meteo Marine): altezza in metri, periodo in secondi, freccia verso dove vanno ----
+  function virgola(x) { return String(x).replace('.', ','); }
+  function bussola(d) { return ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSO', 'SO', 'OSO', 'O', 'ONO', 'NO', 'NNO'][Math.round(d / 22.5) % 16]; }
+  function tipoOnda(o) {
+    if (o.sh != null && o.wh != null) return o.sh >= o.wh && (o.sp || 0) >= 7 ? 'onda lunga' : 'mare corto';
+    return (o.p || 0) >= 8 ? 'onda lunga' : 'mare corto';
+  }
+  function iconaOnda() { var sp = h('span'); sp.innerHTML = '<svg class="ico-onda" aria-hidden="true"><use href="#ico-onda"/></svg>'; return sp.firstChild; }
+  function ondeEl(o) {
+    var box = h('div', 'onde'); if (!o || o.h == null) return box;
+    var r1 = h('div', 'o1' + (o.h < 0.5 ? ' calmo' : o.h >= 2.5 ? ' grosso' : o.h >= 1.5 ? ' formato' : ''));
+    r1.append(iconaOnda(), virgola(o.h) + ' m' + (o.p != null ? ' · ' + o.p + ' s' : ''));
+    if (o.d != null) { var f = h('span', 'freccia', '↓'); f.style.transform = 'rotate(' + o.d + 'deg)'; r1.append(f); }
+    box.append(r1);
+    if (o.sh != null && o.sh >= 0.1) box.append(h('div', 'o2', 'lunga ' + virgola(o.sh) + ' m · ' + o.sp + ' s'));
+    if (o.wh != null && o.wh >= 0.1) box.append(h('div', 'o2', 'vento ' + virgola(o.wh) + ' m · ' + o.wp + ' s'));
+    box.title = 'Onde alle ' + o.ora + ': ' + virgola(o.h) + ' m, periodo ' + o.p + ' s' + (o.d != null ? ', da ' + bussola(o.d) : '') + ' (' + tipoOnda(o) + ')' +
+      (o.sh != null ? '\nonda lunga ' + virgola(o.sh) + ' m · ' + o.sp + ' s' : '') + (o.wh != null ? '\nonde da vento ' + virgola(o.wh) + ' m · ' + o.wp + ' s' : '') +
+      '\nAltezze in mare aperto: a riva di solito sono un po\' piu\' basse.';
+    return box;
+  }
+  function chip(tipo, testo, titolo) { var c = h('span', 'chip ' + tipo, testo); c.title = titolo || testo; return c; }
+  function temporale(g) { return !!(g && g.meteo && g.meteo.temporale); }
+  // Spot migliore del giorno: prima senza raffiche pericolose e senza temporali, poi direzione ideale,
+  // poi senza avvisi (es. lavatrice), poi non side-off, poi finestra piu' lunga e vento piu' forte (a scaglioni),
+  // e a parita' il piu' vicino alla partenza scelta.
+  function chiave(o) { var g = o.g; return [g.pericolose ? 1 : 0, temporale(g) ? 1 : 0, g.ideale ? 0 : 1, g.attenzione ? 1 : 0, g.sideoff ? 1 : 0, -Math.min(g.durata || 0, 6), -Math.floor((g.min || 0) / 3), minuti(o.s) == null ? 999 : minuti(o.s)]; }
+  function classifica(k) {
+    var lista = [];
+    D.spot.forEach(function (s) { var g = s.giorni[k]; if (g && g.firing) lista.push({ s: s, g: g }); });
+    lista.sort(function (a, b) { var x = chiave(a), y = chiave(b); for (var i = 0; i < x.length; i++) if (x[i] !== y[i]) return x[i] - y[i]; return 0; });
+    return lista;
+  }
+
+  function vai(k) {
+    var lista = classifica(k);
+    if (!lista.length) return;
+    document.querySelectorAll('.cg.sel').forEach(function (c) { c.classList.remove('sel'); });
+    var cella = document.querySelector('.cg[data-k="' + k + '"]'); if (cella) cella.classList.add('sel');
+    var s = lista[0].s;
+    document.getElementById('spot-' + s.id).scrollIntoView({ block: 'start' });
+    var t = document.getElementById('t-' + s.id + '-' + k);
+    if (t) { t.classList.add('flash'); setTimeout(function () { t.classList.remove('flash'); }, 2500); }
+  }
+
+  // ---- Intestazione e tramonto (algoritmo NOAA semplificato) ----
+  function soleUTC(lat, lon, giorno, alba) {
+    var rad = Math.PI / 180, inizio = Date.UTC(giorno.getFullYear(), 0, 0);
+    var nn = Math.floor((Date.UTC(giorno.getFullYear(), giorno.getMonth(), giorno.getDate()) - inizio) / 86400000);
+    var lng = lon / 15, t = nn + ((alba ? 6 : 18) - lng) / 24;
+    var m = 0.9856 * t - 3.289;
+    var l = ((m + 1.916 * Math.sin(m * rad) + 0.020 * Math.sin(2 * m * rad) + 282.634) % 360 + 360) % 360;
+    var ra = ((Math.atan(0.91764 * Math.tan(l * rad)) / rad) % 360 + 360) % 360;
+    ra = (ra + (Math.floor(l / 90) * 90 - Math.floor(ra / 90) * 90)) / 15;
+    var sinDec = 0.39782 * Math.sin(l * rad), cosDec = Math.cos(Math.asin(sinDec));
+    var cosH = (Math.cos(90.833 * rad) - sinDec * Math.sin(lat * rad)) / (cosDec * Math.cos(lat * rad));
+    var hh = alba ? 360 - Math.acos(cosH) / rad : Math.acos(cosH) / rad;
+    var ut = ((hh / 15 + ra - 0.06571 * t - 6.622 - lng) % 24 + 24) % 24;
+    return new Date(Date.UTC(giorno.getFullYear(), giorno.getMonth(), giorno.getDate()) + ut * 3600000);
+  }
+  function hhmm(d) { return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
+  var creato = new Date(D.creato);
+  // Versione e autore; il nome e "idee e suggerimenti" aprono una mail gia' pronta (oggetto con la versione).
+  (function () {
+    var ver = document.getElementById('ver'), ver2 = document.getElementById('ver2');
+    ver.textContent = 'v' + (D.versione || '?') + ' · ' + (D.dataVersione || '');
+    ver2.textContent = 'versione ' + (D.versione || '?') + ' del ' + (D.dataVersione || '');
+    var posta = D.contatto ? 'mailto:' + D.contatto.replace('+', '%2B') + '?subject=' + encodeURIComponent('[Radar kite] idea o suggerimento – v' + D.versione) +
+      '&body=' + encodeURIComponent('Ciao Mattia,\n\n\n\n—\nRadar kite ' + D.versione + ' del ' + D.dataVersione) : null;
+    function a(testo, titolo, cls) { var x = h('a', cls || null, testo); x.href = posta; x.title = titolo; return x; }
+    if (D.autore) {
+      ver.append(document.createTextNode(' · '));
+      if (posta) ver.append(a(D.autore, 'Scrivi a ' + D.contatto)); else ver.append(document.createTextNode(D.autore));
+      ver2.append(document.createTextNode(', di ' + D.autore));
+    }
+    if (posta) {
+      ver.append(document.createTextNode(' · '), a('💡 idee e suggerimenti', 'Manda un\'idea, un suggerimento o una richiesta a ' + D.contatto, 'idee'));
+    }
+  })();
+
+  // ---- Avviso "aggiornamento in corso": ben visibile, con i secondi passati (veri) e una barra a tappe.
+  // La stima "di solito ~N s" viene dagli appunti sulle stazioni: la piu' lenta, o 60 s se una spesso non risponde.
+  var avviso = (function () {
+    var box = document.getElementById('aggbanner'), giro = null, stima = null;
+    (D.stazioni || []).forEach(function (x) {
+      var L = x.lenta; if (!L || L.prove < 3) return;
+      var v = L.fallite / L.prove >= 0.4 ? 60 : L.media;
+      if (v != null && (stima == null || v > stima)) stima = v;
+    });
+    if (stima != null) stima = Math.min(65, Math.max(6, Math.round(stima + 3)));
+    function mostra(tappa, inizio, testo) {
+      if (PDF) return;
+      clearInterval(giro); box.hidden = false; box.className = 'aggbanner'; box.textContent = '';
+      document.title = '↻ Aggiornamento… · Radar kite';
+      try { sessionStorage.setItem('rkAggiorno', '1'); } catch (e) { }
+      var riga = h('div', 'abriga'), tempo = h('span', 'abtempo');
+      riga.append(h('span', 'abicona', '↻'), h('b', null, 'AGGIORNAMENTO IN CORSO'), h('span', 'abtesto', testo), tempo);
+      var barra = h('div', 'abbarra'), pieno = h('div', 'abpieno'); barra.append(pieno);
+      var tappe = h('div', 'abtappe');
+      ['avvio del programma', 'previsioni', 'stazioni'].forEach(function (nm, i) {
+        tappe.append(h('span', i + 1 < tappa ? 'fatto' : (i + 1 === tappa ? 'ora' : null), (i + 1 < tappa ? '✓ ' : '') + nm));
+      });
+      box.append(riga, barra, tappe);
+      function batti() {
+        var sec = Math.max(0, Math.round((Date.now() - inizio) / 1000));
+        tempo.textContent = sec + ' s' + (stima && tappa === 3 ? ' · di solito ~' + stima + ' s' : '');
+        if (tappa === 1) pieno.style.width = Math.min(30, sec / 6 * 30) + '%';
+        else if (stima) pieno.style.width = Math.min(97, 40 + 57 * sec / stima) + '%';
+        else barra.classList.add('indet');
+      }
+      batti(); giro = setInterval(batti, 1000);
+    }
+    // Fuori dall'aggiornamento: riquadro fisso accanto al pulsante con quando sono stati presi i dati.
+    // Verde se recenti; giallo oltre 75 minuti (gli avvii automatici sono ogni ora), cosi' si capisce se premere Aggiorna.
+    function fatto() {
+      if (PDF) return;
+      try { sessionStorage.removeItem('rkAggiorno'); } catch (e) { }
+      clearInterval(giro); box.hidden = false; box.textContent = '';
+      var riga = h('div', 'abriga'), quando = h('span', 'abtesto'), testa = h('b');
+      riga.append(testa, quando); box.append(riga);
+      function batti() {
+        var min = Math.max(0, Math.round((Date.now() - creato.getTime()) / 60000)), vecchio = min > 75;
+        var oggi = new Date().toDateString() === creato.toDateString();
+        var fa = min < 1 ? 'adesso' : min < 60 ? min + ' min fa' : min < 1440 ? Math.floor(min / 60) + ' h' + (min % 60 ? ' ' + (min % 60) + ' min' : '') + ' fa' : Math.floor(min / 1440) + ' g fa';
+        testa.textContent = vecchio ? '⚠ AGGIORNATO' : '✓ AGGIORNATO';
+        quando.textContent = (oggi ? 'alle ' : GG[creato.getDay()] + ' ' + creato.getDate() + ' alle ') + hhmm(creato) + ' · ' + fa;
+        box.className = 'aggbanner ' + (vecchio ? 'vecchio' : 'ok');
+        box.title = vecchio ? 'Dati di più di un\'ora fa: premi Aggiorna' : 'Dati recenti';
+        document.title = 'Radar kite';
+      }
+      batti(); giro = setInterval(batti, 30000);
+    }
+    return { mostra: mostra, fatto: fatto };
+  })();
+
+  // Aspetta il report nuovo: legge stato.js (scritto dal programma dopo ogni report) 3 volte al secondo
+  // e ricarica appena cambia. Se stato.js non c'e' (programma vecchio) si ricarica ogni 2,5 secondi come prima.
+  var aspettando = false;
+  function aspettaReport(maxMs) {
+    if (aspettando || PDF) return; aspettando = true;
+    var inizio = Date.now(), errori = 0;
+    function ancora() { if (Date.now() - inizio < maxMs) setTimeout(giro, 330); }
+    function giro() {
+      var s = document.createElement('script');
+      s.src = 'stato.js?r=' + Date.now();
+      s.onload = function () {
+        s.remove();
+        if (window.RK_SCRITTO && D.scrittura && window.RK_SCRITTO !== D.scrittura) location.reload(); else ancora();
+      };
+      s.onerror = function () { s.remove(); if (++errori >= 3) setTimeout(function () { location.reload(); }, 2500); else ancora(); };
+      document.head.appendChild(s);
+    }
+    giro();
+  }
+  // ---- Aggiorna: avvia il programma con il link radarkite:// e ricarica finche' non arriva il report nuovo ----
+  (function () {
+    var btn = document.getElementById('aggiorna'), st = document.getElementById('aggstato');
+    var m = /^#aggiorno-(\d+)(?:-((?:spot|st)\.[\w-]+))?$/.exec(location.hash);
+    if (m && m[2]) {
+      // Aggiornamento di un solo spot o di una sola stazione: aspetto il suo orario, gli altri non cambiano.
+      var t1 = +m[1], chi = m[2], agg = orarioDi(chi);
+      if (agg && agg.getTime() >= t1 - 5000) {
+        history.replaceState(null, '', location.pathname + location.search);
+        setTimeout(function () { segnaParziale(chi, t1, true); }, 0);
+      } else if (Date.now() - t1 < 120000) {
+        setTimeout(function () { segnaParziale(chi, t1, false); }, 0);
+        aspettaReport(120000);
+      } else {
+        history.replaceState(null, '', location.pathname + location.search);
+        st.textContent = 'Il programma non ha risposto: guarda dati\\ultimo-avvio.txt nella cartella Radar kite.';
+      }
+    } else if (m) {
+      var t = +m[1];
+      if (creato.getTime() >= t - 5000) {
+        history.replaceState(null, '', location.pathname + location.search);
+        st.textContent = '';
+      } else if (Date.now() - t < 180000) {
+        btn.disabled = true;
+        st.textContent = '';
+        avviso.mostra(1, t, 'leggo previsioni e stazioni…');
+        caricamento(null);
+        aspettaReport(180000);
+      } else {
+        history.replaceState(null, '', location.pathname + location.search);
+        st.textContent = 'Il programma non ha risposto: guarda dati\\ultimo-avvio.txt nella cartella Radar kite.';
+      }
+    }
+    // Pagina aperta prima delle stazioni: si ricarica da sola finche' arrivano (massimo 2 minuti e mezzo).
+    if (D.aggiornando && !PDF) {
+      if (Date.now() - creato.getTime() < 150000) {
+        btn.disabled = true; st.textContent = '';
+        avviso.mostra(3, creato.getTime(), 'leggo stazioni, meteo e onde…');
+        caricamento(null);
+        aspettaReport(150000);
+      } else st.textContent = 'Stazioni non lette: premi Aggiorna.';
+    } else if (!m || m[2] || creato.getTime() >= +m[1] - 5000) avviso.fatto();
+    btn.addEventListener('click', function () { lancia('radarkite://aggiorna'); });
+  })();
+  // Avvia il programma sul PC con un link radarkite:// (aggiorna, partenza, ricalcolo tempi, uscita nel diario)
+  // e ricarica la pagina quando torna il report nuovo.
+  function lancia(url, chi) {
+    var btn = document.getElementById('aggiorna'), st = document.getElementById('aggstato');
+    (function () {
+      var t = Date.now(), partito = false;
+      btn.disabled = true;
+      st.textContent = 'Conferma l\'apertura del programma…';
+      history.replaceState(null, '', '#aggiorno-' + t + (chi ? '-' + chi : ''));
+      if (!chi) caricamento(null);
+      aspettaReport(chi ? 120000 : 180000);
+      // Quando si apre la finestra del programma la pagina perde il focus; quando torna, si ricarica.
+      // Non ricarico prima: chiuderebbe la richiesta del browser di aprire il programma.
+      window.addEventListener('blur', function () {
+        if (partito) return;
+        partito = true;
+        st.textContent = '';
+        if (chi) segnaParziale(chi, t, false); else avviso.mostra(1, t, 'leggo previsioni e stazioni…');
+        setTimeout(function () { location.reload(); }, 40000);
+      });
+      window.addEventListener('focus', function () { if (partito) setTimeout(function () { location.reload(); }, 1500); });
+      setTimeout(function () {
+        if (partito) return;
+        document.body.classList.remove('caricando');
+        btn.disabled = false;
+        history.replaceState(null, '', location.pathname + location.search);
+        st.textContent = 'Programma non avviato: riprova, o avvialo dalla cartella Radar kite.';
+      }, 60000);
+      // App 4.0: il comando va al motore senza la conferma del browser, quindi parte subito.
+      if (D.app) { partito = true; st.textContent = ''; if (chi) segnaParziale(chi, t, false); else avviso.mostra(1, t, 'leggo previsioni e stazioni…'); }
+      location.href = url;
+    })();
+  }
+
+  // ---- Aggiornamento di un solo spot (spot.id) o di una sola stazione (st.id) ----
+  function dataLocale(x) { if (!x) return null; var p = /(\d+)-(\d+)-(\d+)T(\d+):(\d+):(\d+)/.exec(x); return p ? new Date(+p[1], +p[2] - 1, +p[3], +p[4], +p[5], +p[6]) : null; }
+  function orarioDi(chi) {
+    var tipo = chi.split('.')[0], id = chi.slice(tipo.length + 1);
+    var x = (tipo === 'spot' ? D.spot : D.stazioni).filter(function (o) { return o.id === id; })[0];
+    return x ? dataLocale(x.aggiornato) : null;
+  }
+  // Stazioni e mappa "in caricamento" con la rotellina: tutte (aggiornamento completo) o solo uno spot / una stazione.
+  function caricamento(chi) {
+    if (PDF) return;
+    if (!chi) { document.body.classList.add('caricando'); return; }
+    var tipo = chi.split('.')[0], id = chi.slice(tipo.length + 1);
+    var spotId = tipo === 'spot' ? id : ((D.stazioni.filter(function (x) { return x.id === id; })[0] || {}).spot);
+    var r = spotId && document.getElementById('mkrot-' + spotId); if (r) r.classList.add('on');
+    var sp = D.spot.filter(function (x) { return x.id === spotId; })[0];
+    (tipo === 'spot' && sp ? sp.stazioni.map(function (x) { return x.id; }) : [id]).forEach(function (sid) { var c = document.getElementById('st-' + sid); if (c) c.classList.add('aggiorno'); });
+  }
+  function segnaParziale(chi, t, fatto) {
+    var tipo = chi.split('.')[0], id = chi.slice(tipo.length + 1);
+    var el = document.getElementById((tipo === 'spot' ? 'spot-' : 'st-') + id); if (!el) return;
+    if (fatto) { el.classList.add('fresco'); setTimeout(function () { el.classList.remove('fresco'); }, 5000); return; }
+    caricamento(chi);
+    el.classList.add('aggiorno');
+    el.querySelectorAll('.rbtn').forEach(function (b) { b.disabled = true; });
+    var lab = el.querySelector('.aggspot');
+    if (!lab) { lab = h('span', 'aggspot'); lab.append(h('span', 'rot'), h('span', 'aggtxt')); (el.querySelector('.shead > div') || el.querySelector('.top') || el).append(lab); }
+    var txt = lab.querySelector('.aggtxt') || lab;
+    function batti() { txt.textContent = 'aggiorno ' + (tipo === 'spot' ? 'questo spot' : 'la stazione') + '… ' + Math.max(0, Math.round((Date.now() - t) / 1000)) + ' s'; }
+    batti(); setInterval(batti, 1000);
+  }
+  function bottoneAggiorna(testo, titolo, url, chi) {
+    var b = h('button', 'rbtn', testo); b.type = 'button'; b.title = titolo;
+    b.addEventListener('click', function () { lancia(url, chi); });
+    return b;
+  }
+
+  // Pulsante per rifare il confronto dei giorni passati (di solito si fa da solo una volta al giorno).
+  (function () {
+    var hs = document.getElementById('hsett'); if (!hs || PDF || !(D.passati || []).length) return;
+    var tc = dataLocale(D.passatiCalcolati);
+    var b = bottoneAggiorna('↻ ricalcola giorni passati', 'Rifà il confronto previsto/registrato dei giorni passati' + (tc ? ' (calcolato alle ' + hhmm(tc) + ')' : ''), 'radarkite://storico', null);
+    b.style.marginLeft = '10px'; b.style.verticalAlign = '3px'; hs.append(b);
+  })();
+
+  // ---- Partenza e tempi di viaggio ----
+  (function () {
+    var b = document.getElementById('barra'), P = D.partenza || {};
+    // Modulo per scrivere casa e lavoro: li salva il programma (impostazioni.txt), poi ricalcola e ricarica.
+    var form = h('div', 'pform'); form.hidden = true;
+    // Per ogni partenza: riga 1 l'indirizzo, riga 2 le coordinate (facoltative, servono se la mappa non trova il civico).
+    var RE = /(-?\d{1,2}\.\d{3,})\s*,\s*(-?\d{1,3}\.\d{3,})/;
+    function campo(nome, val) {
+      val = val || ''; var m = RE.exec(val);
+      var l = h('div', 'pcampo'); l.append(h('span', null, nome));
+      var ind = h('input'); ind.type = 'text'; ind.placeholder = 'Via e numero, città (es. Via Roma 1, Roma)';
+      ind.value = val.replace(/\(?\s*-?\d{1,2}\.\d{3,}\s*,\s*-?\d{1,3}\.\d{3,}\s*\)?/, '').replace(/[\s,;]+$/, '').trim();
+      var co = h('input'); co.type = 'text'; co.placeholder = 'Coordinate (facoltative), es. 41.90000, 12.50000';
+      co.value = m ? m[1] + ', ' + m[2] : '';
+      l.append(ind, co); form.append(l);
+      return {
+        testo: function () {
+          var t = ind.value.trim(), c = co.value.trim();
+          if (!c) return t;
+          var mm = RE.exec(c); if (!mm) throw nome + ': coordinate non valide (scrivi due numeri col punto, es. 41.90000, 12.50000)';
+          return (t || nome) + ' (' + mm[1] + ', ' + mm[2] + ')';
+        },
+        vuoto: function () { return !ind.value.trim() && !co.value.trim(); },
+        focus: function () { ind.focus(); }
+      };
+    }
+    var ic = campo('Casa', P.casaImp), il = campo('Lavoro', P.lavoroImp);
+    var msg = h('div', 'perr'); msg.hidden = true;
+    var salva = h('button', null, '✓ Salva partenza'); salva.type = 'button';
+    salva.addEventListener('click', function () {
+      try {
+        var c = ic.testo(), l = il.testo();
+        var p = P.scelta === 'lavoro' && !il.vuoto() ? 'lavoro' : (!ic.vuoto() ? 'casa' : 'lavoro');
+        msg.hidden = true;
+        lancia('radarkite://indirizzi?c=' + encodeURIComponent(c) + '&l=' + encodeURIComponent(l) + '&p=' + p);
+      } catch (e) { msg.textContent = '⚠ ' + e; msg.hidden = false; }
+    });
+    var aiuto = h('div', 'small aiuto');
+    aiuto.innerHTML = 'Le <b>coordinate</b> servono solo se la mappa non trova il numero civico: in Google Maps fai clic destro sul punto, ' +
+      'clic sulla prima riga (i numeri, si copiano) e incollale nella seconda riga. Se ci sono, si usano quelle.';
+    form.append(salva, msg, aiuto);
+    var mod = h('button', null, P.casa || P.lavoro ? '✎ Modifica' : '✎ Imposta la partenza'); mod.type = 'button';
+    mod.addEventListener('click', function () { form.hidden = !form.hidden; if (!form.hidden) ic.focus(); });
+    b.after(form);
+    if (P.errore) { b.after(h('div', 'perr', '⚠ Partenza non trovata: ' + P.errore + '. Scrivi le coordinate nella seconda riga qui sotto e premi «Salva partenza».')); form.hidden = false; }
+    if (!P.casa && !P.lavoro) { b.append(h('span', null, '🚗 Partenza'), mod, h('span', 'small', 'scrivi casa o lavoro per avere i tempi di viaggio e la navigazione da lì')); return; }
+    b.append(h('span', null, '🚗 Partenza'));
+    var sel = h('select');
+    [['casa', 'Casa'], ['lavoro', 'Lavoro']].forEach(function (x) { if (!P[x[0]]) return; var o = h('option', null, x[1] + ' · ' + P[x[0]]); o.value = x[0]; if (P.scelta === x[0]) o.selected = true; sel.append(o); });
+    sel.addEventListener('change', function () { lancia('radarkite://partenza?p=' + sel.value); });
+    var ric = h('button', null, '↻ Ricalcola tempi'); ric.type = 'button';
+    ric.addEventListener('click', function () { lancia('radarkite://viaggi'); });
+    var conTraffico = D.spot.some(function (s) { return s.viaggio && s.viaggio.traffico != null; });
+    var ora = (D.spot.filter(function (s) { return s.viaggio && s.viaggio.ora; })[0] || {}).viaggio;
+    var dove = P.trovato ? 'partenza: ' + (/^coordinate/.test(P.trovato) ? P.trovato : P.trovato.split(',').slice(0, 3).join(',')) + ' · ' : '';
+    b.append(sel, mod, ric, h('span', 'small', dove + (conTraffico ? 'tempi col traffico' + (ora && ora.ora ? ' delle ' + ora.ora : '') + ' (Google)' : 'tempi stimati senza traffico · per il traffico vero usa i pulsanti Waze o Maps degli spot')));
+  })();
+  // ---- Copia per il telefono: cartella dove il programma salva il PDF a ogni aggiornamento ----
+  (function () {
+    var b = document.getElementById('copiatel'), C = D.copia; if (!b || !C || PDF) { if (b) b.remove(); return; }
+    var sel = h('select'), scelta = C.scelta || 'auto', trovata = false;
+    function opz(valore, testo) { var o = h('option', null, testo); o.value = valore; sel.append(o); return o; }
+    (C.candidati || []).forEach(function (c) {
+      var o = opz(c.cartella, c.nome + ' — ' + c.cartella);
+      if (scelta === c.cartella || (scelta === 'auto' && C.cartella === c.cartella)) { o.selected = true; trovata = true; }
+    });
+    if (!trovata && scelta !== 'no' && scelta !== 'auto' && scelta) { opz(scelta, 'Cartella scelta — ' + scelta).selected = true; trovata = true; }
+    var altra = opz('altra', 'Un\'altra cartella…');
+    var nessuna = opz('no', 'Nessuna copia'); if (scelta === 'no' || (!trovata && scelta === 'auto' && !C.cartella)) nessuna.selected = true;
+    var campo = h('input'); campo.type = 'text'; campo.placeholder = 'Incolla il percorso della cartella (es. D:\\Cloud\\Radar kite)'; campo.hidden = true;
+    var salva = h('button', null, '✓ Salva cartella'); salva.type = 'button'; salva.hidden = true;
+    var stato = h('span', 'small');
+    var info = h('a', 'info small', 'ⓘ a cosa serve'); info.href = '#';
+    var aiuto = h('div', 'copiaiuto'); aiuto.hidden = true;
+    aiuto.innerHTML = 'Ogni volta che Radar kite si aggiorna (a mano, oppure da solo ogni ora dalle 6:30 alle 19:30 se il PC è acceso e non in sospensione: ' +
+      'il programma non deve restare aperto) salva il PDF di questa pagina nella cartella scelta, sempre con lo stesso nome: <b>Radar kite.pdf</b>. ' +
+      'Se è una cartella di Dropbox, Google Drive o OneDrive, sul telefono apri il file dall\'app e hai sempre l\'ultima rilevazione, anche fuori casa: ' +
+      'mettilo tra i preferiti o «disponibile offline». Nella cartella trovi anche un LEGGIMI che spiega la stessa cosa. ' +
+      'Per un\'altra cartella: in Esplora file aprila, clic sulla barra dell\'indirizzo in alto, copia e incolla qui.';
+    info.addEventListener('click', function (e) { e.preventDefault(); aiuto.hidden = !aiuto.hidden; });
+    sel.addEventListener('change', function () {
+      var v = sel.value;
+      if (v === 'altra') { campo.hidden = false; salva.hidden = false; campo.focus(); return; }
+      campo.hidden = true; salva.hidden = true;
+      lancia('radarkite://copia?c=' + encodeURIComponent(v));
+    });
+    salva.addEventListener('click', function () {
+      var v = campo.value.trim().replace(/^"|"$/g, '');
+      if (!v) { campo.focus(); return; }
+      lancia('radarkite://copia?c=' + encodeURIComponent(v));
+    });
+    // Ora dell'ultimo PDF: da stato.js (scritto subito dopo il PDF), altrimenti dal report.
+    function mostraStato(u) {
+      u = u || '';
+      if (!C.cartella || scelta === 'no') { stato.textContent = 'nessuna copia per il telefono'; stato.className = 'small'; return; }
+      var p = u.split('|');
+      if (p[0] === 'ok') { var t = new Date(p[1]); stato.textContent = '✓ ultimo PDF salvato ' + (t.toDateString() === new Date().toDateString() ? 'alle ' + hhmm(t) : 'il ' + t.getDate() + '/' + (t.getMonth() + 1) + ' alle ' + hhmm(t)); stato.className = 'small ok'; }
+      else if (p[0] === 'errore') { stato.textContent = '⚠ PDF non salvato: ' + p.slice(1).join('|'); stato.className = 'small ko'; }
+      else { stato.textContent = 'il PDF si salva al prossimo aggiornamento'; stato.className = 'small'; }
+    }
+    mostraStato(C.ultimo);
+    b.append(h('span', null, '📱 Copia per il telefono'), sel, campo, salva, stato, info);
+    b.after(aiuto);
+    if (C.errore) { b.after(h('div', 'perr', '⚠ Cartella non salvata: ' + C.errore + '.')); campo.value = ''; altra.selected = true; campo.hidden = false; salva.hidden = false; }
+    // Dopo un aggiornamento il PDF arriva qualche secondo dopo la pagina: rileggo stato.js finché non c'è quello nuovo.
+    var inizio = Date.now(), creatoMs = creato.getTime();
+    (function giro() {
+      var s = document.createElement('script'); s.src = 'stato.js?pdf=' + Date.now();
+      s.onload = function () {
+        s.remove();
+        if (window.RK_PDF) mostraStato(window.RK_PDF);
+        var p = String(window.RK_PDF || '').split('|'), nuovo = p[0] === 'errore' || (p[0] === 'ok' && new Date(p[1]).getTime() >= creatoMs - 60000);
+        if (!nuovo && Date.now() - inizio < 90000 && !D.aggiornando) setTimeout(giro, 2000);
+      };
+      s.onerror = function () { s.remove(); };
+      document.head.appendChild(s);
+    })();
+  })();
+  var avvisiSub = (!D.aggiornando && D.omErrore ? ' · ⚠ Open-Meteo non disponibile (meteo e secondo modello)' : '') + (!D.aggiornando && D.mareErrore ? ' · ⚠ dati del mare non disponibili' : '');
+  document.getElementById('sub').textContent = 'Aggiornato ' + GG[creato.getDay()] + ' ' + creato.getDate() + ' ' + MESI[creato.getMonth()] + ' alle ' + hhmm(creato) +
+    ' · firing = almeno ' + D.soglia + ' kts per ' + D.oreMin + ' ore di fila da una direzione buona, nella fascia oraria utile · oggi tramonto ' + hhmm(soleUTC(41.7187, 12.3024, creato, false)) + '.' + avvisiSub;
+
+  // ---- Calendario ----
+  (function () {
+    var cal = document.getElementById('cal');
+    ['lun', 'mar', 'mer', 'gio', 'ven', 'sab', 'dom'].forEach(function (w) { cal.append(h('div', 'wd', w)); });
+    var indice = {}; D.giorni.forEach(function (g, k) { indice[g.data] = k; });
+    var d0 = dataLoc(D.giorni[0].data), dN = dataLoc(D.giorni[D.giorni.length - 1].data);
+    var d = new Date(d0); d.setDate(d.getDate() - (d.getDay() + 6) % 7);
+    var passati = {}; (D.passati || []).forEach(function (p) { passati[p.data] = p.spot || []; });
+    var fine = new Date(dN);
+    for (; d <= fine; d.setDate(d.getDate() + 1)) {
+      var k = indice[iso(d)];
+      var lista = k == null ? [] : classifica(k);
+      var c = h(lista.length ? 'button' : 'div', 'cg');
+      var pas = k == null ? passati[iso(d)] : null;
+      var top = h('div', 'cgtop'); top.append(h('span', 'cgn', d.getDate()));
+      if (d.getDate() === 1) top.append(h('span', 'cgm', MESI[d.getMonth()]));
+      if (k != null) {
+        var mg = meteoGiorno(k, lista);
+        if (mg) { var ic = h('span', 'cgic', icona(mg.codice) + (mg.temp != null ? ' ' + mg.temp + '°' : '')); ic.title = 'tempo nelle ore utili, temperatura massima'; top.append(ic); }
+        if (D.spot.some(function (s) { return temporale(s.giorni[k]); })) { var lt = h('span', 'cgt', '⚡'); lt.title = 'temporale previsto nella fascia oraria'; top.append(lt); }
+      }
+      if (k === 0) c.append(h('span', 'cgoggi', 'OGGI'));
+      c.append(top);
+      if (k != null && k > 4) c.classList.add('lontano');
+      if (k == null && d < d0) {
+        // Giorno passato: la lettura migliore salvata dal programma (prima con vento da direzione buona, poi la piu' forte).
+        // Cliccando si apre il confronto tra previsto e registrato.
+        c.classList.add('past');
+        var dett = (D.passati || []).filter(function (x) { return x.data === iso(d); })[0];
+        if (dett && ((dett.dettaglio || []).length || (dett.spot || []).length)) { c.classList.add('clic'); c.setAttribute('role', 'button'); c.addEventListener('click', apriGiorno.bind(null, iso(d))); }
+        if (!pas || !pas.length) { c.classList.add('vuoto'); c.append(h('div', 'cgspot', 'nessun dato'), h('div', 'cgx', 'programma non avviato')); }
+        else {
+          var ord = pas.slice().sort(function (a, b) { return (b.buono - a.buono) || (b.max - a.max); }), p = ord[0];
+
+          var vv = h('div', 'cgv'); vv.append(h('b', null, n(p.max)), h('span', 'u', 'kts'));
+          if (p.gust != null) vv.append(h('span', 'g', n(p.gust) + ' kts'));
+          var tot = pas.reduce(function (a, x) { return a + x.letture; }, 0);
+          c.append(h('div', 'cgspot', corto(p.breve)), vv, h('div', 'cgx', p.dir + ' alle ' + p.ora + ' · ' + tot + (tot === 1 ? ' lettura' : ' letture')));
+          if (p.buono) c.append(h('div', 'ck', '✓ vento'));
+          c.title = 'Letture salvate (max nella fascia oraria):\n' + ord.map(function (x) { return x.breve + ': ' + n(x.max) + ' kts ' + x.dir + ' alle ' + x.ora + (x.oltre ? ' · ' + x.oltre + ' sopra ' + D.soglia + ' kts' : '') + ' (' + x.letture + ')'; }).join('\n');
+        }
+      }
+      else if (k == null) { c.classList.add('fuori'); }
+      else if (!lista.length) {
+        c.classList.add('calm');
+        c.append(h('div', 'cgspot', 'niente'), h('div', 'cgx', 'fascia ' + ore(D.giorni[k].fascia)));
+      } else {
+        var b = lista[0], g = b.g;
+        c.type = 'button';
+        c.setAttribute('data-k', k);
+        c.classList.add(g.pericolose ? 'risk' : 'fire');
+        var v = h('div', 'cgv'); v.append(h('b', null, g.min + '–' + g.maxf), h('span', 'u', 'kts'));
+        if (g.raffica != null) v.append(h('span', 'g', g.raffica + ' kts'));
+        var extra = 'ore ' + ore(g.ore) + ' · ' + direzioni(g.dir) + (lista.length > 1 ? ' · +' + (lista.length - 1) + ' spot' : '');
+        c.append(h('div', 'cgspot', b.s.mappa || b.s.breve), v, h('div', 'cgx', extra));
+        c.title = lista.map(function (o) { return o.s.nome + ': ' + o.g.min + '–' + o.g.maxf + ' kts, ore ' + o.g.ore; }).join('\n');
+        c.addEventListener('click', vai.bind(null, k));
+      }
+      if (k === 0) c.classList.add('oggi');
+      cal.append(c);
+    }
+  })();
+
+  // ---- Mappa: vento adesso ----
+  // Ogni spot: pallino, freccia del vento e, accanto, un blocco con il nome e sotto "kts vento raffica".
+  // Il blocco va dal lato scelto per lo spot; se una freccia, un pallino o un altro blocco lo coprirebbe, prova altre posizioni.
+  (function () {
+    var box = document.getElementById('spots'), svg = box.ownerSVGElement, fUsato = 0;
+    // Mappa larga: pallini, frecce, nomi e numeri restano della misura di prima (f = quanto rimpicciolire rispetto alla mappa).
+    function disegna() {
+    var w = svg.getBoundingClientRect().width || 644, f = Math.min(1, Math.max(0.5, 644 / w));
+    if (Math.abs(f - fUsato) < 0.04) return; fUsato = f;
+    svg.style.setProperty('--f', f);
+    while (box.firstChild) box.removeChild(box.firstChild);
+    // Scritte fisse della mappa (citta' e lago): i blocchi non ci vanno sopra.
+    var occupati = [{ x0: 68, x1: 125, y0: 42, y1: 56 }, { x0: 243, x1: 280, y0: 152, y1: 167 }, { x0: 340, x1: 387, y0: 371, y1: 392 }, { x0: 155, x1: 212, y0: 90, y1: 103 }], spots = [];
+    D.spot.forEach(function (s) {
+      var xy = P(s.lon, s.lat), x = xy[0], y = xy[1], a = s.adesso, o = { s: s, x: x, y: y, a: a, on: false };
+      occupati.push({ x0: x - 10 * f, x1: x + 10 * f, y0: y - 10 * f, y1: y + 10 * f });
+      if (a) {
+        var deg = Number(a.deg), cl = classe(s, deg);
+        o.on = a.fonte !== 'vecchia' && a.wind >= D.soglia && cl !== 'terra';
+        o.deg = deg;
+        o.colore = a.fonte === 'vecchia' ? 'var(--muted)' : (cl === 'terra' ? 'var(--bad)' : (o.on ? 'var(--ok)' : 'var(--fg)'));
+        var ux = Math.sin(deg * Math.PI / 180), uy = -Math.cos(deg * Math.PI / 180);
+        var ax = [x + ux * 12 * f, x + ux * 37 * f], ay = [y + uy * 12 * f, y + uy * 37 * f];
+        occupati.push({ x0: Math.min(ax[0], ax[1]) - 6 * f, x1: Math.max(ax[0], ax[1]) + 6 * f, y0: Math.min(ay[0], ay[1]) - 6 * f, y1: Math.max(ay[0], ay[1]) + 6 * f });
+      }
+      spots.push(o);
+    });
+    function libero(b) {
+      if (b.x0 < 1 || b.x1 > MW - 1 || b.y0 < 1 || b.y1 > MH - 1) return false;
+      return !occupati.some(function (o) { return b.x0 < o.x1 && o.x0 < b.x1 && b.y0 < o.y1 && o.y0 < b.y1; });
+    }
+    spots.forEach(function (o) {
+      var s = o.s, x = o.x, y = o.y, a = o.a, nome = s.mappa || s.breve;
+      var g = el('g', { 'class': 'spotmk' }), gi = el('g', { transform: 'translate(' + x + ',' + y + ') scale(' + f + ')' });
+      g.append(gi);
+      if (a) {
+        var fr = el('g', { transform: 'rotate(' + o.deg + ')' });
+        var asta = el('line', { x1: 0, y1: -36, x2: 0, y2: -21, stroke: o.colore, 'stroke-width': 2.5, 'stroke-linecap': 'round' });
+        if (a.fonte !== 'stazione') asta.setAttribute('stroke-dasharray', '4 3');
+        fr.append(asta, el('path', { d: 'M0,-13L-5,-22L5,-22Z', fill: o.colore }));
+        gi.append(fr);
+      }
+      gi.append(el('circle', { cx: 0, cy: 0, r: 14, fill: o.on ? 'var(--ok)' : 'var(--muted)', opacity: 0.18 }),
+        el('circle', { cx: 0, cy: 0, r: 7, fill: o.on ? 'var(--ok)' : 'var(--panel)', stroke: o.on ? 'var(--ok)' : 'var(--fg)', 'stroke-width': 2 }));
+      // Rotellina intorno al pallino mentre arrivano le stazioni di questo spot.
+      var rot = el('g', { 'class': 'mkrot', id: 'mkrot-' + s.id }); rot.append(el('circle', { cx: 0, cy: 0, r: 11 })); gi.append(rot);
+      // Testo del blocco: "kts" una volta sola, poi vento medio e raffica in rosso.
+      var knT = a ? n(a.wind) : '', gT = a && a.gust != null ? n(a.gust) : '';
+      var largNum = a ? 22 + knT.length * 7.2 + (gT ? gT.length * 6.5 + 4 : 0) : 0;
+      var larg = Math.max(nome.length * 6.8, largNum) + 4, alto = a ? 27 : 14;
+      // Posizioni da provare: prima quella dello spot, poi intorno al pallino.
+      var prove = [[s.lab[0], s.lab[1], s.lab[2]], [12, 4, 'start'], [12, -10, 'start'], [12, 16, 'start'], [-12, 4, 'end'], [-12, -10, 'end'], [-12, 16, 'end'],
+        [0, -32, 'middle'], [0, 24, 'middle'], [16, -24, 'start'], [16, 28, 'start'], [-16, -24, 'end'], [-16, 28, 'end']];
+      var scelta = null, bScelta = null;
+      for (var i = 0; i < prove.length && !scelta; i++) {
+        var p = prove[i], bx = x + p[0] * f, by = y + p[1] * f, lf = larg * f;
+        var x0 = p[2] === 'start' ? bx : (p[2] === 'end' ? bx - lf : bx - lf / 2);
+        var b = { x0: x0, x1: x0 + lf, y0: by - 11 * f, y1: by - 11 * f + alto * f };
+        if (libero(b)) { scelta = p; bScelta = b; }
+      }
+      if (!scelta) { scelta = prove[0]; var lf0 = larg * f, x00 = scelta[2] === 'start' ? x + scelta[0] * f : (scelta[2] === 'end' ? x + scelta[0] * f - lf0 : x + scelta[0] * f - lf0 / 2); bScelta = { x0: x00, x1: x00 + lf0, y0: y + (scelta[1] - 11) * f, y1: y + (scelta[1] - 11 + alto) * f }; }
+      occupati.push(bScelta);
+      var tx = scelta[0], ty = scelta[1];
+      gi.append(el('text', { x: tx, y: ty, 'text-anchor': scelta[2], 'class': 'lab' }, nome));
+      if (a) {
+        var t = el('text', { x: tx, y: ty + 14, 'text-anchor': scelta[2], 'class': 'kn' });
+        t.append(el('tspan', { 'class': 'ku' }, 'kts'), el('tspan', { dx: 4 }, knT));
+        if (gT) t.append(el('tspan', { 'class': 'kg', dx: 4 }, gT));
+        gi.append(t);
+      }
+      g.addEventListener('click', function () { document.getElementById('spot-' + s.id).scrollIntoView({ block: 'start' }); });
+      box.append(g);
+    });
+    }
+    disegna();
+    var tm; window.addEventListener('resize', function () { clearTimeout(tm); tm = setTimeout(disegna, 250); });
+  })();
+
+  // ---- Stazioni ----
+  (function () {
+    var box = document.getElementById('stazioni');
+    D.stazioni.forEach(function (st) {
+      var spot = D.spot.filter(function (s) { return s.id === st.spot; })[0];
+      var t = h('div', 'sta'); t.id = 'st-' + st.id;
+      var top = h('div', 'top'); var a = link(st.nome, st.pagina); a.className = 'nm';
+      var dx = h('span', 'small', spot ? spot.breve + ' ' : '');
+      dx.append(bottoneAggiorna('↻', 'Rilegge solo questa stazione', 'radarkite://stazione?id=' + st.id, 'st.' + st.id));
+      top.append(a, dx);
+      t.append(top);
+      // Appunti: stazioni di solito lente o che spesso non rispondono.
+      var L = st.lenta, nota = null;
+      if (L && L.prove >= 5 && L.fallite / L.prove >= 0.4) nota = 'spesso non risponde (' + L.fallite + ' volte su ' + L.prove + ')';
+      else if (L && L.media != null && L.media > 10) nota = 'di solito lenta: risponde in ~' + Math.round(L.media) + ' s';
+      if (nota) t.append(h('div', 'small attesa', '⏱ ' + nota));
+      if (st.errore === 'in lettura') { t.classList.add('lettura'); var lt = h('div', 'small carico'); lt.style.display = 'block'; lt.append(h('span', 'rot'), document.createTextNode('lettura in corso…')); t.append(lt); box.append(t); return; }
+      var car = h('div', 'small carico'); car.append(h('span', 'rot'), document.createTextNode('aggiorno la stazione…')); t.append(car);
+      if (st.errore) { t.append(h('div', 'small vecchi', /sospes/i.test(st.errore) ? 'Servizio sospeso dal sito (rinnovo della stazione).' : 'Non raggiungibile adesso.')); box.append(t); return; }
+      if (st.giorni >= 1) { t.append(h('div', 'small vecchi', 'Ferma: ultima lettura il ' + st.data + ' alle ' + st.ora + '.')); box.append(t); return; }
+      var v = h('div', 'dv'); v.append(h('span', 'big2', n(st.wind)), h('span', 'u', 'kts'));
+      if (st.gust != null) v.append(h('span', 'g', n(st.gust) + ' kts'));
+      t.append(v, h('div', 'small vecchi', st.dir + ' ' + Math.round(st.deg) + '° · lettura delle ' + st.ora + ' · ' + st.stato));
+      if (spot && st.stato === 'aggiornata' && st.wind >= D.soglia && classe(spot, st.deg) !== 'terra') t.classList.add('on');
+      box.append(t);
+    });
+  })();
+
+  // ---- Spot ----
+  (function () {
+    var box = document.getElementById('spotlist');
+    var migliori = D.giorni.map(function (g, k) { var l = classifica(k); return l.length ? l[0].s.id : null; });
+    D.spot.forEach(function (s) {
+      var sec = h('section', 'spot'); sec.id = 'spot-' + s.id;
+      var head = h('div', 'shead');
+      var sx = h('div'); sx.append(h('span', 'sname', s.nome));
+      var a = s.adesso;
+      if (a) {
+        var ad = h('span', 'small', '  ·  adesso ' + n(a.wind) + ' kts');
+        if (a.gust != null) ad.append(h('span', 'g', n(a.gust) + ' kts'));
+        var fonte = a.fonte === 'previsione' ? 'previsione ' : ((a.nome || 'stazione').toLowerCase() + (a.fonte === 'vecchia' ? ' (vecchia) ' : ' '));
+        ad.append(document.createTextNode(' ' + a.dir + ' · ' + fonte + a.ora));
+        sx.append(ad);
+      }
+      if (D.aggiornando) sx.append(h('span', 'small attesa', ' · ⏳ stazioni, meteo e onde in lettura'));
+      var aggS = dataLocale(s.aggiornato);
+      if (aggS && Math.abs(aggS - creato) > 60000) sx.append(h('span', 'small', ' · spot aggiornato alle ' + hhmm(aggS)));
+      var mv = minuti(s);
+      if (mv != null) sx.append(h('span', 'info', '🚗 ' + mv + ' min' + (s.viaggio.traffico != null ? ' col traffico' : ' (stima)')));
+      var dest = s.lat.toFixed(5) + ',' + s.lon.toFixed(5), Pt = D.partenza || {};
+      var daQui = !PDF && Pt.lat != null, nomeP = Pt.scelta === 'lavoro' ? 'lavoro' : 'casa';
+      sx.append(
+        naviga('Waze', 'https://waze.com/ul?ll=' + s.lat.toFixed(5) + '%2C' + s.lon.toFixed(5) + '&navigate=yes', 'Waze: navigazione fino allo spot, dalla tua posizione'),
+        naviga('Maps', 'https://www.google.com/maps/dir/?api=1' + (daQui ? '&origin=' + Pt.lat + ',' + Pt.lon : '') + '&destination=' + dest + '&travelmode=driving' + (daQui ? '' : '&dir_action=navigate'),
+          daQui ? 'Google Maps: percorso col traffico da ' + nomeP + ' (' + (Pt[nomeP] || '') + ') allo spot' : 'Google Maps: navigazione fino allo spot, dalla tua posizione'));
+      if (s.ondeOra && s.ondeOra.h != null) {
+        var on = h('span', 'info'); on.append(iconaOnda(), ' onde ' + virgola(s.ondeOra.h) + ' m · ' + s.ondeOra.p + ' s, ' + tipoOnda(s.ondeOra));
+        on.title = 'Adesso' + (s.ondeOra.d != null ? ', da ' + bussola(s.ondeOra.d) : '') + (s.ondeOra.sh != null ? ' · onda lunga ' + virgola(s.ondeOra.sh) + ' m ' + s.ondeOra.sp + ' s' : '') + (s.ondeOra.wh != null ? ' · onde da vento ' + virgola(s.ondeOra.wh) + ' m ' + s.ondeOra.wp + ' s' : '');
+        sx.append(on);
+      }
+      if (s.acqua != null) sx.append(h('span', 'info', '🌡️ acqua ' + s.acqua + '° · muta ' + muta(s.acqua)));
+      var links = h('div', 'links');
+      links.append(bottoneAggiorna('↻ Aggiorna spot', 'Rilegge solo questo spot: vento adesso, previsioni della settimana, onde e meteo', 'radarkite://spot?id=' + s.id, 'spot.' + s.id));
+      if (s.webcam) links.append(link('Webcam', s.webcam));
+      links.append(link('Windguru', 'https://www.windguru.cz/' + s.wg));
+      (s.stazioni || []).forEach(function (st) { links.append(link(st.etichetta || 'Stazione', st.pagina)); });
+      links.append(
+        link('Windy', 'https://www.windy.com/' + s.lat.toFixed(3) + '/' + s.lon.toFixed(3) + '?' + s.lat.toFixed(3) + ',' + s.lon.toFixed(3) + ',11'),
+        link('Ventusky', 'https://www.ventusky.com/?p=' + s.lat.toFixed(3) + ';' + s.lon.toFixed(3) + ';10&l=wind-10m'));
+      if (s.surf) links.append(link(s.id === 'torva' ? 'Surf-forecast (Ostia)' : 'Surf-forecast', s.surf));
+      head.append(sx, links);
+      sec.append(head);
+      if (s.errore) { sec.append(h('div', 'err', 'Previsione Windguru non letta: ' + s.errore)); box.append(sec); return; }
+      var days = h('div', 'days');
+      s.giorni.forEach(function (g, k) {
+        var info = D.giorni[k];
+        var t = h('div', 'd'); t.id = 't-' + s.id + '-' + k;
+        if (k > 4) t.classList.add('lontano');
+        var top = h('div', 'dtop'); top.append(h('span', null, info.oggi ? 'oggi' : info.nome));
+        if (g.firing && migliori[k] === s.id) top.append(h('span', 'best', '★ migliore'));
+        t.append(top);
+        // Sempre 6 righe, nello stesso ordine in tutti i giorni: vento, ore e direzione, tempo, avvisi, Open-Meteo.
+        var v = h('div', 'dv'), riga = h('div', 'small'), mt = h('div', 'meteo'), chips = h('div', 'chips'), om = h('div', 'om');
+        if (g.firing) {
+          t.classList.add(g.pericolose ? 'risk' : 'fire');
+          v.append(vento(g.min + '–' + g.maxf, g.raffica));
+          riga.textContent = 'ore ' + ore(g.ore) + ' · ' + direzioni(g.dir);
+          // Etichette corte su una riga; il testo intero passando sopra con il mouse.
+          if (g.pericolose) chips.append(chip('bad', '⚠ raffiche ' + (g.raffica != null ? g.raffica : ''), 'raffiche pericolose (oltre 35 kts)'));
+          else if (g.rafficato) chips.append(chip('warn', 'rafficato', 'raffiche oltre 10 kts sopra la media'));
+          if (g.ideale) chips.append(chip('ok', g.ideale.replace(/^ideale con /, 'ideale: '), g.ideale));
+          if (g.attenzione) g.attenzione.replace(/^[^:]+:\s*/, '').split(/,\s*/).forEach(function (x) { chips.append(chip('warn', x, g.attenzione)); });
+          if (g.sideoff) chips.append(h('span', 'chip warn', 'side-off'));
+        } else {
+          v.append(vento(g.max == null ? '—' : g.max, g.maxRaff));
+          riga.textContent = g.max == null ? 'fuori fascia' : 'max ' + (g.maxDir || '') + ' · no firing';
+        }
+        if (temporale(g)) chips.append(h('span', 'chip bad', '⚡ temporale'));
+        if (g.meteo) {
+          ['mattina', 'pomeriggio', 'sera'].forEach(function (nm, i) {
+            var pp = g.meteo.periodi[i]; if (!pp) return;
+            var sp = h('span', null, icona(pp.codice) + ' ' + pp.temp + '°');
+            sp.title = nm + ': ' + pp.temp + '°C' + (pp.pioggia ? ', pioggia ' + String(pp.pioggia).replace('.', ',') + ' mm' : '');
+            mt.append(sp);
+          });
+        }
+        // Secondo modello (Open-Meteo): conferma o no la finestra di Windguru.
+        if (g.om && g.firing && g.om.firing) { om.append('Open-Meteo '); om.append(h('b', 'si', '✓')); om.title = 'Open-Meteo concorda: ' + forbice(g.om.firing) + ' kts, ore ' + ore(g.om.firing.ore); }
+        else if (g.om && g.firing) { om.append('Open-Meteo '); om.append(h('b', 'no', '✗'), ' ' + (g.om.max == null ? '—' : g.om.max) + ' kts'); om.title = 'Open-Meteo non vede firing: massimo ' + (g.om.max == null ? '—' : g.om.max) + ' kts'; }
+        else if (g.om && g.om.firing) { om.append('Open-Meteo '); om.append(h('b', 'no', '✗'), ' ' + g.om.firing.max + ' kts'); om.title = 'Open-Meteo vede vento ' + forbice(g.om.firing) + ' kts, ore ' + ore(g.om.firing.ore); }
+        t.append(v, riga, mt, ondeEl(g.onde), chips, om);
+        days.append(t);
+      });
+      var nomi = (s.stazioni || []).map(function (st) { return st.nome; }).join(' + ');
+      sec.append(days, h('div', 'small', 'Windguru: ' + s.wgSpot + ' · GFS ' + s.init + ' UTC · ' + ((s.stazioni || []).length > 1 ? 'stazioni: ' : 'stazione: ') + nomi));
+      box.append(sec);
+    });
+  })();
+
+  // ---- Giorno passato: previsto contro registrato ----
+  function apriGiorno(data) {
+    var ov = document.getElementById('giorno'), corpo = document.getElementById('ovcorpo');
+    var p = (D.passati || []).filter(function (x) { return x.data === data; })[0] || { dettaglio: [] };
+    var dd = dataLoc(data);
+    document.getElementById('ovtitolo').textContent = ['domenica', 'lunedì', 'martedì', 'mercoledì', 'giovedì', 'venerdì', 'sabato'][dd.getDay()] + ' ' + dd.getDate() + ' ' + MESI[dd.getMonth()] + ' ' + dd.getFullYear() + ': previsto e registrato';
+    corpo.textContent = '';
+    if (!(p.dettaglio || []).length) corpo.append(h('p', 'small', 'Per questo giorno non c\'è una previsione salvata da confrontare: il confronto parte dai giorni in cui il programma è stato avviato almeno una volta (meglio se con l\'avvio automatico ogni ora).'));
+    (p.dettaglio || []).forEach(function (x) {
+      var c = h('div', 'conf'); c.append(h('b', null, x.nome));
+      var pf = x.prevF, rf = x.regF, nreg = (x.reg || []).length, v;
+      var fin = function (f) { return 'ore ' + ore(f.ore) + ', ' + f.min + '–' + f.max + ' kts'; };
+      if (!(x.prev || []).length) v = ['', 'Nessuna previsione salvata per questo giorno.'];
+      else if (!nreg) v = ['', 'Nessuna lettura delle stazioni salvata: non si può dire se la previsione era giusta.'];
+      else if (pf && rf) v = ['si', '✓ Azzeccata: previsto vento ' + fin(pf) + '; registrato ' + fin(rf) + '.'];
+      else if (pf && !rf) v = ['no', '✗ Previsto vento (' + fin(pf) + ') ma le stazioni non l\'hanno confermato.'];
+      else if (!pf && rf) v = ['no', '✗ Non previsto, ma c\'è stato vento: ' + fin(rf) + '.'];
+      else v = ['si', '✓ Niente vento previsto e niente registrato.'];
+      c.append(h('div', 'verd ' + v[0], v[1]));
+      var note = [];
+      if (x.salvata) note.push('previsione Windguru salvata alle ' + x.salvata + (x.anticipo ? ' del giorno prima' : ''));
+      if (x.scarto != null) note.push('in media Windguru ha dato ' + (x.scarto >= 0 ? String(x.scarto).replace('.', ',') + ' kts in più' : String(-x.scarto).replace('.', ',') + ' kts in meno') + ' della stazione (' + x.oreConfronto + ' ore confrontate)');
+      if (x.omF) note.push('Open-Meteo prevedeva vento ' + fin(x.omF));
+      note.push(nreg + (nreg === 1 ? ' ora con letture' : ' ore con letture'));
+      c.append(h('div', 'small', note.join(' · ')));
+      var ore_ = {};
+      (x.prev || []).forEach(function (r) { (ore_[r.h] = ore_[r.h] || {}).p = r; });
+      (x.om || []).forEach(function (r) { (ore_[r.h] = ore_[r.h] || {}).o = r; });
+      (x.reg || []).forEach(function (r) { (ore_[r.h] = ore_[r.h] || {}).r = r; });
+      var tab = h('table', 'tab'), tr = h('tr');
+      ['Ora', 'Previsto Windguru', 'Open-Meteo', 'Registrato'].forEach(function (t) { tr.append(h('th', null, t)); });
+      tab.append(tr);
+      Object.keys(ore_).map(Number).sort(function (a, b) { return a - b; }).forEach(function (hh) {
+        var o = ore_[hh], r = h('tr');
+        r.append(h('td', null, hh + ':00'));
+        var tp = h('td'); if (o.p) { tp.append(n(o.p.w) + ' kts'); if (o.p.g != null) tp.append(h('span', 'g', n(o.p.g))); tp.append(' ' + o.p.d); } else tp.append('—');
+        var to = h('td', null, o.o ? n(o.o.w) + ' kts' : '—');
+        var tr2 = h('td'); if (o.r) { tr2.append(h('b', null, n(o.r.w) + ' kts')); if (o.r.g != null) tr2.append(h('span', 'g', n(o.r.g))); tr2.append(' ' + o.r.d + (o.r.n > 1 ? ' · ' + o.r.n + ' letture' : '')); } else tr2.append('—');
+        r.append(tp, to, tr2); tab.append(r);
+      });
+      c.append(tab);
+      corpo.append(c);
+    });
+    ov.hidden = false; ov.scrollTop = 0;
+  }
+  document.getElementById('ovchiudi').addEventListener('click', function () { document.getElementById('giorno').hidden = true; });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') document.getElementById('giorno').hidden = true; });
+
+  // ---- Diario delle uscite ----
+  (function () {
+    var box = document.getElementById('diario'), lista = D.diario || [];
+    var nomeSpot = {}; D.spot.forEach(function (s) { nomeSpot[s.id] = s.breve; });
+    var f = h('form');
+    function campo(etichetta, el) { var l = h('label', null, etichetta); l.append(el); f.append(l); return el; }
+    var oggiIso = iso(creato);
+    var cd = campo('Data', h('input')); cd.type = 'date'; cd.value = oggiIso;
+    var co = campo('Ora inizio', h('input')); co.type = 'time';
+    var cs = campo('Spot', h('select')); D.spot.forEach(function (s) { var o = h('option', null, s.breve); o.value = s.id; cs.append(o); });
+    var cm = campo('Minuti', h('input')); cm.type = 'number'; cm.min = 1; cm.max = 600; cm.style.width = '70px';
+    var cv = campo('Vela (m)', h('input')); cv.value = '12'; cv.style.width = '60px';
+    var cn = campo('Note', h('input')); cn.style.width = '200px';
+    var bs = h('button', null, '+ Salva uscita'); bs.type = 'submit'; f.append(bs);
+    f.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var q = 'd=' + encodeURIComponent(cd.value) + '&o=' + encodeURIComponent(co.value) + '&s=' + encodeURIComponent(cs.value) + '&m=' + encodeURIComponent(cm.value) + '&v=' + encodeURIComponent(cv.value) + '&n=' + encodeURIComponent(cn.value);
+      lancia('radarkite://uscita?' + q);
+    });
+    box.append(f);
+    if (!lista.length) { box.append(h('p', 'small', 'Ancora nessuna uscita. Compila e premi «Salva uscita»: il programma la scrive in dati\\diario.csv (lo puoi correggere con Excel).')); return; }
+    var tot = {}, totMin = 0;
+    lista.forEach(function (u) { var t = tot[u.spot] = tot[u.spot] || { n: 0, m: 0 }; t.n++; t.m += u.minuti || 0; totMin += u.minuti || 0; });
+    var st = h('div', 'stat'); st.append(h('span', null, lista.length + (lista.length === 1 ? ' uscita' : ' uscite') + ' · ' + durata(totMin)));
+    Object.keys(tot).forEach(function (k) { st.append(h('span', null, (nomeSpot[k] || k) + ': ' + tot[k].n + ' · ' + tot[k].m + ' min')); });
+    box.append(st);
+    var tab = h('table', 'tab'), tr = h('tr');
+    ['Data', 'Spot', 'Durata', 'Vela', 'Vento letto', 'Note'].forEach(function (t) { tr.append(h('th', null, t)); });
+    tab.append(tr);
+    lista.slice().reverse().forEach(function (u) {
+      var r = h('tr'), dd = dataLoc(u.data);
+      r.append(h('td', null, GG[dd.getDay()] + ' ' + dd.getDate() + ' ' + MESI[dd.getMonth()] + (u.ora ? ' ' + u.ora : '')), h('td', null, nomeSpot[u.spot] || u.spot),
+        h('td', null, u.minuti ? u.minuti + ' min' : '—'), h('td', null, u.vela ? u.vela + ' m' : '—'));
+      var tv = h('td'); if (u.vento) { tv.append(h('b', null, n(u.vento.w) + ' kts')); if (u.vento.g != null) tv.append(h('span', 'g', n(u.vento.g))); tv.append(' ' + u.vento.d); } else tv.append(h('span', 'small', u.ora ? 'nessuna lettura' : 'senza ora'));
+      r.append(tv, h('td', null, u.note || ''));
+      tab.append(r);
+    });
+    box.append(tab);
+  })();
+
+  // ---- PDF per il telefono: senza pulsanti e su una sola pagina lunga ----
+  if (location.hash === '#pdf') {
+    document.body.classList.add('pdf');
+    var pag = document.createElement('style');
+    pag.textContent = '@page{size:760px ' + (Math.ceil(document.documentElement.scrollHeight * 1.03) + 60) + 'px;margin:0}';
+    document.head.append(pag);
+  }
+})();
+</script>
+</body>
+</html>

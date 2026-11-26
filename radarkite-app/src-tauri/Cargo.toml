@@ -1,0 +1,15 @@
+[package]
+name = "radar-kite"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Radar kite 4.0"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+# custom-protocol sempre acceso: la finestra non cerca mai un server di sviluppo.
+tauri = { version = "2", features = ["custom-protocol"] }
+motore = { path = "../motore" }
+open = "5"
