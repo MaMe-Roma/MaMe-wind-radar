@@ -5,6 +5,8 @@
 pub mod previsioni;
 pub mod regole;
 pub mod rete;
+pub mod stazioni;
+pub mod viaggi;
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -15,6 +17,8 @@ use serde_json::{json, Map, Value};
 
 use previsioni::*;
 use regole::*;
+use stazioni::Lettura;
+use viaggi::Imp;
 
 pub const VERSIONE: &str = "4.0";
 pub const DATA_VERSIONE: &str = "26/11/2026";
@@ -51,11 +55,15 @@ pub struct Opzioni {
     pub modello: Option<PathBuf>,
     /// 1 = pagina subito con le previsioni, 2 = pagina completa. A mano: [1, 2]; giro automatico: [2].
     pub fasi: Vec<u8>,
+    /// Corsa automatica (niente traffico Google), come -Automatico.
+    pub automatico: bool,
+    /// Pulsante della pagina che ha avviato il motore (radarkite://...).
+    pub link: Option<String>,
 }
 
 impl Opzioni {
     pub fn nuove(cartella: PathBuf) -> Self {
-        Opzioni { cartella, cache: None, solo_cache: false, adesso: None, om_prova: None, modello: None, fasi: vec![1, 2] }
+        Opzioni { cartella, cache: None, solo_cache: false, adesso: None, om_prova: None, modello: None, fasi: vec![1, 2], automatico: false, link: None }
     }
 }
 
@@ -118,6 +126,10 @@ pub fn esegui(o: &Opzioni) -> Result<Esito, String> {
         rete.parti(&url_om, "https://open-meteo.com/", false, true, 15, false);
     }
     rete.parti(&url_mare, "https://open-meteo.com/", false, true, 15, false);
+    for st in STAZIONI {
+        rete.parti(st.url, st.referer, st.tipo == "weathercloud", true, 60, true);
+    }
+    rete.segna_t0();
     log.tempo("richieste partite (tutte insieme)");
 
     let mut spot_res = Vec::new();
@@ -137,6 +149,60 @@ pub fn esegui(o: &Opzioni) -> Result<Esito, String> {
     }
     log.tempo("previsioni Windguru lette");
 
+    // Impostazioni personali e pulsanti della pagina che le cambiano (partenza, indirizzi, tempi di viaggio).
+    let file_imp = o.cartella.join("impostazioni.txt");
+    let mut imp = viaggi::leggi_impostazioni(&file_imp);
+    let link = o.link.clone().unwrap_or_default();
+    let mut forza_viaggi = false;
+    if link.starts_with("radarkite://partenza") {
+        let q = viaggi::parametri(&link);
+        if let Some(p) = q.get("p").filter(|p| *p == "casa" || *p == "lavoro") {
+            viaggi::salva_impostazione(&file_imp, "partenza", p);
+            imp.insert("partenza".into(), p.clone());
+        }
+        forza_viaggi = true;
+    }
+    if link.starts_with("radarkite://viaggi") {
+        forza_viaggi = true;
+    }
+    if link.starts_with("radarkite://indirizzi") {
+        let q = viaggi::parametri(&link);
+        for (k, nome) in [("c", "casa"), ("l", "lavoro")] {
+            if let Some(v) = q.get(k) {
+                let v = viaggi::pulisci(v, 120);
+                viaggi::salva_impostazione(&file_imp, nome, &v);
+                imp.insert(nome.into(), v);
+            }
+        }
+        if let Some(p) = q.get("p").filter(|p| *p == "casa" || *p == "lavoro") {
+            viaggi::salva_impostazione(&file_imp, "partenza", p);
+            imp.insert("partenza".into(), p.clone());
+        }
+        if imp[&imp["partenza"]].is_empty() {
+            let alt = if imp["partenza"] == "casa" { "lavoro" } else { "casa" };
+            if !imp[alt].is_empty() {
+                viaggi::salva_impostazione(&file_imp, "partenza", alt);
+                imp.insert("partenza".into(), alt.into());
+            }
+        }
+        log.scrivi(&format!("Partenza salvata: casa = {} | lavoro = {}", imp["casa"], imp["lavoro"]));
+        forza_viaggi = true;
+    }
+    let (mut dati_viaggi, mut errore_viaggi) = (None, String::new());
+    if !imp[&imp["partenza"]].is_empty() {
+        match viaggi::viaggi(&imp, &dir_dati, &mut rete, forza_viaggi, o.automatico, adesso) {
+            Ok(v) => {
+                dati_viaggi = v;
+                log.scrivi(&format!("  Tempi di viaggio da {}... ok", imp["partenza"]));
+            }
+            Err(e) => {
+                log.scrivi(&format!("  Tempi di viaggio da {}... ERRORE: {e}", imp["partenza"]));
+                errore_viaggi = e;
+            }
+        }
+    }
+    log.tempo("tempi di viaggio");
+
     let modello = match &o.modello {
         Some(p) => std::fs::read_to_string(p).map_err(|e| format!("pagina non letta: {e}"))?,
         None => MODELLO.to_string(),
@@ -149,6 +215,12 @@ pub fn esegui(o: &Opzioni) -> Result<Esito, String> {
     let mut righe_firing = Vec::new();
 
     for &fase in &o.fasi {
+        let mut st_res: HashMap<&str, Result<Lettura, String>> = HashMap::new();
+        if fase == 1 {
+            for st in STAZIONI {
+                st_res.insert(st.id, Err("in lettura".into()));
+            }
+        }
         if fase == 2 {
             let testo_om = match &o.om_prova {
                 Some(p) => std::fs::read_to_string(p).map_err(|e| e.to_string()),
@@ -182,6 +254,19 @@ pub fn esegui(o: &Opzioni) -> Result<Esito, String> {
                 }
             }
             log.tempo("Open-Meteo e mare");
+            for st in STAZIONI {
+                let esito = rete.testo(st.url, st.referer, st.tipo == "weathercloud").and_then(|t| stazioni::leggi(st, &t)).map(|mut l| {
+                    let eta = (adesso - l.t).num_milliseconds() as f64 / 60000.0;
+                    l.fresca = !l.offline && eta <= st.fresco as f64 && eta >= -15.0;
+                    l
+                });
+                match &esito {
+                    Ok(l) => log.scrivi(&format!("  Stazione {}... ok{}", st.nome, if l.fresca { "" } else { " (vecchia)" })),
+                    Err(e) => log.scrivi(&format!("  Stazione {}... ERRORE: {e}", st.nome)),
+                }
+                st_res.insert(st.id, esito);
+            }
+            log.tempo("stazioni lette");
             righe_firing = firing_testo(&spot_res, adesso);
             if righe_firing.is_empty() {
                 log.scrivi("Nessuna finestra di vento nei prossimi giorni.");
@@ -192,7 +277,9 @@ pub fn esegui(o: &Opzioni) -> Result<Esito, String> {
                 }
             }
         }
-        let d = dati_pagina(&spot_res, &om, &acqua, onde.as_ref(), &errore_om, &errore_mare, adesso, fase);
+        let lente = tempi_stazioni(&dir_dati, &st_res, &rete, fase, adesso);
+        let cx = Contesto { st_res: &st_res, lente: &lente, viaggi: dati_viaggi.as_ref(), imp: &imp, errore_viaggi: &errore_viaggi };
+        let d = dati_pagina(&spot_res, &om, &acqua, onde.as_ref(), &errore_om, &errore_mare, adesso, fase, &cx);
         let scrittura = d["scrittura"].as_i64().unwrap_or(0);
         let html = modello.replacen("/*DATI*/null", &json_per_pagina(&d), 1);
         let mut b = vec![0xEF, 0xBB, 0xBF];
@@ -223,13 +310,53 @@ fn firing_testo(spot_res: &[EsitoSpot], adesso: NaiveDateTime) -> Vec<String> {
     righe.into_iter().map(|x| x.2).collect()
 }
 
+struct Contesto<'a> {
+    st_res: &'a HashMap<&'a str, Result<Lettura, String>>,
+    lente: &'a HashMap<&'static str, Value>,
+    viaggi: Option<&'a Value>,
+    imp: &'a Imp,
+    errore_viaggi: &'a str,
+}
+
+/// Appunti sulle stazioni (dati/tempi-stazioni.csv): quanto ci mettono a rispondere e se rispondono.
+fn tempi_stazioni(dir_dati: &Path, st_res: &HashMap<&str, Result<Lettura, String>>, rete: &rete::Rete, fase: u8, adesso: NaiveDateTime) -> HashMap<&'static str, Value> {
+    let file = dir_dati.join("tempi-stazioni.csv");
+    let mut righe: Vec<String> = std::fs::read_to_string(&file).map(|t| t.lines().skip(1).filter(|r| !r.is_empty()).map(String::from).collect()).unwrap_or_default();
+    if fase == 2 {
+        for st in STAZIONI {
+            let Some(l) = st_res.get(st.id) else { continue };
+            if matches!(l, Err(e) if e.to_lowercase().contains("sospes")) {
+                continue;
+            }
+            let sec = rete.secondi(st.url).map(|x| format!("{x:.1}")).unwrap_or_default();
+            righe.push(format!("{};{};{};{}", adesso.format("%Y-%m-%d %H:%M"), st.id, sec, if l.is_ok() { "ok" } else { "errore" }));
+        }
+        if righe.len() > 3000 {
+            righe.drain(..righe.len() - 3000);
+        }
+        let _ = std::fs::write(&file, format!("data;stazione;secondi;esito\r\n{}\r\n", righe.join("\r\n")));
+    }
+    let mut lente = HashMap::new();
+    for st in STAZIONI {
+        let sue: Vec<Vec<&str>> = righe.iter().map(|r| r.split(';').collect::<Vec<_>>()).filter(|p| p.len() >= 2 && p[1] == st.id).collect();
+        if sue.len() < 3 {
+            continue;
+        }
+        let sue = &sue[sue.len().saturating_sub(30)..];
+        let ok: Vec<f64> = sue.iter().filter(|p| p.len() > 3 && p[3] == "ok" && !p[2].is_empty()).filter_map(|p| p[2].parse().ok()).collect();
+        let media = if ok.is_empty() { Value::Null } else { num(round_n(ok.iter().sum::<f64>() / ok.len() as f64, 1)) };
+        lente.insert(st.id, json!({ "media": media, "fallite": sue.len() - ok.len(), "prove": sue.len() }));
+    }
+    lente
+}
+
 fn giorno_txt(d: NaiveDate) -> String {
     d.format("%Y-%m-%d").to_string()
 }
 
 #[allow(clippy::too_many_arguments)]
 fn dati_pagina(spot_res: &[EsitoSpot], om: &HashMap<&str, Vec<RigaOm>>, acqua: &HashMap<&str, Option<f64>>, onde: Option<&HashMap<&str, Vec<RigaOnde>>>,
-    errore_om: &str, errore_mare: &str, adesso: NaiveDateTime, fase: u8) -> Value {
+    errore_om: &str, errore_mare: &str, adesso: NaiveDateTime, fase: u8, cx: &Contesto) -> Value {
     let ora_txt = adesso.format("%Y-%m-%dT%H:%M:%S").to_string();
     let giorni_d: Vec<Value> = (0..GIORNI).map(|k| {
         let d = adesso.date() + Duration::days(k);
@@ -240,8 +367,20 @@ fn dati_pagina(spot_res: &[EsitoSpot], om: &HashMap<&str, Vec<RigaOm>>, acqua: &
     let mut dati_spot = Vec::new();
     for r in spot_res {
         let s = r.s;
-        // Vento adesso: stazione aggiornata (fase 2), altrimenti previsione dell'ora.
+        // Vento adesso: stazione aggiornata, altrimenti previsione dell'ora, altrimenti stazione vecchia.
+        let letture: Vec<(&str, &Lettura)> = s.stazioni.iter().filter_map(|sid| match cx.st_res.get(sid) { Some(Ok(l)) => Some((*sid, l)), _ => None }).collect();
+        let l = match letture.iter().find(|x| x.1.fresca) {
+            Some(x) => Some(*x),
+            None => {
+                let mut v: Vec<(&str, &Lettura)> = letture.iter().copied().filter(|x| !x.1.offline).collect();
+                ordina_ps(&mut v, |a, b| b.1.t.cmp(&a.1.t));
+                v.first().copied()
+            }
+        };
+        let da_stazione = |fonte: &str, (sid, l): (&str, &Lettura)| json!({ "fonte": fonte, "wind": num(round_n(l.wind, 1)), "gust": num_o(l.gust.map(|g| round_n(g, 1))),
+            "deg": num(l.deg), "dir": comp(l.deg), "ora": l.t.format("%H:%M").to_string(), "nome": stazione(sid).map(|x| x.etichetta).unwrap_or("") });
         let adesso_v = match &r.wg {
+            _ if l.is_some_and(|x| x.1.fresca) => da_stazione("stazione", l.unwrap()),
             Some(wg) if !wg.righe.is_empty() => {
                 // Sort-Object { |t - adesso| } | Select-Object -First 1, con l'ordinamento della 3.4.
                 let mut ord: Vec<&RigaWg> = wg.righe.iter().collect();
@@ -249,7 +388,7 @@ fn dati_pagina(spot_res: &[EsitoSpot], om: &HashMap<&str, Vec<RigaOm>>, acqua: &
                 let row = ord[0];
                 json!({ "fonte": "previsione", "wind": num(row.wind), "gust": num_o(row.gust), "deg": num(row.deg), "dir": row.dir, "ora": row.t.format("%H:%M").to_string() })
             }
-            _ => Value::Null,
+            _ => l.map(|x| da_stazione("vecchia", x)).unwrap_or(Value::Null),
         };
         let om_s = om.get(s.id).filter(|v| !v.is_empty());
         let onde_s = onde.and_then(|m| m.get(s.id)).filter(|v| !v.is_empty());
@@ -314,23 +453,37 @@ fn dati_pagina(spot_res: &[EsitoSpot], om: &HashMap<&str, Vec<RigaOm>>, acqua: &
         let staz: Vec<Value> = s.stazioni.iter().filter_map(|id| stazione(id)).map(|x| json!({ "id": x.id, "nome": x.nome, "etichetta": x.etichetta, "pagina": x.pagina })).collect();
         let onde_ora = onde_g.get(&adesso.date()).map(|v| onde_giorno(v, adesso.date(), adesso.hour() as i64, adesso.hour() as i64)).unwrap_or(Value::Null);
         dati_spot.push(json!({
-            "viaggio": null, "acqua": num_o(acqua.get(s.id).copied().flatten()), "ondeOra": onde_ora, "id": s.id, "nome": s.nome, "breve": s.breve,
+            "viaggio": cx.viaggi.map(|v| json!({ "stima": v["stima"].get(s.id).cloned().unwrap_or(Value::Null), "traffico": v["traffico"].get(s.id).cloned().unwrap_or(Value::Null), "ora": v["trafficoOra"].clone() })).unwrap_or(Value::Null),
+            "acqua": num_o(acqua.get(s.id).copied().flatten()), "ondeOra": onde_ora, "id": s.id, "nome": s.nome, "breve": s.breve,
             "mappa": s.mappa.unwrap_or(s.breve), "lon": s.lon, "lat": s.lat, "lab": [s.lab.0, s.lab.1, s.lab.2], "wg": s.wg, "webcam": s.webcam, "surf": s.surf,
             "ok": [num(s.ok[0]), num(s.ok[1])], "terra": [num(s.terra[0]), num(s.terra[1])], "stazioni": staz, "errore": r.errore,
             "wgSpot": r.wg.as_ref().map(|w| w.spot.clone()).unwrap_or_default(), "init": r.wg.as_ref().map(|w| w.init.clone()).unwrap_or_default(),
             "adesso": adesso_v, "giorni": tessere, "aggiornato": ora_txt
         }));
     }
-    // Stazioni: si leggono dalla fase 2 del piano. Per ora la pagina le mostra come non lette.
-    let errore_st = if fase == 1 { "in lettura" } else { "lettura delle stazioni: arriva con la fase 2 di Radar kite 4.0" };
     let dati_stazioni: Vec<Value> = STAZIONI.iter().map(|st| {
         let suo = SPOT.iter().find(|s| s.stazioni.contains(&st.id)).map(|s| s.id);
-        json!({ "id": st.id, "nome": st.nome, "pagina": st.pagina, "spot": suo, "errore": errore_st, "lenta": null, "aggiornato": ora_txt })
+        let lenta = cx.lente.get(st.id).cloned().unwrap_or(Value::Null);
+        match cx.st_res.get(st.id) {
+            Some(Ok(l)) => {
+                let stato = if l.offline { "offline" } else if l.fresca { "aggiornata" } else { "vecchia" };
+                let giorni = ((adesso - l.t).num_milliseconds() as f64 / 86_400_000.0).floor() as i64;
+                json!({ "id": st.id, "nome": st.nome, "pagina": st.pagina, "spot": suo, "data": l.t.format("%d/%m").to_string(), "giorni": giorni,
+                    "wind": num(round_n(l.wind, 1)), "gust": num_o(l.gust.map(|g| round_n(g, 1))), "deg": num(l.deg), "dir": comp(l.deg), "ora": l.t.format("%H:%M").to_string(),
+                    "stato": stato, "lenta": lenta, "aggiornato": ora_txt })
+            }
+            Some(Err(e)) => json!({ "id": st.id, "nome": st.nome, "pagina": st.pagina, "spot": suo, "errore": e, "lenta": lenta, "aggiornato": ora_txt }),
+            None => json!({ "id": st.id, "nome": st.nome, "pagina": st.pagina, "spot": suo, "errore": "non letta", "lenta": lenta, "aggiornato": ora_txt }),
+        }
     }).collect();
+    let imp = cx.imp;
+    let v = cx.viaggi;
     json!({
         "scrittura": Local::now().timestamp_millis(), "aggiornando": fase == 1, "passatiCalcolati": "", "omErrore": errore_om, "mareErrore": errore_mare,
         "versione": VERSIONE, "dataVersione": DATA_VERSIONE, "autore": AUTORE, "contatto": CONTATTO, "app": true, "copia": null, "creato": ora_txt,
         "soglia": num(SOGLIA), "oreMin": ORE_MIN, "giorni": giorni_d, "passati": [], "spot": dati_spot, "stazioni": dati_stazioni, "diario": [],
-        "partenza": { "scelta": "casa", "casa": "", "lavoro": "", "casaImp": "", "lavoroImp": "", "errore": "", "trovato": "", "lat": null, "lon": null, "google": false }
+        "partenza": { "scelta": imp["partenza"], "casa": viaggi::nome_posto(&imp["casa"]), "lavoro": viaggi::nome_posto(&imp["lavoro"]), "casaImp": imp["casa"], "lavoroImp": imp["lavoro"],
+            "errore": cx.errore_viaggi, "trovato": v.map(|v| v["trovato"].clone()).unwrap_or(json!("")), "lat": v.map(|v| v["lat"].clone()).unwrap_or(Value::Null),
+            "lon": v.map(|v| v["lon"].clone()).unwrap_or(Value::Null), "google": !imp["google_chiave"].is_empty() }
     })
 }

@@ -5,11 +5,14 @@
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Mutex;
 
 use tauri::http::Response;
 use tauri::{Url, WebviewUrl, WebviewWindowBuilder};
 
 static IN_CORSO: AtomicBool = AtomicBool::new(false);
+// Pulsante premuto mentre il motore lavora: parte appena finisce (vale l'ultimo).
+static IN_CODA: Mutex<Option<Option<String>>> = Mutex::new(None);
 
 const ATTESA: &str = r#"<!DOCTYPE html>
 <html lang="it"><head><meta charset="utf-8"><title>Radar kite</title></head>
@@ -32,13 +35,23 @@ fn cartella_app() -> PathBuf {
     base.unwrap_or_else(std::env::temp_dir).join("Radar kite")
 }
 
-/// Fa girare il motore in sottofondo (uno alla volta).
-fn aggiorna(cartella: PathBuf) {
+/// Fa girare il motore in sottofondo (uno alla volta). link = il pulsante della pagina (radarkite://...).
+fn aggiorna(cartella: PathBuf, link: Option<String>) {
     if IN_CORSO.swap(true, Ordering::SeqCst) {
+        *IN_CODA.lock().unwrap() = Some(link);
         return;
     }
     std::thread::spawn(move || {
-        let _ = motore::esegui(&motore::Opzioni::nuove(cartella));
+        let mut link = link;
+        loop {
+            let mut o = motore::Opzioni::nuove(cartella.clone());
+            o.link = link;
+            let _ = motore::esegui(&o);
+            match IN_CODA.lock().unwrap().take() {
+                Some(dopo) => link = dopo,
+                None => break,
+            }
+        }
         IN_CORSO.store(false, Ordering::SeqCst);
     });
 }
@@ -61,7 +74,8 @@ fn servi(cartella: &Path, percorso: &str) -> Response<Vec<u8>> {
     }
 }
 
-/// Un pulsante della pagina (radarkite://...). Fase 1: tutti aggiornano; impostazioni, diario e copia arrivano dopo.
+/// Un pulsante della pagina (radarkite://...). Partenza, indirizzi e tempi di viaggio li gestisce il motore;
+/// diario, copia per il telefono e aggiornamento di un solo spot arrivano con la fase 3 (intanto aggiornano tutto).
 fn comando(url: &Url, cartella: &Path) {
     match url.host_str().unwrap_or("") {
         "apri" => {
@@ -71,7 +85,7 @@ fn comando(url: &Url, cartella: &Path) {
                 }
             }
         }
-        _ => aggiorna(cartella.to_path_buf()),
+        _ => aggiorna(cartella.to_path_buf(), Some(url.as_str().to_string())),
     }
 }
 
@@ -90,7 +104,7 @@ fn main() {
             #[cfg(not(windows))]
             let base = "rk://localhost/";
             let url: Url = format!("{base}report.html#aggiorno-{ora}").parse().expect("indirizzo della pagina");
-            aggiorna(per_finestra.clone());
+            aggiorna(per_finestra.clone(), None);
             let c = per_finestra.clone();
             WebviewWindowBuilder::new(app, "principale", WebviewUrl::External(url))
                 .title("Radar kite")

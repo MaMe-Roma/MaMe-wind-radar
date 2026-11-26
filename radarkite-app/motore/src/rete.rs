@@ -6,7 +6,8 @@ use std::collections::HashMap;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{channel, Receiver, RecvTimeoutError};
-use std::time::Duration;
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 use crate::regole::UA;
 
@@ -23,6 +24,9 @@ pub struct Rete {
     cache: PathBuf,
     solo_cache: bool,
     pre: HashMap<String, Pre>,
+    /// Quando ha risposto ogni sito (per i tempi delle stazioni, come Update-Tempi).
+    fatti: Arc<Mutex<HashMap<String, Instant>>>,
+    t0: Instant,
 }
 
 pub fn file_cache(dir: &Path, url: &str) -> PathBuf {
@@ -73,7 +77,7 @@ fn messaggio(m: &str, secondi: u64) -> String {
 impl Rete {
     pub fn new(cache: PathBuf, solo_cache: bool) -> Self {
         let _ = std::fs::create_dir_all(&cache);
-        Rete { cache, solo_cache, pre: HashMap::new() }
+        Rete { cache, solo_cache, pre: HashMap::new(), fatti: Arc::new(Mutex::new(HashMap::new())), t0: Instant::now() }
     }
 
     /// Fa partire una richiesta (Start-Scarico). rigido = Open-Meteo, mare e stazioni.
@@ -88,10 +92,22 @@ impl Rete {
         }
         let (tx, rx) = channel();
         let (u, r) = (url.to_string(), referer.to_string());
+        let fatti = self.fatti.clone();
         std::thread::spawn(move || {
-            let _ = tx.send(scarica(&u, &r, xhr, secondi));
+            let esito = scarica(&u, &r, xhr, secondi);
+            fatti.lock().unwrap().insert(u, Instant::now());
+            let _ = tx.send(esito);
         });
         self.pre.insert(url.to_string(), Pre { rx: Some(rx), testo: None, errore: None, rigido, secondi, stazione });
+    }
+
+    /// Da qui si contano i secondi di risposta delle stazioni (come $T0 nella 3.4).
+    pub fn segna_t0(&mut self) {
+        self.t0 = Instant::now();
+    }
+    /// Secondi dalla partenza delle richieste alla risposta del sito (None se non e' stato scaricato ora).
+    pub fn secondi(&self, url: &str) -> Option<f64> {
+        self.fatti.lock().unwrap().get(url).map(|t| crate::previsioni::round_n(t.saturating_duration_since(self.t0).as_secs_f64(), 1))
     }
 
     /// Get-Scaricato: Ok(Some((testo, dalla_cache))), Ok(None) = da riprovare, Err = errore definitivo.

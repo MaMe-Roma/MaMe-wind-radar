@@ -12,8 +12,10 @@ fn main() {
     o.solo_cache = a.iter().any(|x| x == "--solo-cache");
     o.om_prova = val("--om-prova").map(PathBuf::from);
     o.modello = val("--modello").map(PathBuf::from);
+    o.link = val("--link");
     if a.iter().any(|x| x == "--automatico") {
         o.fasi = vec![2];
+        o.automatico = true;
     }
     if let Some(t) = val("--adesso") {
         match chrono::NaiveDateTime::parse_from_str(&t, "%Y-%m-%dT%H:%M:%S") {
