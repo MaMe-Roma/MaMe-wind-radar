@@ -214,10 +214,11 @@ pub fn giorni(s: &Spot, righe: &[RigaWg], adesso: NaiveDateTime) -> Vec<Giorno> 
         }
         let mut res = Giorno { data: giorno, nome: nome_giorno(giorno), oggi: k == 0, fascia: format!("{}-{}", f.0, f.1), max: None, max_raff: None, max_dir: String::new(), firing: None };
         if !utili.is_empty() {
-            // Il piu' ventoso; a parita' il primo (ordinamento stabile come Sort-Object su poche righe).
+            // Il piu' ventoso (Sort-Object wind -Descending | Select-Object -First 1).
+            // A parita' di vento la 3.4 tiene l'ultima ora, non la prima: verificato col confronto sulla stessa cache.
             let mut top = utili[0];
             for r in &utili {
-                if r.wind > top.wind {
+                if r.wind >= top.wind {
                     top = r;
                 }
             }
