@@ -34,7 +34,7 @@ jobs:
       - name: Impostazioni di prova uguali per 3.4 e 4.0 (indirizzo pubblico, non quello vero)
         shell: powershell
         run: |
-          $imp = "casa = Via del Corso 1, Roma`r`nlavoro = Piazza Venezia, Roma (41.89580, 12.48270)`r`npartenza = casa`r`ncopia_telefono = no`r`n"
+          $imp = "casa = Via del Corso 1, Roma`r`nlavoro = Piazza Venezia, Roma (41.89580, 12.48270)`r`npartenza = lavoro`r`ncopia_telefono = no`r`n"
           [IO.File]::WriteAllText("$PWD\radarkite\impostazioni.txt", $imp)
           New-Item -ItemType Directory -Force out4 | Out-Null
           [IO.File]::WriteAllText("$PWD\out4\impostazioni.txt", $imp)
