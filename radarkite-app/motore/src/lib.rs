@@ -243,13 +243,10 @@ fn dati_pagina(spot_res: &[EsitoSpot], om: &HashMap<&str, Vec<RigaOm>>, acqua: &
         // Vento adesso: stazione aggiornata (fase 2), altrimenti previsione dell'ora.
         let adesso_v = match &r.wg {
             Some(wg) if !wg.righe.is_empty() => {
-                let mut row = &wg.righe[0];
-                let dist = |x: &RigaWg| (x.t - adesso).num_milliseconds().abs();
-                for x in &wg.righe {
-                    if dist(x) < dist(row) {
-                        row = x;
-                    }
-                }
+                // Sort-Object { |t - adesso| } | Select-Object -First 1, con l'ordinamento della 3.4.
+                let mut ord: Vec<&RigaWg> = wg.righe.iter().collect();
+                ordina_ps(&mut ord, |a, b| (a.t - adesso).num_milliseconds().abs().cmp(&(b.t - adesso).num_milliseconds().abs()));
+                let row = ord[0];
                 json!({ "fonte": "previsione", "wind": num(row.wind), "gust": num_o(row.gust), "deg": num(row.deg), "dir": row.dir, "ora": row.t.format("%H:%M").to_string() })
             }
             _ => Value::Null,

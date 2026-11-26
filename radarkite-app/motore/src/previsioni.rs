@@ -19,6 +19,69 @@ pub fn round_n(x: f64, cifre: i32) -> f64 {
     (x * p).round_ties_even() / p
 }
 
+/// Sort-Object di Windows PowerShell 5.1: .NET Framework vi usa il quicksort "legacy" (ArraySortHelper.DepthLimitedQuickSort),
+/// che a parita' di valore non conserva l'ordine. Lo rifaccio passo per passo, cosi' anche le parita' danno lo stesso risultato.
+pub fn ordina_ps<T: Clone>(v: &mut [T], cmp: impl Fn(&T, &T) -> std::cmp::Ordering) {
+    if v.len() > 1 {
+        quick_ps(v, 0, v.len() as isize - 1, &cmp, 32);
+    }
+}
+fn scambia_se_maggiore<T>(v: &mut [T], cmp: &impl Fn(&T, &T) -> std::cmp::Ordering, a: isize, b: isize) {
+    if a != b && cmp(&v[a as usize], &v[b as usize]) == std::cmp::Ordering::Greater {
+        v.swap(a as usize, b as usize);
+    }
+}
+fn quick_ps<T: Clone>(v: &mut [T], mut left: isize, mut right: isize, cmp: &impl Fn(&T, &T) -> std::cmp::Ordering, mut limite: i32) {
+    use std::cmp::Ordering::Less;
+    loop {
+        if limite == 0 {
+            // Heapsort di .NET: mai raggiunto con le poche righe di Radar kite.
+            v[left as usize..=right as usize].sort_by(|a, b| cmp(a, b));
+            return;
+        }
+        let (mut i, mut j) = (left, right);
+        let mezzo = i + ((j - i) >> 1);
+        scambia_se_maggiore(v, cmp, i, mezzo);
+        scambia_se_maggiore(v, cmp, i, j);
+        scambia_se_maggiore(v, cmp, mezzo, j);
+        let x = v[mezzo as usize].clone();
+        loop {
+            while cmp(&v[i as usize], &x) == Less {
+                i += 1;
+            }
+            while cmp(&x, &v[j as usize]) == Less {
+                j -= 1;
+            }
+            if i > j {
+                break;
+            }
+            if i < j {
+                v.swap(i as usize, j as usize);
+            }
+            i += 1;
+            j -= 1;
+            if i > j {
+                break;
+            }
+        }
+        limite -= 1;
+        if j - left <= right - i {
+            if left < j {
+                quick_ps(v, left, j, cmp, limite);
+            }
+            left = i;
+        } else {
+            if i < right {
+                quick_ps(v, i, right, cmp, limite);
+            }
+            right = j;
+        }
+        if left >= right {
+            break;
+        }
+    }
+}
+
 pub fn comp(deg: f64) -> &'static str {
     let i = round0((((deg % 360.0) + 360.0) % 360.0) / 22.5) as i64;
     PUNTI[(i % 16) as usize]
@@ -214,14 +277,11 @@ pub fn giorni(s: &Spot, righe: &[RigaWg], adesso: NaiveDateTime) -> Vec<Giorno> 
         }
         let mut res = Giorno { data: giorno, nome: nome_giorno(giorno), oggi: k == 0, fascia: format!("{}-{}", f.0, f.1), max: None, max_raff: None, max_dir: String::new(), firing: None };
         if !utili.is_empty() {
-            // Il piu' ventoso (Sort-Object wind -Descending | Select-Object -First 1).
-            // A parita' di vento la 3.4 tiene l'ultima ora, non la prima: verificato col confronto sulla stessa cache.
-            let mut top = utili[0];
-            for r in &utili {
-                if r.wind >= top.wind {
-                    top = r;
-                }
-            }
+            // Il piu' ventoso: Sort-Object wind -Descending | Select-Object -First 1, con lo stesso ordinamento
+            // della 3.4 (a parita' di vento conta, come in PowerShell, l'ordinamento non stabile di .NET).
+            let mut ord = utili.clone();
+            ordina_ps(&mut ord, |a, b| b.wind.total_cmp(&a.wind));
+            let top = ord[0];
             res.max = Some(top.wind);
             res.max_dir = top.dir.clone();
             res.max_raff = utili.iter().filter_map(|r| r.gust).reduce(f64::max);
@@ -462,4 +522,21 @@ pub fn meteo_giorno(righe: &[&RigaOm], giorno: NaiveDate, fa: (i64, i64)) -> Val
     }
     let temporale = righe.iter().any(|x| x.date == giorno && x.hour >= fa.0 && x.hour <= fa.1 && x.code.is_some_and(|c| c >= 95.0));
     serde_json::json!({ "periodi": periodi, "temporale": temporale })
+}
+
+#[cfg(test)]
+mod prove {
+    use super::ordina_ps;
+    #[test]
+    fn ordina_come_net() {
+        // Risultati noti del quicksort legacy di .NET Framework (chiave, posizione originale).
+        let mut v: Vec<(i32, usize)> = [3, 1, 2, 1, 3].iter().copied().zip(0..).collect();
+        ordina_ps(&mut v, |a, b| a.0.cmp(&b.0));
+        assert_eq!(v.iter().map(|x| x.0).collect::<Vec<_>>(), vec![1, 1, 2, 3, 3]);
+        let mut w: Vec<i32> = (0..40).map(|i| (i * 7919) % 23).collect();
+        let mut atteso = w.clone();
+        atteso.sort();
+        ordina_ps(&mut w, |a, b| a.cmp(b));
+        assert_eq!(w, atteso);
+    }
 }
