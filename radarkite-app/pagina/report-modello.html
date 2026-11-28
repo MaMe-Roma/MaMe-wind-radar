@@ -165,6 +165,12 @@ body.pdf .rbtn{display:none}
 body.pdf .aggbanner{display:none}
 @media (max-width:600px){.aggbanner{flex:1 1 100%;min-width:0}.abtesto{display:none}.abriga{gap:6px}}
 .pform .aiuto{flex:1 1 100%;line-height:1.5}
+/* App 4.0: aggiornamento automatico */
+.autom{display:flex;gap:6px 10px;align-items:center;flex-wrap:wrap;margin:4px 0 8px;font-size:13px}
+.autom.domanda{display:block;padding:12px 14px;border:2px solid var(--ok);border-radius:12px;background:var(--panel)}
+.autom .atit{font-weight:700;font-size:15px;margin-bottom:4px}.autom .ariga{display:flex;gap:6px 10px;align-items:center;flex-wrap:wrap;margin:8px 0 6px}
+.autom input,.autom select,.autom button{font:inherit;font-size:13px;color:var(--fg);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:4px 8px}
+.autom button{cursor:pointer;font-weight:600}.autom .ko{color:var(--bad);font-weight:600}
 /* Copia per il telefono */
 .copiatel{display:flex;gap:8px 10px;align-items:center;flex-wrap:wrap;margin-top:6px;font-size:13px}
 .copiatel select,.copiatel input,.copiatel button{font:inherit;font-size:13px;color:var(--fg);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:4px 8px}
@@ -216,6 +222,7 @@ body.pdf .grid{grid-template-columns:1fr}body.pdf .cal{grid-template-columns:rep
   <div class="testa"><h1>Radar kite <span class="ver" id="ver"></span></h1>
     <div class="agg"><span class="small" id="aggstato"></span><div class="aggbanner" id="aggbanner" hidden></div><button type="button" id="aggiorna" title="Rilancia il programma sul PC: rilegge previsioni e stazioni e ricarica la pagina">↻ Aggiorna</button></div></div>
   <p class="sub" id="sub"></p>
+  <div class="autom" id="autom"></div>
   <div class="barra" id="barra"></div>
   <div class="copiatel" id="copiatel"></div>
 
@@ -649,6 +656,29 @@ var D = /*DATI*/null;
     var ora = (D.spot.filter(function (s) { return s.viaggio && s.viaggio.ora; })[0] || {}).viaggio;
     var dove = P.trovato ? 'partenza: ' + (/^coordinate/.test(P.trovato) ? P.trovato : P.trovato.split(',').slice(0, 3).join(',')) + ' · ' : '';
     b.append(sel, mod, ric, h('span', 'small', dove + (conTraffico ? 'tempi col traffico' + (ora && ora.ora ? ' delle ' + ora.ora : '') + ' (Google)' : 'tempi stimati senza traffico · per il traffico vero usa i pulsanti Waze o Maps degli spot')));
+  })();
+  // ---- App 4.0: aggiornamento automatico anche ad app chiusa, per tenere aggiornato il PDF sul telefono ----
+  (function () {
+    var b = document.getElementById('autom'), A = D.automatico; if (!b || !A || PDF || !D.app) { if (b) b.remove(); return; }
+    var NOMI = { 30: 'ogni 30 minuti', 60: 'ogni ora', 120: 'ogni 2 ore', 180: 'ogni 3 ore' };
+    function editor(domanda) {
+      b.textContent = ''; b.className = 'autom domanda';
+      var da = h('input'); da.type = 'time'; da.value = A.dalle || '06:30';
+      var al = h('input'); al.type = 'time'; al.value = A.alle || '19:30';
+      var og = h('select'); [30, 60, 120, 180].forEach(function (m) { var o = h('option', null, NOMI[m]); o.value = m; if (+A.ogni === m) o.selected = true; og.append(o); });
+      function invia(si) { lancia('radarkite://automatico?a=' + (si ? 'si' : 'no') + '&da=' + encodeURIComponent(da.value) + '&al=' + encodeURIComponent(al.value) + '&ogni=' + og.value); }
+      var si = h('button', null, domanda ? 'Sì, attiva' : 'Salva e attiva'); si.type = 'button'; si.onclick = function () { invia(true); };
+      var no = h('button', null, domanda ? 'No, solo quando apro l\'app' : 'Spegni'); no.type = 'button'; no.onclick = function () { invia(false); };
+      b.append(h('div', 'atit', '⏰ Aggiornamento automatico, per il PDF sul telefono'),
+        h('div', null, 'Radar kite può aggiornarsi da solo anche ad app chiusa, se il PC o il Mac è acceso. Così il PDF nella cartella del telefono (Dropbox, Drive…) resta sempre aggiornato e lo guardi dal cellulare quando sei fuori.'));
+      var r = h('div', 'ariga'); r.append(h('span', null, 'Dalle'), da, h('span', null, 'alle'), al, og, si, no); b.append(r);
+      b.append(h('div', 'small', 'Puoi cambiarlo quando vuoi da questa riga.'));
+      if (A.errore) b.append(h('div', 'ko', A.errore));
+    }
+    if (!A.stato || A.errore) { editor(!A.stato); return; }
+    var cambia = h('button', null, A.stato === 'si' ? 'Cambia' : 'Attiva'); cambia.type = 'button'; cambia.onclick = function () { editor(false); };
+    if (A.stato === 'si') b.append(h('span', null, '⏰ Aggiornamento automatico:'), h('b', null, 'attivo'), h('span', null, 'dalle ' + A.dalle + ' alle ' + A.alle + ' ' + (NOMI[A.ogni] || '') + (A.prossimo ? ' · ' + A.prossimo : '')), cambia);
+    else b.append(h('span', null, '⏰ Aggiornamento automatico:'), h('b', null, 'spento'), h('span', 'small', 'si aggiorna solo quando apri l\'app'), cambia);
   })();
   // ---- Copia per il telefono: cartella dove il programma salva il PDF a ogni aggiornamento ----
   (function () {

@@ -3,6 +3,7 @@
 //! Stazioni, impostazioni e tempi di viaggio arrivano nella fase 2; storico, diario, PDF e giro ogni ora nella fase 3.
 
 pub mod copia;
+pub mod pianifica;
 pub mod previsioni;
 pub mod regole;
 pub mod rete;
@@ -61,11 +62,13 @@ pub struct Opzioni {
     pub automatico: bool,
     /// Pulsante della pagina che ha avviato il motore (radarkite://...).
     pub link: Option<String>,
+    /// Il programma da avviare per l'aggiornamento automatico (solo nell'app).
+    pub programma: Option<PathBuf>,
 }
 
 impl Opzioni {
     pub fn nuove(cartella: PathBuf) -> Self {
-        Opzioni { cartella, cache: None, solo_cache: false, adesso: None, om_prova: None, modello: None, fasi: vec![1, 2], automatico: false, link: None }
+        Opzioni { cartella, cache: None, solo_cache: false, adesso: None, om_prova: None, modello: None, fasi: vec![1, 2], automatico: false, link: None, programma: None }
     }
 }
 
@@ -203,6 +206,32 @@ pub fn esegui(o: &Opzioni) -> Result<Esito, String> {
             }
         }
     }
+    // Aggiornamento automatico anche ad app chiusa: risposta e orari scelti nella pagina.
+    let mut errore_auto = String::new();
+    if link.starts_with("radarkite://automatico") {
+        let si = q.get("a").map(|s| s.as_str()) == Some("si");
+        match pianifica::controlla(q.get("da").map(|s| s.as_str()).unwrap_or(""), q.get("al").map(|s| s.as_str()).unwrap_or(""), q.get("ogni").map(|s| s.as_str()).unwrap_or("")) {
+            Ok((da, al, ogni)) => {
+                for (k, v) in [("automatico_dalle", da), ("automatico_alle", al), ("automatico_ogni", ogni)] {
+                    viaggi::salva_impostazione(&file_imp, k, &v);
+                    imp.insert(k.into(), v);
+                }
+            }
+            Err(e) if si => errore_auto = e,
+            Err(_) => {}
+        }
+        if errore_auto.is_empty() {
+            let v = if si { "si" } else { "no" };
+            viaggi::salva_impostazione(&file_imp, "automatico", v);
+            imp.insert("automatico".into(), v.into());
+            if let Some(p) = &o.programma {
+                if let Err(e) = pianifica::applica(&imp, p) {
+                    errore_auto = e;
+                }
+            }
+        }
+        log.scrivi(&format!("  Aggiornamento automatico: {} {}", imp["automatico"], errore_auto));
+    }
     let file_copia = dir_calcoli.join("copia-telefono.txt");
     let mut pdf_ultimo = std::fs::read_to_string(&file_copia).map(|t| t.trim().to_string()).unwrap_or_default();
     let mut forza_viaggi = false;
@@ -338,6 +367,8 @@ pub fn esegui(o: &Opzioni) -> Result<Esito, String> {
         let cx = Contesto { st_res: &st_res, lente: &lente, viaggi: dati_viaggi.as_ref(), imp: &imp, errore_viaggi: &errore_viaggi };
         let mut d = dati_pagina(&spot_res, &om, &acqua, onde.as_ref(), &errore_om, &errore_mare, adesso, fase, &cx);
         d["copia"] = copia::dati_pagina(&imp["copia_telefono"], &cloud, &errore_copia, &pdf_ultimo);
+        d["automatico"] = json!({ "stato": imp["automatico"], "dalle": imp["automatico_dalle"], "alle": imp["automatico_alle"],
+            "ogni": imp["automatico_ogni"].parse::<i64>().unwrap_or(60), "prossimo": pianifica::prossimo(&imp, adesso), "errore": errore_auto });
         d["passati"] = passati;
         d["passatiCalcolati"] = json!(passati_calcolati);
         d["diario"] = diario;

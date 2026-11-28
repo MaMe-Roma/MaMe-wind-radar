@@ -49,6 +49,7 @@ fn aggiorna(cartella: PathBuf, link: Option<String>, automatico: bool) {
         loop {
             let mut o = motore::Opzioni::nuove(cartella.clone());
             o.link = link;
+            o.programma = std::env::current_exe().ok();
             if automatico && o.link.is_none() {
                 o.fasi = vec![2];
                 o.automatico = true;
@@ -96,29 +97,17 @@ fn comando(url: &Url, cartella: &Path) {
     }
 }
 
-/// Giro ogni ora dalle 6:30 alle 19:30, solo mentre la finestra e' aperta (chiusa la finestra, l'app si chiude).
-/// Si spegne con avvio_automatico = no in impostazioni.txt.
-fn giro_orario(cartella: PathBuf) {
-    use chrono::Timelike;
-    std::thread::spawn(move || {
-        let mut ultimo = None;
-        loop {
-            std::thread::sleep(std::time::Duration::from_secs(30));
-            let t = chrono::Local::now().naive_local();
-            let chiave = (t.date(), t.hour());
-            if (30..35).contains(&t.minute()) && (6..=19).contains(&t.hour()) && ultimo != Some(chiave) {
-                ultimo = Some(chiave);
-                let imp = motore::viaggi::leggi_impostazioni(&cartella.join("impostazioni.txt"));
-                if imp["avvio_automatico"] != "no" {
-                    aggiorna(cartella.clone(), None, true);
-                }
-            }
-        }
-    });
-}
-
 fn main() {
     let cartella = cartella_app();
+    // Avviato dal pianificatore del sistema: aggiorna senza finestra ed esce.
+    if std::env::args().any(|a| a == "--automatico") {
+        let _ = std::fs::create_dir_all(&cartella);
+        let mut o = motore::Opzioni::nuove(cartella);
+        o.fasi = vec![2];
+        o.automatico = true;
+        let _ = motore::esegui(&o);
+        return;
+    }
     let _ = std::fs::create_dir_all(&cartella);
     let per_protocollo = cartella.clone();
     let per_finestra = cartella.clone();
@@ -136,9 +125,13 @@ fn main() {
             let c0 = per_finestra.clone();
             std::thread::spawn(move || {
                 let _ = motore::storico::importa_34(&c0);
+                // L'aggiornamento automatico punta sempre a questo programma (anche se e' stato spostato).
+                let imp = motore::viaggi::leggi_impostazioni(&c0.join("impostazioni.txt"));
+                if let (true, Ok(exe)) = (imp["automatico"] == "si", std::env::current_exe()) {
+                    let _ = motore::pianifica::applica(&imp, &exe);
+                }
                 aggiorna(c0, None, false);
             });
-            giro_orario(per_finestra.clone());
             let c = per_finestra.clone();
             WebviewWindowBuilder::new(app, "principale", WebviewUrl::External(url))
                 .title("Radar kite")

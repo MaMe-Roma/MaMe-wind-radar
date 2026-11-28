@@ -73,7 +73,7 @@ jobs:
         with:
           workspaces: radarkite-app
       - name: Compila l'app
-        run: cargo build --release -p radar-kite --manifest-path radarkite-app/Cargo.toml
+        run: cargo build --release -p radar-kite -p motore --manifest-path radarkite-app/Cargo.toml
       - name: Prova (Windows) - l'app si apre e il motore scrive la pagina
         if: runner.os == 'Windows'
         shell: powershell
@@ -85,7 +85,10 @@ jobs:
           "app ancora aperta: $(-not $p.HasExited) - pagina completa: $ok dopo $($i * 2) s - dimensione exe: $([Math]::Round((Get-Item radarkite-app\target\release\radar-kite.exe).Length / 1MB, 1)) MB"
           Get-Content "$PWD\prova-app\dati\ultimo-avvio.txt" -ErrorAction SilentlyContinue | Select-String 'Windguru|Open-Meteo|Mare|pagina'
           if (-not $p.HasExited) { Stop-Process -Id $p.Id -Force }
-          if (-not $ok) { exit 1 }
+          $env:RK_CARTELLA = "$PWD\prova-auto"
+          Start-Process -FilePath "radarkite-app\target\release\radar-kite.exe" -ArgumentList '--automatico' -Wait
+          "senza finestra (--automatico): pagina scritta $(Test-Path "$PWD\prova-auto\report.html")"
+          if (-not $ok -or -not (Test-Path "$PWD\prova-auto\report.html")) { exit 1 }
       - name: Prova (Mac) - l'app si apre e il motore scrive la pagina
         if: runner.os == 'macOS'
         shell: bash
@@ -98,7 +101,13 @@ jobs:
           echo "app ancora aperta: $aperta - pagina completa: $ok dopo $((i * 2)) s - $(uname -m) - $(du -h radarkite-app/target/release/radar-kite | cut -f1)"
           grep -E 'Windguru|Open-Meteo|Mare|pagina' "$RK_CARTELLA/dati/ultimo-avvio.txt" || true
           kill $PID 2>/dev/null || true
-          $ok
+          RK_CARTELLA="$PWD/prova-auto" radarkite-app/target/release/radar-kite --automatico
+          echo "senza finestra (--automatico): pagina scritta $(test -f prova-auto/report.html && echo si || echo no)"
+          $ok && test -f prova-auto/report.html
+      - name: Pianificatore del sistema (attiva e toglie l'aggiornamento automatico)
+        continue-on-error: true
+        shell: bash
+        run: radarkite-app/target/release/rk-motore --prova-automatico
       - name: Programma da provare (Windows)
         if: runner.os == 'Windows'
         uses: actions/upload-artifact@v4
