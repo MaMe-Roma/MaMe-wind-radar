@@ -478,7 +478,7 @@ pub fn importa_34(cartella: &Path) -> Option<String> {
     let imp34 = crate::viaggi::leggi_impostazioni(&vecchia.join("impostazioni.txt"));
     let file_imp = cartella.join("impostazioni.txt");
     let imp40 = crate::viaggi::leggi_impostazioni(&file_imp);
-    if imp40["casa"].is_empty() && imp40["lavoro"].is_empty() {
+    if (imp40["casa"].is_empty() || imp40["casa"] == crate::viaggi::PARTENZA_PREDEFINITA) && imp40["lavoro"].is_empty() {
         for k in ["casa", "lavoro", "partenza", "copia_telefono", "google_chiave"] {
             if !imp34[k].is_empty() {
                 crate::viaggi::salva_impostazione(&file_imp, k, &imp34[k]);

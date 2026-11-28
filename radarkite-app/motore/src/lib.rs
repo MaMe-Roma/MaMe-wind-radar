@@ -23,8 +23,8 @@ use regole::*;
 use stazioni::Lettura;
 use viaggi::Imp;
 
-pub const VERSIONE: &str = "4.0";
-pub const DATA_VERSIONE: &str = "26/11/2026";
+pub const VERSIONE: &str = "4.1";
+pub const DATA_VERSIONE: &str = "28/11/2026";
 /// Cambia quando cambia il formato di giorni passati e diario in calcoli.json (cosi' si ricalcolano).
 const VERSIONE_CALCOLI: &str = "4.0-diario2";
 pub const AUTORE: &str = "@MadHatterMatt";

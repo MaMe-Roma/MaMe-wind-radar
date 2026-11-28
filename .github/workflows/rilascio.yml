@@ -1,0 +1,57 @@
+name: Rilascio Radar kite (installer e aggiornamenti)
+# Parte solo con un commit su app-rust che contiene [rilascio] nel messaggio.
+# Serve il segreto TAURI_SIGNING_PRIVATE_KEY (chiave che firma gli aggiornamenti).
+on:
+  push:
+    branches: [app-rust]
+permissions:
+  contents: write
+jobs:
+  rilascio:
+    if: contains(github.event.head_commit.message, '[rilascio]')
+    name: Installer ${{ matrix.nome }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            nome: Windows
+            args: ''
+          - os: macos-latest
+            nome: Mac Apple Silicon
+            args: '--target aarch64-apple-darwin'
+          - os: macos-15-intel
+            nome: Mac Intel
+            args: '--target x86_64-apple-darwin'
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: radarkite-app
+      - name: Strumenti Tauri
+        working-directory: radarkite-app
+        run: npm install
+      - name: Testo della pagina di rilascio
+        id: leggimi
+        shell: bash
+        run: |
+          { echo 'testo<<FINE'; cat radarkite-app/LEGGIMI.md; echo 'FINE'; } >> "$GITHUB_OUTPUT"
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ''
+        with:
+          projectPath: radarkite-app
+          tagName: v__VERSION__
+          releaseName: Radar kite __VERSION__
+          releaseBody: ${{ steps.leggimi.outputs.testo }}
+          releaseDraft: false
+          prerelease: false
+          includeUpdaterJson: true
+          args: ${{ matrix.args }}

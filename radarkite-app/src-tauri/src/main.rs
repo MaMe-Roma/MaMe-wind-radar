@@ -9,6 +9,8 @@ use std::sync::Mutex;
 
 use tauri::http::Response;
 use tauri::{Url, WebviewUrl, WebviewWindowBuilder};
+use tauri_plugin_dialog::{DialogExt, MessageDialogButtons};
+use tauri_plugin_updater::UpdaterExt;
 
 static IN_CORSO: AtomicBool = AtomicBool::new(false);
 // Pulsante premuto mentre il motore lavora: parte appena finisce (vale l'ultimo).
@@ -97,6 +99,25 @@ fn comando(url: &Url, cartella: &Path) {
     }
 }
 
+/// All'avvio: se su GitHub c'e' una versione nuova (firmata con la chiave di Radar kite) chiede se aggiornare.
+fn controlla_aggiornamenti(h: tauri::AppHandle) {
+    tauri::async_runtime::spawn(async move {
+        let Ok(u) = h.updater() else { return };
+        let Ok(Some(nuova)) = u.check().await else { return };
+        let testo = format!("È disponibile Radar kite {}.\n\nAggiorno adesso? L'app si chiude, si aggiorna e si riapre da sola. I tuoi dati restano.", nuova.version);
+        let h2 = h.clone();
+        h.dialog().message(testo).title("Radar kite").buttons(MessageDialogButtons::OkCancelCustom("Sì, aggiorna".into(), "Più tardi".into())).show(move |si| {
+            if si {
+                tauri::async_runtime::spawn(async move {
+                    if nuova.download_and_install(|_, _| {}, || {}).await.is_ok() {
+                        h2.restart();
+                    }
+                });
+            }
+        });
+    });
+}
+
 fn main() {
     let cartella = cartella_app();
     // Avviato dal pianificatore del sistema: aggiorna senza finestra ed esce.
@@ -112,6 +133,8 @@ fn main() {
     let per_protocollo = cartella.clone();
     let per_finestra = cartella.clone();
     tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_dialog::init())
         .register_uri_scheme_protocol("rk", move |_ctx, richiesta| servi(&per_protocollo, richiesta.uri().path()))
         .setup(move |app| {
             // Si apre l'ultimo report in modalita' "aggiornamento in corso" e intanto parte il motore.
@@ -133,6 +156,7 @@ fn main() {
                 aggiorna(c0, None, false);
             });
             let c = per_finestra.clone();
+            controlla_aggiornamenti(app.handle().clone());
             WebviewWindowBuilder::new(app, "principale", WebviewUrl::External(url))
                 .title("Radar kite")
                 .inner_size(1180.0, 900.0)
