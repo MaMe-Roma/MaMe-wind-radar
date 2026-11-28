@@ -83,7 +83,7 @@ jobs:
           $rep = "$PWD\prova-app\report.html"; $ok = $false
           for ($i = 0; $i -lt 60; $i++) { Start-Sleep 2; if ((Test-Path $rep) -and ([IO.File]::ReadAllText($rep) -match '"aggiornando":false')) { $ok = $true; break } }
           "app ancora aperta: $(-not $p.HasExited) - pagina completa: $ok dopo $($i * 2) s - dimensione exe: $([Math]::Round((Get-Item radarkite-app\target\release\radar-kite.exe).Length / 1MB, 1)) MB"
-          Get-Content "$PWD\prova-app\dati\ultimo-avvio.txt" -ErrorAction SilentlyContinue | Select-String 'Windguru|Open-Meteo|Mare|Stazione|pagina'
+          Get-Content "$PWD\prova-app\dati\ultimo-avvio.txt" -ErrorAction SilentlyContinue | Select-String 'Windguru|Open-Meteo|Mare|Stazione|pagina' | ForEach-Object { $_.Line }
           if (-not $p.HasExited) { Stop-Process -Id $p.Id -Force }
           $env:RK_CARTELLA = "$PWD\prova-auto"
           Start-Process -FilePath "radarkite-app\target\release\radar-kite.exe" -ArgumentList '--automatico' -Wait
