@@ -8,7 +8,7 @@ use chrono::NaiveDateTime;
 use regex::Regex;
 use serde_json::{json, Map, Value};
 
-use crate::regole::SPOT;
+use crate::regole::spot;
 use crate::rete::Rete;
 
 pub const IMP_TESTO: &str = "# Radar kite - impostazioni personali. Una per riga: nome = valore. Le righe con # sono note.\r\n#\r\n# Da dove parti per andare agli spot (indirizzo e citta'). Serve per il tempo di viaggio.\r\n# Per essere precisi aggiungi le coordinate tra parentesi, es. Via Roma 1, Roma (41.90000, 12.50000).\r\ncasa = Piramide Ostiense, Roma (41.87640, 12.48080)\r\nlavoro =\r\n# Quale delle due usare adesso: casa oppure lavoro (si cambia anche dal menu nella pagina).\r\npartenza = casa\r\n#\r\n# Aggiornamento automatico anche ad app chiusa (si sceglie dalla riga in cima alla pagina): automatico = si o no\r\n# (vuoto = non ancora deciso); dalle e alle = ore:minuti; ogni = minuti (30, 60, 120 o 180).\r\nautomatico =\r\nautomatico_dalle = 06:30\r\nautomatico_alle = 19:30\r\nautomatico_ogni = 60\r\n#\r\n# Copia PDF per il telefono (si sceglie anche dalla pagina, riga \"Copia per il telefono\"):\r\n# auto = Dropbox\\Radar kite se c'e'; no = nessuna copia; oppure il percorso di una cartella.\r\ncopia_telefono = auto\r\n#\r\n# Facoltativo: chiave Google Maps Platform (Routes API) per il tempo di viaggio col traffico. Vuoto = solo stima.\r\ngoogle_chiave =\r\n";
@@ -133,10 +133,10 @@ pub fn viaggi(imp: &Imp, dir_dati: &Path, rete: &mut Rete, forza: bool, automati
         return Ok(None);
     }
     let cache: Option<Value> = std::fs::read_to_string(&file_v).ok().and_then(|t| serde_json::from_str(t.trim_start_matches('\u{feff}')).ok());
-    let firma = SPOT.iter().map(|s| format!("{}:{},{}", s.id, f64_txt(s.lat), f64_txt(s.lon))).collect::<Vec<_>>().join(";");
+    let firma = spot().iter().map(|s| format!("{}:{},{}", s.id, f64_txt(s.lat), f64_txt(s.lon))).collect::<Vec<_>>().join(";");
     let testo_cache = |k: &str| cache.as_ref().and_then(|c| c.get(k)).and_then(|v| v.as_str()).unwrap_or("").to_lowercase();
     let valida = cache.is_some() && testo_cache("indirizzo") == indirizzo.to_lowercase() && testo_cache("firma") == firma.to_lowercase()
-        && SPOT.iter().all(|s| cache.as_ref().unwrap().get("stima").and_then(|x| x.get(s.id)).is_some_and(|v| !v.is_null()));
+        && spot().iter().all(|s| cache.as_ref().unwrap().get("stima").and_then(|x| x.get(s.id)).is_some_and(|v| !v.is_null()));
     let chiave = imp.get("google_chiave").cloned().unwrap_or_default();
     let traffico = !chiave.is_empty() && !automatico;
     if valida && !forza && !traffico {
@@ -189,11 +189,11 @@ pub fn viaggi(imp: &Imp, dir_dati: &Path, rete: &mut Rete, forza: bool, automati
             trovato = geo[0].get("display_name").cloned().unwrap_or(Value::Null);
         }
         let mut coord = vec![format!("{},{}", f64_txt(lon), f64_txt(lat))];
-        coord.extend(SPOT.iter().map(|s| format!("{},{}", f64_txt(s.lon), f64_txt(s.lat))));
+        coord.extend(spot().iter().map(|s| format!("{},{}", f64_txt(s.lon), f64_txt(s.lat))));
         let url = format!("https://router.project-osrm.org/table/v1/driving/{}?sources=0&annotations=duration", coord.join(";"));
         let osrm: Value = serde_json::from_str(rete.testo(&url, "https://project-osrm.org/", false)?.trim_start_matches('\u{feff}')).map_err(|e| format!("risposta non valida: {e}"))?;
         let mut m = Map::new();
-        for (i, s) in SPOT.iter().enumerate() {
+        for (i, s) in spot().iter().enumerate() {
             let d = osrm.get("durations").and_then(|x| x.get(0)).and_then(|x| x.get(i + 1)).and_then(|x| x.as_f64());
             m.insert(s.id.into(), d.map(|d| Value::from((d / 60.0).round_ties_even() as i64)).unwrap_or(Value::Null));
         }
@@ -203,7 +203,7 @@ pub fn viaggi(imp: &Imp, dir_dati: &Path, rete: &mut Rete, forza: bool, automati
     let mut live_ora = String::new();
     if traffico {
         let mut esito = Ok(());
-        for s in SPOT {
+        for s in spot() {
             let corpo = format!(r#"{{"origin":{{"location":{{"latLng":{{"latitude":{},"longitude":{}}}}}}},"destination":{{"location":{{"latLng":{{"latitude":{},"longitude":{}}}}}}},"travelMode":"DRIVE","routingPreference":"TRAFFIC_AWARE"}}"#,
                 f64_txt(lat), f64_txt(lon), f64_txt(s.lat), f64_txt(s.lon));
             let r = ureq::post("https://routes.googleapis.com/directions/v2:computeRoutes").timeout(std::time::Duration::from_secs(20))

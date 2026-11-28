@@ -74,7 +74,34 @@ pub static SPOT: &[Spot] = &[
     Spot { id: "fondi", nome: "Salto di Fondi", breve: "Salto di Fondi", mappa: None, lon: 13.31390, lat: 41.29504, lab: (11, 4, "start"), wg: 49042,
         ok: [110.0, 280.0], terra: [300.0, 80.0], stazioni: &["saltodifondi"], webcam: "", surf: None,
         ideali: &[Vicino { n: "ponente", d: 270.0 }], attenzione: &[] },
+    // Spot nuovi della 4.x: sempre in fondo (il confronto con la 3.4 usa solo i primi 8).
+    // Lago di Bracciano: solo tramontana e grecale; con le altre direzioni conviene il mare. Col vento da sud spinge al largo.
+    Spot { id: "vigna", nome: "Vigna di Valle (lago di Bracciano)", breve: "Vigna di Valle", mappa: None, lon: 12.22300, lat: 42.08500, lab: (8, 12, "start"), wg: WG_VIGNA,
+        ok: [340.0, 60.0], terra: [120.0, 240.0], stazioni: &[], webcam: "", surf: None,
+        ideali: &[Vicino { n: "tramontana", d: 0.0 }, Vicino { n: "grecale", d: 45.0 }], attenzione: &[] },
 ];
+
+const WG_VIGNA: i64 = 71531; // windguru.cz/71531
+
+const SPOT_34: usize = 8;
+static SOLO_34: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Spot attivi: tutti, oppure solo quelli della 3.4 nel confronto (--solo-cache).
+pub fn spot() -> &'static [Spot] {
+    if SOLO_34.load(std::sync::atomic::Ordering::Relaxed) { &SPOT[..SPOT_34] } else { SPOT }
+}
+
+/// Spot sui laghi: niente onde ne' temperatura del mare.
+const LAGHI: &[&str] = &["vigna"];
+
+/// Spot al mare, per la richiesta di acqua e onde.
+pub fn spot_mare() -> Vec<&'static Spot> {
+    spot().iter().filter(|s| !LAGHI.contains(&s.id)).collect()
+}
+
+pub fn solo_spot_34(si: bool) {
+    SOLO_34.store(si, std::sync::atomic::Ordering::Relaxed);
+}
 
 // tipo = come leggere la pagina; fresco = minuti oltre i quali la lettura e' vecchia. (Lettori: fase 2.)
 pub static STAZIONI: &[Stazione] = &[

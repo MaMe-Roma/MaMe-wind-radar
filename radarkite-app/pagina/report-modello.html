@@ -1003,7 +1003,7 @@ var D = /*DATI*/null;
         days.append(t);
       });
       var nomi = (s.stazioni || []).map(function (st) { return st.nome; }).join(' + ');
-      sec.append(days, h('div', 'small', 'Windguru: ' + s.wgSpot + ' · GFS ' + s.init + ' UTC · ' + ((s.stazioni || []).length > 1 ? 'stazioni: ' : 'stazione: ') + nomi));
+      sec.append(days, h('div', 'small', 'Windguru: ' + s.wgSpot + ' · GFS ' + s.init + ' UTC' + (nomi ? ' · ' + ((s.stazioni || []).length > 1 ? 'stazioni: ' : 'stazione: ') + nomi : '')));
       box.append(sec);
     });
   })();

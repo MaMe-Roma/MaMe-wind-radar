@@ -9,7 +9,7 @@ use chrono::{Datelike, Duration, NaiveDate, NaiveDateTime, Timelike};
 use serde_json::{json, Value};
 
 use crate::previsioni::{classe, comp, fascia, finestra, ordina_ps, round_n, OraVento, RigaOm, RigaWg};
-use crate::regole::{Spot, SOGLIA, SPOT, STAZIONI};
+use crate::regole::{Spot, SOGLIA, spot, STAZIONI};
 use crate::stazioni::Lettura;
 use crate::{num, num_o};
 
@@ -64,7 +64,7 @@ pub fn scrivi(dir_dati: &Path, dir_calcoli: &Path, adesso: NaiveDateTime, st_res
         if !l.fresca {
             continue;
         }
-        let suo = SPOT.iter().find(|s| s.stazioni.contains(&st.id)).map(|s| s.id).unwrap_or("");
+        let suo = spot().iter().find(|s| s.stazioni.contains(&st.id)).map(|s| s.id).unwrap_or("");
         let g = l.gust.map(txt).unwrap_or_default();
         let riga = format!("{};{};{};{};{};{}", l.t.format("%Y-%m-%d %H:%M"), st.id, suo, txt(l.wind), g, txt(l.deg));
         if visti.insert(riga.clone()) {
@@ -246,7 +246,7 @@ pub fn passati(dir_dati: &Path, adesso: NaiveDateTime) -> Vec<Value> {
         let chiave = giorno.format("%Y-%m-%d").to_string();
         let f = fascia(giorno);
         let (mut per_spot, mut dettaglio) = (Vec::new(), Vec::new());
-        for s in SPOT {
+        for s in spot() {
             let vuoto = Vec::new();
             let lett: Vec<&LetturaS> = idx_l.get(&format!("{chiave}|{}", s.id)).unwrap_or(&vuoto).iter().filter(|x| x.h >= f.0 && x.h <= f.1).collect();
             if !lett.is_empty() {
@@ -403,7 +403,7 @@ pub fn salva_uscita(dir_dati: &Path, q: &HashMap<String, String>) -> Result<Stri
     if !o.is_empty() && !re(r"^\d{1,2}:\d{2}$", &o) {
         o.clear();
     }
-    if !SPOT.iter().any(|s| s.id == sp) {
+    if !spot().iter().any(|s| s.id == sp) {
         return Err("spot non valido".into());
     }
     if !re(r"^\d{1,3}$", &mi) {

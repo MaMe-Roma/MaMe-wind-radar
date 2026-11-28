@@ -389,7 +389,7 @@ pub fn url_open_meteo(spot: &[Spot]) -> String {
 }
 
 /// Un punto un po' al largo di ogni spot, verso il mare (centro delle direzioni buone).
-pub fn url_acqua(spot: &[Spot]) -> String {
+pub fn url_acqua(spot: &[&Spot]) -> String {
     let (mut lat, mut lon) = (Vec::new(), Vec::new());
     for s in spot {
         let c = if s.ok[0] <= s.ok[1] { (s.ok[0] + s.ok[1]) / 2.0 } else { ((s.ok[0] + s.ok[1] + 360.0) / 2.0) % 360.0 };
@@ -458,7 +458,7 @@ pub struct RigaOnde {
 }
 
 /// Temperatura dell'acqua (media di oggi) e onde ora per ora, per ogni spot.
-pub fn leggi_acqua(testo: &str, spot: &[Spot]) -> Result<(Vec<Option<f64>>, Vec<Vec<RigaOnde>>), String> {
+pub fn leggi_acqua(testo: &str, spot: &[&Spot]) -> Result<(Vec<Option<f64>>, Vec<Vec<RigaOnde>>), String> {
     let j: Value = serde_json::from_str(testo.trim_start_matches('\u{feff}')).map_err(|e| format!("risposta non valida: {e}"))?;
     let l = lista(j);
     let (mut acqua, mut onde) = (Vec::new(), Vec::new());

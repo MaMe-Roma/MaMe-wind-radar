@@ -26,7 +26,7 @@ use viaggi::Imp;
 pub const VERSIONE: &str = "4.1.2";
 pub const DATA_VERSIONE: &str = "28/11/2026";
 /// Cambia quando cambia il formato di giorni passati e diario in calcoli.json (cosi' si ricalcolano).
-const VERSIONE_CALCOLI: &str = "4.0-diario2";
+const VERSIONE_CALCOLI: &str = "4.1-vigna";
 pub const AUTORE: &str = "@MadHatterMatt";
 pub const CONTATTO: &str = "arch.mattia.merusi+radarkite@gmail.com";
 
@@ -120,6 +120,8 @@ pub fn esegui(o: &Opzioni) -> Result<Esito, String> {
     let dir_dati = o.cartella.join("dati");
     std::fs::create_dir_all(&dir_dati).map_err(|e| format!("cartella dati non creata: {e}"))?;
     let dir_cache = o.cache.clone().unwrap_or_else(|| dir_dati.join("cache"));
+    // Solo cache = confronto con la 3.4: solo i suoi 8 spot, cosi' gli indirizzi delle richieste restano uguali.
+    solo_spot_34(o.solo_cache);
     log.scrivi(&format!("Radar kite {VERSIONE} ({DATA_VERSIONE}) di {AUTORE} - {}", adesso.format("%d/%m/%Y %H:%M")));
 
     let dir_calcoli = dir_dati.join("cache");
@@ -137,18 +139,18 @@ pub fn esegui(o: &Opzioni) -> Result<Esito, String> {
     let mut solo = String::new();
     let q = viaggi::parametri(&link);
     let id = q.get("id").cloned().unwrap_or_default();
-    if link.starts_with("radarkite://spot") && SPOT.iter().any(|s| s.id == id) {
+    if link.starts_with("radarkite://spot") && spot().iter().any(|s| s.id == id) {
         solo = format!("spot:{id}");
     }
     if link.starts_with("radarkite://stazione") && STAZIONI.iter().any(|s| s.id == id) {
         solo = format!("st:{id}");
     }
-    let sx = solo.strip_prefix("spot:").and_then(|i| SPOT.iter().find(|s| s.id == i));
+    let sx = solo.strip_prefix("spot:").and_then(|i| spot().iter().find(|s| s.id == i));
 
     // Tutte le richieste partono insieme: previsioni Windguru, Open-Meteo, mare e stazioni.
     let mut rete = rete::Rete::new(dir_cache, o.solo_cache);
     if let Some(s) = sx {
-        let mut f = vec![url_windguru(s), url_open_meteo(SPOT), url_acqua(SPOT)];
+        let mut f = vec![url_windguru(s), url_open_meteo(spot()), url_acqua(&spot_mare())];
         f.extend(STAZIONI.iter().filter(|st| s.stazioni.contains(&st.id)).map(|st| st.url.to_string()));
         rete.solo(f);
         log.scrivi(&format!("Aggiorno solo lo spot {}", s.nome));
@@ -157,11 +159,11 @@ pub fn esegui(o: &Opzioni) -> Result<Esito, String> {
         log.scrivi(&format!("Aggiorno solo la stazione {i}"));
     }
     let fasi: Vec<u8> = if solo.is_empty() { o.fasi.clone() } else { vec![2] };
-    for s in SPOT {
+    for s in spot() {
         rete.parti(&url_windguru(s), "https://micro.windguru.cz/", false, false, 20, false);
     }
-    let url_om = url_open_meteo(SPOT);
-    let url_mare = url_acqua(SPOT);
+    let url_om = url_open_meteo(spot());
+    let url_mare = url_acqua(&spot_mare());
     if o.om_prova.is_none() {
         rete.parti(&url_om, "https://open-meteo.com/", false, true, 15, false);
     }
@@ -173,7 +175,7 @@ pub fn esegui(o: &Opzioni) -> Result<Esito, String> {
     log.tempo("richieste partite (tutte insieme)");
 
     let mut spot_res = Vec::new();
-    for s in SPOT {
+    for s in spot() {
         match rete.testo(&url_windguru(s), "https://micro.windguru.cz/", false) {
             Ok(html) => {
                 let wg = leggi_windguru(&html, adesso);
@@ -309,9 +311,9 @@ pub fn esegui(o: &Opzioni) -> Result<Esito, String> {
                 Some(p) => std::fs::read_to_string(p).map_err(|e| e.to_string()),
                 None => rete.testo(&url_om, "https://open-meteo.com/", false),
             };
-            match testo_om.and_then(|t| leggi_open_meteo(&t, SPOT)) {
+            match testo_om.and_then(|t| leggi_open_meteo(&t, spot())) {
                 Ok(v) => {
-                    for (s, r) in SPOT.iter().zip(v) {
+                    for (s, r) in spot().iter().zip(v) {
                         om.insert(s.id, r);
                     }
                     log.scrivi("  Open-Meteo (meteo e secondo modello)... ok");
@@ -321,10 +323,10 @@ pub fn esegui(o: &Opzioni) -> Result<Esito, String> {
                     errore_om = e;
                 }
             }
-            match rete.testo(&url_mare, "https://open-meteo.com/", false).and_then(|t| leggi_acqua(&t, SPOT)) {
+            match rete.testo(&url_mare, "https://open-meteo.com/", false).and_then(|t| leggi_acqua(&t, &spot_mare())) {
                 Ok((a, w)) => {
                     let mut mappa = HashMap::new();
-                    for ((s, a), w) in SPOT.iter().zip(a).zip(w) {
+                    for ((s, a), w) in spot_mare().into_iter().zip(a).zip(w) {
                         acqua.insert(s.id, a);
                         mappa.insert(s.id, w);
                     }
@@ -492,7 +494,7 @@ fn segna_aggiornati(dir_calcoli: &Path, solo: &str, sx: Option<&Spot>, adesso: N
     }
     if solo.is_empty() || m["creato"].as_str().unwrap_or("").is_empty() {
         m["creato"] = json!(ora);
-        for s in SPOT {
+        for s in spot() {
             m["spot"][s.id] = json!(ora);
         }
         for st in STAZIONI {
@@ -624,7 +626,7 @@ fn dati_pagina(spot_res: &[EsitoSpot], om: &HashMap<&str, Vec<RigaOm>>, acqua: &
         }));
     }
     let dati_stazioni: Vec<Value> = STAZIONI.iter().map(|st| {
-        let suo = SPOT.iter().find(|s| s.stazioni.contains(&st.id)).map(|s| s.id);
+        let suo = spot().iter().find(|s| s.stazioni.contains(&st.id)).map(|s| s.id);
         let lenta = cx.lente.get(st.id).cloned().unwrap_or(Value::Null);
         match cx.st_res.get(st.id) {
             Some(Ok(l)) => {
