@@ -3,7 +3,7 @@
 Novità: sul Mac l'app non risulta più "danneggiata" (4.1.2); il PDF per il telefono si crea anche quando Edge o Chrome ci mettono qualche secondo (4.1.1).
 
 Radar kite mostra il vento previsto (Windguru e un secondo modello) e quello delle stazioni sugli spot da kite del Lazio: giorni firing, meteo, onde, tempi di viaggio e un diario delle uscite.
-Autore @MadHatterMatt · idee e suggerimenti: arch.mattia.merusi+radarkite@gmail.com
+Autore MadHatterMatt · idee e suggerimenti: arch.mattia.merusi+radarkite@gmail.com
 
 ## Installare
 - **Windows**: scarica il file che finisce con `x64-setup.exe` e aprilo. Se compare "Windows ha protetto il PC": *Ulteriori informazioni* → *Esegui comunque* (l'app non è firmata da Microsoft).
