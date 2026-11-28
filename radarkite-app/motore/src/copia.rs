@@ -184,8 +184,18 @@ pub fn salva_pdf(report: &Path, dest: Option<PathBuf>, adesso: NaiveDateTime) ->
                 }
                 std::thread::sleep(Duration::from_millis(200));
             }
-            let nuovo = std::fs::metadata(&pdf).and_then(|m| m.modified()).ok()
+            // Edge e Chrome possono passare il lavoro a un altro processo e chiudere subito quello avviato:
+            // aspetto che il PDF compaia davvero (fino a 45 secondi) prima di dire com'e' andata.
+            let pronto = || std::fs::metadata(&pdf).ok().filter(|m| m.len() > 0).and_then(|m| m.modified().ok())
                 .map(|t| chrono::DateTime::<Local>::from(t).naive_local() > adesso - chrono::Duration::minutes(1)).unwrap_or(false);
+            let t1 = Instant::now();
+            while !pronto() && t1.elapsed() < Duration::from_secs(45) {
+                std::thread::sleep(Duration::from_millis(500));
+            }
+            if pronto() {
+                std::thread::sleep(Duration::from_secs(1)); // il browser finisce di scriverlo
+            }
+            let nuovo = pronto();
             if nuovo { format!("ok|{}", Local::now().format("%Y-%m-%dT%H:%M:%S")) } else { "errore|il browser non ha creato il PDF".into() }
         }
         Err(e) => format!("errore|{e}"),

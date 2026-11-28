@@ -2080,7 +2080,7 @@ dependencies = [
 
 [[package]]
 name = "motore"
-version = "4.1.0"
+version = "4.1.1"
 dependencies = [
  "chrono",
  "html-escape",
@@ -2775,10 +2775,11 @@ checksum = "f8dcc9c7d52a811697d2151c701e0d08956f92b0e24136cf4cf27b57a6a0d9bf"
 
 [[package]]
 name = "radar-kite"
-version = "4.1.0"
+version = "4.1.1"
 dependencies = [
  "motore",
  "open",
+ "serde_json",
  "tauri",
  "tauri-build",
  "tauri-plugin-dialog",

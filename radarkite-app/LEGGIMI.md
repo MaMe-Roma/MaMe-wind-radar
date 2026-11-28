@@ -1,10 +1,12 @@
-# Radar kite 4.1
+# Radar kite 4.1.1
+
+Novità della 4.1.1: il PDF per il telefono si crea di nuovo anche quando Edge o Chrome ci mettono qualche secondo.
 
 Radar kite mostra il vento previsto (Windguru e un secondo modello) e quello delle stazioni sugli spot da kite del Lazio: giorni firing, meteo, onde, tempi di viaggio e un diario delle uscite.
 Autore @MadHatterMatt · idee e suggerimenti: arch.mattia.merusi+radarkite@gmail.com
 
 ## Installare
-- **Windows**: scarica `Radar kite_4.1.0_x64-setup.exe` e aprilo. Se compare "Windows ha protetto il PC": *Ulteriori informazioni* → *Esegui comunque* (l'app non è firmata da Microsoft).
+- **Windows**: scarica il file che finisce con `x64-setup.exe` e aprilo. Se compare "Windows ha protetto il PC": *Ulteriori informazioni* → *Esegui comunque* (l'app non è firmata da Microsoft).
 - **Mac**: scarica il `.dmg` del tuo Mac (`aarch64` = Apple Silicon M1–M4, `x64` = Intel) e trascina Radar kite in **Applicazioni** (serve anche per l'aggiornamento automatico). La prima volta: clic destro sull'app → *Apri*, oppure Impostazioni di Sistema → Privacy e sicurezza → *Apri comunque*.
 
 ## Primo avvio
