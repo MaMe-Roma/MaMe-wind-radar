@@ -949,7 +949,7 @@ var D = /*DATI*/null;
         on.title = 'Adesso' + (s.ondeOra.d != null ? ', da ' + bussola(s.ondeOra.d) : '') + (s.ondeOra.sh != null ? ' · onda lunga ' + virgola(s.ondeOra.sh) + ' m ' + s.ondeOra.sp + ' s' : '') + (s.ondeOra.wh != null ? ' · onde da vento ' + virgola(s.ondeOra.wh) + ' m ' + s.ondeOra.wp + ' s' : '');
         sx.append(on);
       }
-      if (s.acqua != null) sx.append(h('span', 'info', '🌡️ acqua ' + s.acqua + '° · muta ' + muta(s.acqua)));
+      if (s.acqua != null) sx.append(h('span', 'info', '🌡️ acqua ' + (s.acquaStima ? '~' : '') + s.acqua + '°' + (s.acquaStima ? ' (stima)' : '') + ' · muta ' + muta(s.acqua)));
       var links = h('div', 'links');
       links.append(bottoneAggiorna('↻ Aggiorna spot', 'Rilegge solo questo spot: vento adesso, previsioni della settimana, onde e meteo', 'radarkite://spot?id=' + s.id, 'spot.' + s.id));
       if (s.webcam) links.append(link('Webcam', s.webcam));

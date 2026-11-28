@@ -400,6 +400,42 @@ pub fn url_acqua(spot: &[&Spot]) -> String {
     format!("https://marine-api.open-meteo.com/v1/marine?latitude={}&longitude={}&hourly=sea_surface_temperature,wave_height,wave_period,wave_direction,swell_wave_height,swell_wave_period,wind_wave_height,wind_wave_period&timezone=Europe%2FRome&forecast_days=9", lat.join(","), lon.join(","))
 }
 
+/// Lago: temperatura dell'aria degli ultimi 92 giorni, per stimare l'acqua.
+pub fn url_aria_lago(s: &Spot) -> String {
+    format!("https://api.open-meteo.com/v1/forecast?latitude={:.3}&longitude={:.3}&hourly=temperature_2m&past_days=92&forecast_days=1&timezone=Europe%2FRome", s.lat, s.lon)
+}
+
+/// Stima dell'acqua del lago in superficie (non c'e' una misura pubblica): un lago profondo come Bracciano
+/// segue l'aria con circa un mese di ritardo. Media mobile esponenziale di 30 giorni delle medie giornaliere
+/// dell'aria, piu' 2 gradi, mai sotto 8. Errore tipico 1-2 gradi: nella pagina e' scritta come stima.
+pub fn stima_acqua_lago(testo: &str) -> Result<f64, String> {
+    let j: Value = serde_json::from_str(testo.trim_start_matches('\u{feff}')).map_err(|e| format!("risposta non valida: {e}"))?;
+    let h = j.get("hourly").ok_or("manca hourly")?;
+    let tempi = h.get("time").and_then(|x| x.as_array()).ok_or("manca time")?;
+    let aria = h.get("temperature_2m").and_then(|x| x.as_array()).ok_or("manca temperature_2m")?;
+    let mut giorni: Vec<(String, f64, u32)> = Vec::new();
+    for (t, v) in tempi.iter().zip(aria) {
+        let (Some(t), Some(v)) = (t.as_str(), v.as_f64()) else { continue };
+        let g = &t[..t.len().min(10)];
+        match giorni.last_mut() {
+            Some(x) if x.0 == g => {
+                x.1 += v;
+                x.2 += 1;
+            }
+            _ => giorni.push((g.to_string(), v, 1)),
+        }
+    }
+    let medie: Vec<f64> = giorni.iter().filter(|x| x.2 >= 20).map(|x| x.1 / x.2 as f64).collect();
+    if medie.len() < 45 {
+        return Err(format!("solo {} giorni di temperature", medie.len()));
+    }
+    let mut m = medie[..30].iter().sum::<f64>() / 30.0;
+    for t in &medie[30..] {
+        m += (t - m) / 30.0;
+    }
+    Ok(round0((m + 2.0).max(8.0)))
+}
+
 #[derive(Clone, Debug)]
 pub struct RigaOm {
     pub date: NaiveDate,
@@ -538,5 +574,35 @@ mod prove {
         atteso.sort();
         ordina_ps(&mut w, |a, b| a.cmp(b));
         assert_eq!(w, atteso);
+    }
+}
+
+#[cfg(test)]
+mod prove_lago {
+    use super::stima_acqua_lago;
+
+    fn risposta(aria: impl Fn(usize) -> f64) -> String {
+        let (mut t, mut v) = (Vec::new(), Vec::new());
+        for g in 0..93 {
+            let d = chrono::NaiveDate::from_ymd_opt(2026, 8, 28).unwrap() + chrono::Duration::days(g as i64);
+            for h in 0..24 {
+                t.push(format!("\"{}T{:02}:00\"", d, h));
+                v.push(format!("{:.1}", aria(g)));
+            }
+        }
+        format!("{{\"hourly\":{{\"time\":[{}],\"temperature_2m\":[{}]}}}}", t.join(","), v.join(","))
+    }
+
+    #[test]
+    fn aria_costante() {
+        assert_eq!(stima_acqua_lago(&risposta(|_| 12.0)).unwrap(), 14.0);
+        assert_eq!(stima_acqua_lago(&risposta(|_| 2.0)).unwrap(), 8.0);
+    }
+
+    #[test]
+    fn fine_novembre() {
+        // da 22 gradi a fine agosto a 10 a fine novembre
+        let a = stima_acqua_lago(&risposta(|g| 22.0 - 12.0 * g as f64 / 92.0)).unwrap();
+        assert!((13.0..=17.0).contains(&a), "{a}");
     }
 }

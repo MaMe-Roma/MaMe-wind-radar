@@ -152,6 +152,9 @@ pub fn esegui(o: &Opzioni) -> Result<Esito, String> {
     if let Some(s) = sx {
         let mut f = vec![url_windguru(s), url_open_meteo(spot()), url_acqua(&spot_mare())];
         f.extend(stazioni_attive().iter().filter(|st| s.stazioni.contains(&st.id)).map(|st| st.url.to_string()));
+        if lago(s) {
+            f.push(url_aria_lago(s));
+        }
         rete.solo(f);
         log.scrivi(&format!("Aggiorno solo lo spot {}", s.nome));
     } else if let Some(i) = solo.strip_prefix("st:") {
@@ -168,6 +171,10 @@ pub fn esegui(o: &Opzioni) -> Result<Esito, String> {
         rete.parti(&url_om, "https://open-meteo.com/", false, true, 15, false);
     }
     rete.parti(&url_mare, "https://open-meteo.com/", false, true, 15, false);
+    let url_laghi: Vec<(&Spot, String)> = spot_laghi().into_iter().map(|s| (s, url_aria_lago(s))).collect();
+    for (_, u) in &url_laghi {
+        rete.parti(u, "https://open-meteo.com/", false, true, 15, false);
+    }
     for st in stazioni_attive() {
         rete.parti(st.url, st.referer, st.tipo == "weathercloud", true, 60, true);
     }
@@ -336,6 +343,15 @@ pub fn esegui(o: &Opzioni) -> Result<Esito, String> {
                 Err(e) => {
                     log.scrivi(&format!("  Mare (acqua e onde)... ERRORE: {e}"));
                     errore_mare = e;
+                }
+            }
+            for (s, u) in &url_laghi {
+                match rete.testo(u, "https://open-meteo.com/", false).and_then(|t| stima_acqua_lago(&t)) {
+                    Ok(a) => {
+                        acqua.insert(s.id, Some(a));
+                        log.scrivi(&format!("  Open-Meteo lago {} (acqua stimata)... ok, {a} gradi", s.breve));
+                    }
+                    Err(e) => log.scrivi(&format!("  Open-Meteo lago {} (acqua stimata)... ERRORE: {e}", s.breve)),
                 }
             }
             log.tempo("Open-Meteo e mare");
@@ -618,7 +634,7 @@ fn dati_pagina(spot_res: &[EsitoSpot], om: &HashMap<&str, Vec<RigaOm>>, acqua: &
         let onde_ora = onde_g.get(&adesso.date()).map(|v| onde_giorno(v, adesso.date(), adesso.hour() as i64, adesso.hour() as i64)).unwrap_or(Value::Null);
         dati_spot.push(json!({
             "viaggio": cx.viaggi.map(|v| json!({ "stima": v["stima"].get(s.id).cloned().unwrap_or(Value::Null), "traffico": v["traffico"].get(s.id).cloned().unwrap_or(Value::Null), "ora": v["trafficoOra"].clone() })).unwrap_or(Value::Null),
-            "acqua": num_o(acqua.get(s.id).copied().flatten()), "ondeOra": onde_ora, "id": s.id, "nome": s.nome, "breve": s.breve,
+            "acqua": num_o(acqua.get(s.id).copied().flatten()), "acquaStima": lago(s), "ondeOra": onde_ora, "id": s.id, "nome": s.nome, "breve": s.breve,
             "mappa": s.mappa.unwrap_or(s.breve), "lon": s.lon, "lat": s.lat, "lab": [s.lab.0, s.lab.1, s.lab.2], "wg": s.wg, "webcam": s.webcam, "surf": s.surf,
             "ok": [num(s.ok[0]), num(s.ok[1])], "terra": [num(s.terra[0]), num(s.terra[1])], "stazioni": staz, "errore": r.errore,
             "wgSpot": r.wg.as_ref().map(|w| w.spot.clone()).unwrap_or_default(), "init": r.wg.as_ref().map(|w| w.init.clone()).unwrap_or_default(),

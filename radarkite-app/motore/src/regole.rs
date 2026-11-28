@@ -94,9 +94,18 @@ pub fn spot() -> &'static [Spot] {
 /// Spot sui laghi: niente onde ne' temperatura del mare.
 const LAGHI: &[&str] = &["vigna"];
 
+pub fn lago(s: &Spot) -> bool {
+    LAGHI.contains(&s.id)
+}
+
 /// Spot al mare, per la richiesta di acqua e onde.
 pub fn spot_mare() -> Vec<&'static Spot> {
-    spot().iter().filter(|s| !LAGHI.contains(&s.id)).collect()
+    spot().iter().filter(|s| !lago(s)).collect()
+}
+
+/// Spot sui laghi: l'acqua si stima dall'aria.
+pub fn spot_laghi() -> Vec<&'static Spot> {
+    spot().iter().filter(|s| lago(s)).collect()
 }
 
 const STAZIONI_34: usize = 11;
