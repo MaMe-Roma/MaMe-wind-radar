@@ -78,7 +78,10 @@ def main():
     for k in ('passati', 'passatiCalcolati'):
         uguale(a.get(k), b.get(k), k)
     for i, (ua, ub) in enumerate(zip(a.get('diario', []), b.get('diario', []))):
-        uguale(ua, {k: v for k, v in ub.items() if k not in ('muta', 'direzione')}, f'diario[{i}]')
+        ub = {k: v for k, v in ub.items() if k not in ('muta', 'direzione', 'rilevato', 'riga', 'windguru')}
+        if isinstance(ub.get('vento'), dict):
+            ub['vento'] = {k: v for k, v in ub['vento'].items() if k not in ('stazioni', 'ore')}
+        uguale(ua, ub, f'diario[{i}]')
     if len(a.get('diario', [])) != len(b.get('diario', [])):
         diff.append('diario: numero di uscite diverso')
     ca, cb = a.get('copia') or {}, b.get('copia') or {}

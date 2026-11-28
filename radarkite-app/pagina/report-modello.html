@@ -165,6 +165,9 @@ body.pdf .rbtn{display:none}
 body.pdf .aggbanner{display:none}
 @media (max-width:600px){.aggbanner{flex:1 1 100%;min-width:0}.abtesto{display:none}.abriga{gap:6px}}
 .pform .aiuto{flex:1 1 100%;line-height:1.5}
+/* App 4.0: modifica delle uscite del diario */
+#diario form.modifica{outline:2px solid var(--ok);outline-offset:6px;border-radius:10px}
+#diario button.modi{border:0;background:none;cursor:pointer;font-size:15px;padding:2px 4px}
 /* App 4.0: aggiornamento automatico */
 .autom{display:flex;gap:6px 10px;align-items:center;flex-wrap:wrap;margin:4px 0 8px;font-size:13px}
 .autom.domanda{display:block;padding:12px 14px;border:2px solid var(--ok);border-radius:12px;background:var(--panel)}
@@ -1074,11 +1077,31 @@ var D = /*DATI*/null;
       cr.value = (cd.value === oggiIso && s && s.adesso && s.adesso.fonte === 'stazione') ? bussola(s.adesso.deg) : '';
     }
     cs.addEventListener('change', proponi); cd.addEventListener('change', proponi); proponi();
+    var cw = campo('Vento rilevato (kts)', h('input')); cw.type = 'number'; cw.min = 0; cw.max = 80; cw.step = '0.5'; cw.style.width = '70px';
     var cn = campo('Note', h('input')); cn.style.width = '200px';
     var bs = h('button', null, '+ Salva uscita'); bs.type = 'submit'; f.append(bs);
+    // Modifica di un'uscita passata (pulsante ✏️ nella tabella): il modulo si riempie con i suoi dati.
+    var modifica = null;
+    var ba = h('button', null, 'Annulla'); ba.type = 'button'; ba.hidden = true; f.append(ba);
+    var be = h('button', null, 'Elimina'); be.type = 'button'; be.hidden = true; f.append(be);
+    function od(u) { return '&od=' + encodeURIComponent(u.data + ';' + u.spot); }
+    function nuova() {
+      modifica = null; f.reset(); f.classList.remove('modifica'); cd.value = oggiIso; cv.value = '12'; proponi();
+      bs.textContent = '+ Salva uscita'; ba.hidden = be.hidden = true;
+    }
+    function apri(u) {
+      modifica = u; cd.value = u.data; co.value = u.ora || ''; cs.value = u.spot; cm.value = u.minuti || ''; cv.value = u.vela || ''; cu.value = u.muta || '';
+      cr.value = u.direzione || ''; cw.value = u.rilevato || ''; cn.value = u.note || '';
+      bs.textContent = 'Salva modifica'; ba.hidden = be.hidden = false; f.classList.add('modifica'); f.scrollIntoView({ block: 'center' });
+    }
+    ba.addEventListener('click', nuova);
+    be.addEventListener('click', function () {
+      if (modifica && confirm('Elimino dal diario l\'uscita del ' + modifica.data.split('-').reverse().join('/') + ' a ' + (nomeSpot[modifica.spot] || modifica.spot) + '?')) lancia('radarkite://uscita?canc=' + modifica.riga + od(modifica));
+    });
     f.addEventListener('submit', function (e) {
       e.preventDefault();
-      var q = 'd=' + encodeURIComponent(cd.value) + '&o=' + encodeURIComponent(co.value) + '&s=' + encodeURIComponent(cs.value) + '&m=' + encodeURIComponent(cm.value) + '&v=' + encodeURIComponent(cv.value) + '&n=' + encodeURIComponent(cn.value) + '&u=' + encodeURIComponent(cu.value) + '&r=' + encodeURIComponent(cr.value);
+      var q = 'd=' + encodeURIComponent(cd.value) + '&o=' + encodeURIComponent(co.value) + '&s=' + encodeURIComponent(cs.value) + '&m=' + encodeURIComponent(cm.value) + '&v=' + encodeURIComponent(cv.value) + '&n=' + encodeURIComponent(cn.value) + '&u=' + encodeURIComponent(cu.value) + '&r=' + encodeURIComponent(cr.value) + '&w=' + encodeURIComponent(cw.value);
+      if (modifica) q += '&i=' + modifica.riga + od(modifica);
       lancia('radarkite://uscita?' + q);
     });
     box.append(f);
@@ -1089,14 +1112,22 @@ var D = /*DATI*/null;
     Object.keys(tot).forEach(function (k) { st.append(h('span', null, (nomeSpot[k] || k) + ': ' + tot[k].n + ' · ' + tot[k].m + ' min')); });
     box.append(st);
     var tab = h('table', 'tab'), tr = h('tr');
-    ['Data', 'Spot', 'Durata', 'Vela', 'Muta', 'Direzione', 'Vento letto', 'Note'].forEach(function (t) { tr.append(h('th', null, t)); });
+    ['Data', 'Spot', 'Durata', 'Vela', 'Muta', 'Direzione', 'Vento rilevato', 'Windguru', 'Vento letto (stazione)', 'Note', ''].forEach(function (t) { tr.append(h('th', null, t)); });
     tab.append(tr);
     lista.slice().reverse().forEach(function (u) {
       var r = h('tr'), dd = dataLoc(u.data);
       r.append(h('td', null, GG[dd.getDay()] + ' ' + dd.getDate() + ' ' + MESI[dd.getMonth()] + (u.ora ? ' ' + u.ora : '')), h('td', null, nomeSpot[u.spot] || u.spot),
         h('td', null, u.minuti ? u.minuti + ' min' : '—'), h('td', null, u.vela ? u.vela + ' m' : '—'), h('td', null, u.muta || '—'), h('td', null, u.direzione || '—'));
-      var tv = h('td'); if (u.vento) { tv.append(h('b', null, n(u.vento.w) + ' kts')); if (u.vento.g != null) tv.append(h('span', 'g', n(u.vento.g))); tv.append(' ' + u.vento.d); } else tv.append(h('span', 'small', u.ora ? 'nessuna lettura' : 'senza ora'));
-      r.append(tv, h('td', null, u.note || ''));
+      r.append(h('td', null, u.rilevato ? n(+u.rilevato) + ' kts' : '—'));
+      var tw = h('td'), W = u.windguru;
+      if (W) { tw.append(h('b', null, n(W.w) + ' kts')); if (W.g != null) tw.append(h('span', 'g', n(W.g))); tw.append(' ' + W.d);
+        tw.append(h('div', 'small', 'ore ' + W.ore + ' · previsione ' + (W.anticipo ? 'del giorno prima' : 'delle ' + W.salvata))); }
+      else tw.append(h('span', 'small', u.ora ? 'nessuna previsione salvata' : 'senza ora'));
+      var tv = h('td'); if (u.vento) { tv.append(h('b', null, n(u.vento.w) + ' kts')); if (u.vento.g != null) tv.append(h('span', 'g', n(u.vento.g))); tv.append(' ' + u.vento.d);
+        if (u.vento.stazioni) tv.append(h('div', 'small', u.vento.stazioni.join(', ') + ' · ' + u.vento.n + (u.vento.n === 1 ? ' lettura' : ' letture') + (u.vento.ore && u.vento.ore.length <= 6 ? ' (' + u.vento.ore.join(', ') + ')' : ''))); }
+      else tv.append(h('span', 'small', u.ora ? 'nessuna lettura' : 'senza ora'));
+      var tm = h('td'); if (!PDF && u.riga != null) { var bm = h('button', 'modi', '✏️'); bm.type = 'button'; bm.title = 'Modifica questa uscita'; bm.addEventListener('click', function () { apri(u); }); tm.append(bm); }
+      r.append(tw, tv, h('td', null, u.note || ''), tm);
       tab.append(r);
     });
     box.append(tab);

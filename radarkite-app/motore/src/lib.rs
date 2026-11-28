@@ -25,6 +25,8 @@ use viaggi::Imp;
 
 pub const VERSIONE: &str = "4.0";
 pub const DATA_VERSIONE: &str = "26/11/2026";
+/// Cambia quando cambia il formato di giorni passati e diario in calcoli.json (cosi' si ricalcolano).
+const VERSIONE_CALCOLI: &str = "4.0-diario2";
 pub const AUTORE: &str = "@MadHatterMatt";
 pub const CONTATTO: &str = "arch.mattia.merusi+radarkite@gmail.com";
 
@@ -467,13 +469,13 @@ fn giorni_passati(dir_dati: &Path, dir_calcoli: &Path, adesso: NaiveDateTime, fo
     let oggi = adesso.format("%Y-%m-%d").to_string();
     let firma = std::fs::metadata(dir_dati.join("diario.csv")).and_then(|m| m.modified()).map(|t| format!("{:?}", t)).unwrap_or_default();
     let calc: Value = if forza { Value::Null } else { std::fs::read_to_string(&file_calc).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or(Value::Null) };
-    let usa_passati = calc["giorno"] == json!(oggi) && calc["versione"] == json!(VERSIONE);
+    let usa_passati = calc["giorno"] == json!(oggi) && calc["versione"] == json!(VERSIONE_CALCOLI);
     let usa_diario = usa_passati && calc["firmaDiario"] == json!(firma);
     let (passati, calcolati) = if usa_passati { (calc["passati"].clone(), calc["calcolati"].as_str().unwrap_or("").to_string()) }
         else { (Value::Array(storico::passati(dir_dati, adesso)), adesso.format("%Y-%m-%dT%H:%M:%S").to_string()) };
     let diario = if usa_diario { calc["diario"].clone() } else { Value::Array(storico::diario(dir_dati)) };
     if (!usa_passati || !usa_diario) && fase == 2 {
-        let _ = std::fs::write(&file_calc, serde_json::to_string(&json!({ "giorno": oggi, "versione": VERSIONE, "firmaDiario": firma, "calcolati": calcolati, "passati": passati, "diario": diario })).unwrap_or_default());
+        let _ = std::fs::write(&file_calc, serde_json::to_string(&json!({ "giorno": oggi, "versione": VERSIONE_CALCOLI, "firmaDiario": firma, "calcolati": calcolati, "passati": passati, "diario": diario })).unwrap_or_default());
     }
     (passati, calcolati, diario)
 }
