@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 use chrono::{Local, NaiveDateTime};
 use serde_json::{json, Value};
 
-const LEGGIMI: &str = "RADAR KITE - copia per il telefono\r\n\r\nQuesta cartella la riempie Radar kite. Dentro c'e' \"Radar kite.pdf\": la pagina del radar con\r\nl'ultima rilevazione (vento previsto, stazioni, meteo, onde), sempre con lo stesso nome.\r\n\r\nSi aggiorna ogni volta che Radar kite si aggiorna: a mano, oppure da solo ogni ora dalle 6:30\r\nalle 19:30, mentre l'app Radar kite e' aperta.\r\n\r\nSul telefono: apri il file dall'app (Dropbox, Google Drive, OneDrive...) e mettilo tra i\r\npreferiti o \"disponibile offline\": cosi' hai sempre l'ultima rilevazione a portata di mano,\r\nanche fuori casa.\r\n\r\nPer cambiare cartella o non fare piu' la copia: nella pagina di Radar kite, riga\r\n\"Copia per il telefono\". Questa cartella si puo' cancellare quando vuoi.\r\n";
+const LEGGIMI: &str = "RADAR KITE - copia per il telefono\r\n\r\nQuesta cartella la riempie Radar kite. Dentro c'e' \"Radar kite.pdf\": la pagina del radar con\r\nl'ultima rilevazione (vento previsto, stazioni, meteo, onde), sempre con lo stesso nome.\r\n\r\nSi aggiorna ogni volta che Radar kite si aggiorna: a mano, oppure da solo nella fascia oraria\r\nscelta nella pagina (riga in cima con l'orologio), se il PC o il Mac e' acceso.\r\n\r\nSul telefono: apri il file dall'app (Dropbox, Google Drive, OneDrive...) e mettilo tra i\r\npreferiti o \"disponibile offline\": cosi' hai sempre l'ultima rilevazione a portata di mano,\r\nanche fuori casa.\r\n\r\nPer cambiare cartella o non fare piu' la copia: nella pagina di Radar kite, riga\r\n\"Copia per il telefono\". Questa cartella si puo' cancellare quando vuoi.\r\n";
 
 pub struct Cloud {
     pub nome: String,

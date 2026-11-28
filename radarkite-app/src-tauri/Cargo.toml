@@ -13,4 +13,3 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = ["custom-protocol"] }
 motore = { path = "../motore" }
 open = "5"
-chrono = "0.4"

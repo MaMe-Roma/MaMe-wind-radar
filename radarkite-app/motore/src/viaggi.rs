@@ -11,7 +11,7 @@ use serde_json::{json, Map, Value};
 use crate::regole::SPOT;
 use crate::rete::Rete;
 
-pub const IMP_TESTO: &str = "# Radar kite - impostazioni personali. Una per riga: nome = valore. Le righe con # sono note.\r\n#\r\n# Da dove parti per andare agli spot (indirizzo e citta'). Serve per il tempo di viaggio.\r\n# Per essere precisi aggiungi le coordinate tra parentesi, es. Via Roma 1, Roma (41.90000, 12.50000).\r\ncasa =\r\nlavoro =\r\n# Quale delle due usare adesso: casa oppure lavoro (si cambia anche dal menu nella pagina).\r\npartenza = casa\r\n#\r\n# si = si aggiorna da solo ogni ora dalle 6:30 alle 19:30, mentre l'app Radar kite e' aperta; no = solo a mano.\r\navvio_automatico = si\r\n#\r\n# Copia PDF per il telefono (si sceglie anche dalla pagina, riga \"Copia per il telefono\"):\r\n# auto = Dropbox\\Radar kite se c'e'; no = nessuna copia; oppure il percorso di una cartella.\r\ncopia_telefono = auto\r\n#\r\n# Facoltativo: chiave Google Maps Platform (Routes API) per il tempo di viaggio col traffico. Vuoto = solo stima.\r\ngoogle_chiave =\r\n";
+pub const IMP_TESTO: &str = "# Radar kite - impostazioni personali. Una per riga: nome = valore. Le righe con # sono note.\r\n#\r\n# Da dove parti per andare agli spot (indirizzo e citta'). Serve per il tempo di viaggio.\r\n# Per essere precisi aggiungi le coordinate tra parentesi, es. Via Roma 1, Roma (41.90000, 12.50000).\r\ncasa =\r\nlavoro =\r\n# Quale delle due usare adesso: casa oppure lavoro (si cambia anche dal menu nella pagina).\r\npartenza = casa\r\n#\r\n# Aggiornamento automatico anche ad app chiusa (si sceglie dalla riga in cima alla pagina): automatico = si o no\r\n# (vuoto = non ancora deciso); dalle e alle = ore:minuti; ogni = minuti (30, 60, 120 o 180).\r\nautomatico =\r\nautomatico_dalle = 06:30\r\nautomatico_alle = 19:30\r\nautomatico_ogni = 60\r\n#\r\n# Copia PDF per il telefono (si sceglie anche dalla pagina, riga \"Copia per il telefono\"):\r\n# auto = Dropbox\\Radar kite se c'e'; no = nessuna copia; oppure il percorso di una cartella.\r\ncopia_telefono = auto\r\n#\r\n# Facoltativo: chiave Google Maps Platform (Routes API) per il tempo di viaggio col traffico. Vuoto = solo stima.\r\ngoogle_chiave =\r\n";
 
 pub type Imp = HashMap<String, String>;
 
@@ -22,7 +22,7 @@ fn righe_file(file: &Path) -> Vec<String> {
 }
 
 pub fn leggi_impostazioni(file: &Path) -> Imp {
-    let mut imp: Imp = [("casa", ""), ("lavoro", ""), ("partenza", "casa"), ("avvio_automatico", "si"), ("dropbox", "auto"), ("copia_telefono", ""), ("google_chiave", "")]
+    let mut imp: Imp = [("casa", ""), ("lavoro", ""), ("partenza", "casa"), ("avvio_automatico", "si"), ("dropbox", "auto"), ("copia_telefono", ""), ("google_chiave", ""), ("automatico", ""), ("automatico_dalle", "06:30"), ("automatico_alle", "19:30"), ("automatico_ogni", "60")]
         .iter().map(|(k, v)| (k.to_string(), v.to_string())).collect();
     if !file.exists() {
         let mut b = vec![0xEF, 0xBB, 0xBF];
