@@ -77,7 +77,7 @@ pub static SPOT: &[Spot] = &[
     // Spot nuovi della 4.x: sempre in fondo (il confronto con la 3.4 usa solo i primi 8).
     // Lago di Bracciano: solo tramontana e grecale; con le altre direzioni conviene il mare. Col vento da sud spinge al largo.
     Spot { id: "vigna", nome: "Vigna di Valle (lago di Bracciano)", breve: "Vigna di Valle", mappa: None, lon: 12.22300, lat: 42.08500, lab: (8, 12, "start"), wg: WG_VIGNA,
-        ok: [340.0, 60.0], terra: [120.0, 240.0], stazioni: &[], webcam: "", surf: None,
+        ok: [340.0, 60.0], terra: [120.0, 240.0], stazioni: &["bracciano"], webcam: "https://centrosurfbracciano.it/meteo/", surf: None,
         ideali: &[Vicino { n: "tramontana", d: 0.0 }, Vicino { n: "grecale", d: 45.0 }], attenzione: &[] },
 ];
 
@@ -99,6 +99,13 @@ pub fn spot_mare() -> Vec<&'static Spot> {
     spot().iter().filter(|s| !LAGHI.contains(&s.id)).collect()
 }
 
+const STAZIONI_34: usize = 11;
+
+/// Stazioni attive: tutte, oppure solo quelle della 3.4 nel confronto (--solo-cache).
+pub fn stazioni_attive() -> &'static [Stazione] {
+    if SOLO_34.load(std::sync::atomic::Ordering::Relaxed) { &STAZIONI[..STAZIONI_34] } else { STAZIONI }
+}
+
 pub fn solo_spot_34(si: bool) {
     SOLO_34.store(si, std::sync::atomic::Ordering::Relaxed);
 }
@@ -116,6 +123,8 @@ pub static STAZIONI: &[Stazione] = &[
     Stazione { id: "latina_lido", tipo: "vedetta", nome: "Lido di Latina (Vedetta)", etichetta: "Stazione Lido", url: "https://vedetta.org/image-client/lido-di-latina/meteo/dati_meteo.html", referer: "https://vedetta.org/webcam/italia/lazio/latina/lido-di-latina/", pagina: "https://vedetta.org/webcam/italia/lazio/latina/lido-di-latina/", fresco: 30 },
     Stazione { id: "latina_sud", tipo: "meteotemplate", nome: "Latina Sud (Soluzioni Meteo)", etichetta: "Stazione Latina Sud", url: "https://stazioni3.soluzionimeteo.it/latina/homepage/blocks/modernWind/data.php", referer: "https://stazioni3.soluzionimeteo.it/latina/indexDesktop.php", pagina: "https://stazioni3.soluzionimeteo.it/latina/indexDesktop.php", fresco: 30 },
     Stazione { id: "saltodifondi", tipo: "wind24", nome: "Salto di Fondi (Wind24)", etichetta: "Wind24", url: "https://www.wind24.it/saltodifondi", referer: "https://www.wind24.it/", pagina: "https://www.wind24.it/saltodifondi", fresco: 30 },
+    // Stazioni nuove della 4.x: sempre in fondo (il confronto con la 3.4 usa solo le prime 11).
+    Stazione { id: "bracciano", tipo: "meteolazio", nome: "Bracciano Lungolago (Meteo Lazio)", etichetta: "Stazione Lungolago", url: "https://www.meteoregionelazio.it/rete/stazione.php?id=RM-074", referer: "https://www.meteoregionelazio.it/rete/", pagina: "https://www.meteoregionelazio.it/rete/stazione.php?id=RM-074", fresco: 30 },
 ];
 
 pub fn stazione(id: &str) -> Option<&'static Stazione> {

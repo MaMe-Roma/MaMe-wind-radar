@@ -142,7 +142,7 @@ pub fn esegui(o: &Opzioni) -> Result<Esito, String> {
     if link.starts_with("radarkite://spot") && spot().iter().any(|s| s.id == id) {
         solo = format!("spot:{id}");
     }
-    if link.starts_with("radarkite://stazione") && STAZIONI.iter().any(|s| s.id == id) {
+    if link.starts_with("radarkite://stazione") && stazioni_attive().iter().any(|s| s.id == id) {
         solo = format!("st:{id}");
     }
     let sx = solo.strip_prefix("spot:").and_then(|i| spot().iter().find(|s| s.id == i));
@@ -151,11 +151,11 @@ pub fn esegui(o: &Opzioni) -> Result<Esito, String> {
     let mut rete = rete::Rete::new(dir_cache, o.solo_cache);
     if let Some(s) = sx {
         let mut f = vec![url_windguru(s), url_open_meteo(spot()), url_acqua(&spot_mare())];
-        f.extend(STAZIONI.iter().filter(|st| s.stazioni.contains(&st.id)).map(|st| st.url.to_string()));
+        f.extend(stazioni_attive().iter().filter(|st| s.stazioni.contains(&st.id)).map(|st| st.url.to_string()));
         rete.solo(f);
         log.scrivi(&format!("Aggiorno solo lo spot {}", s.nome));
     } else if let Some(i) = solo.strip_prefix("st:") {
-        rete.solo(STAZIONI.iter().filter(|st| st.id == i).map(|st| st.url.to_string()).collect());
+        rete.solo(stazioni_attive().iter().filter(|st| st.id == i).map(|st| st.url.to_string()).collect());
         log.scrivi(&format!("Aggiorno solo la stazione {i}"));
     }
     let fasi: Vec<u8> = if solo.is_empty() { o.fasi.clone() } else { vec![2] };
@@ -168,7 +168,7 @@ pub fn esegui(o: &Opzioni) -> Result<Esito, String> {
         rete.parti(&url_om, "https://open-meteo.com/", false, true, 15, false);
     }
     rete.parti(&url_mare, "https://open-meteo.com/", false, true, 15, false);
-    for st in STAZIONI {
+    for st in stazioni_attive() {
         rete.parti(st.url, st.referer, st.tipo == "weathercloud", true, 60, true);
     }
     rete.segna_t0();
@@ -302,7 +302,7 @@ pub fn esegui(o: &Opzioni) -> Result<Esito, String> {
     for &fase in &fasi {
         let mut st_res: HashMap<&str, Result<Lettura, String>> = HashMap::new();
         if fase == 1 {
-            for st in STAZIONI {
+            for st in stazioni_attive() {
                 st_res.insert(st.id, Err("in lettura".into()));
             }
         }
@@ -339,7 +339,7 @@ pub fn esegui(o: &Opzioni) -> Result<Esito, String> {
                 }
             }
             log.tempo("Open-Meteo e mare");
-            for st in STAZIONI {
+            for st in stazioni_attive() {
                 let esito = rete.testo(st.url, st.referer, st.tipo == "weathercloud").and_then(|t| stazioni::leggi(st, &t)).map(|mut l| {
                     let eta = (adesso - l.t).num_milliseconds() as f64 / 60000.0;
                     l.fresca = !l.offline && eta <= st.fresco as f64 && eta >= -15.0;
@@ -437,7 +437,7 @@ fn tempi_stazioni(dir_dati: &Path, st_res: &HashMap<&str, Result<Lettura, String
     let file = dir_dati.join("tempi-stazioni.csv");
     let mut righe: Vec<String> = std::fs::read_to_string(&file).map(|t| t.lines().skip(1).filter(|r| !r.is_empty()).map(String::from).collect()).unwrap_or_default();
     if fase == 2 {
-        for st in STAZIONI {
+        for st in stazioni_attive() {
             let Some(l) = st_res.get(st.id) else { continue };
             if matches!(l, Err(e) if e.to_lowercase().contains("sospes")) {
                 continue;
@@ -451,7 +451,7 @@ fn tempi_stazioni(dir_dati: &Path, st_res: &HashMap<&str, Result<Lettura, String
         let _ = std::fs::write(&file, format!("data;stazione;secondi;esito\r\n{}\r\n", righe.join("\r\n")));
     }
     let mut lente = HashMap::new();
-    for st in STAZIONI {
+    for st in stazioni_attive() {
         let sue: Vec<Vec<&str>> = righe.iter().map(|r| r.split(';').collect::<Vec<_>>()).filter(|p| p.len() >= 2 && p[1] == st.id).collect();
         if sue.len() < 3 {
             continue;
@@ -497,7 +497,7 @@ fn segna_aggiornati(dir_calcoli: &Path, solo: &str, sx: Option<&Spot>, adesso: N
         for s in spot() {
             m["spot"][s.id] = json!(ora);
         }
-        for st in STAZIONI {
+        for st in stazioni_attive() {
             m["stazioni"][st.id] = json!(ora);
         }
     } else if let Some(s) = sx {
@@ -625,7 +625,7 @@ fn dati_pagina(spot_res: &[EsitoSpot], om: &HashMap<&str, Vec<RigaOm>>, acqua: &
             "adesso": adesso_v, "giorni": tessere, "aggiornato": ora_txt
         }));
     }
-    let dati_stazioni: Vec<Value> = STAZIONI.iter().map(|st| {
+    let dati_stazioni: Vec<Value> = stazioni_attive().iter().map(|st| {
         let suo = spot().iter().find(|s| s.stazioni.contains(&st.id)).map(|s| s.id);
         let lenta = cx.lente.get(st.id).cloned().unwrap_or(Value::Null);
         match cx.st_res.get(st.id) {

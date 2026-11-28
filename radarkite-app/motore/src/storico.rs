@@ -9,7 +9,7 @@ use chrono::{Datelike, Duration, NaiveDate, NaiveDateTime, Timelike};
 use serde_json::{json, Value};
 
 use crate::previsioni::{classe, comp, fascia, finestra, ordina_ps, round_n, OraVento, RigaOm, RigaWg};
-use crate::regole::{Spot, SOGLIA, spot, STAZIONI};
+use crate::regole::{Spot, SOGLIA, spot, stazioni_attive};
 use crate::stazioni::Lettura;
 use crate::{num, num_o};
 
@@ -59,7 +59,7 @@ pub fn scrivi(dir_dati: &Path, dir_calcoli: &Path, adesso: NaiveDateTime, st_res
     let tutte = righe(&file_l);
     let mut visti: HashSet<String> = tutte[tutte.len().saturating_sub(400)..].iter().cloned().collect();
     let mut nuove = Vec::new();
-    for st in STAZIONI {
+    for st in stazioni_attive() {
         let Some(Ok(l)) = st_res.get(st.id) else { continue };
         if !l.fresca {
             continue;
