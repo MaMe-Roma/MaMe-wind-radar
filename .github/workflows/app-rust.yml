@@ -38,6 +38,9 @@ jobs:
           [IO.File]::WriteAllText("$PWD\radarkite\impostazioni.txt", $imp)
           New-Item -ItemType Directory -Force out4 | Out-Null
           [IO.File]::WriteAllText("$PWD\out4\impostazioni.txt", $imp)
+      - name: Storico e diario finti uguali per 3.4 e 4.0 (dal lunedi' a ieri)
+        shell: powershell
+        run: python radarkite-app/prove/storico_finto.py (Get-Date -Format yyyy-MM-dd) radarkite\dati out4\dati
       - name: Radar kite 3.4 (scarica e salva la cache)
         shell: cmd
         run: powershell -NoProfile -ExecutionPolicy Bypass -File radarkite\radar-kite.ps1 -Automatico -OmProva "%CD%\om-prova.json" | findstr /v /c:"*" /c:" nodi da "

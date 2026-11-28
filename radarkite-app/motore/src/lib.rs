@@ -2,10 +2,12 @@
 //! Fase 1 del piano: regole, download in parallelo con cache, Windguru e firing, Open-Meteo, mare, oggetto D.
 //! Stazioni, impostazioni e tempi di viaggio arrivano nella fase 2; storico, diario, PDF e giro ogni ora nella fase 3.
 
+pub mod copia;
 pub mod previsioni;
 pub mod regole;
 pub mod rete;
 pub mod stazioni;
+pub mod storico;
 pub mod viaggi;
 
 use std::collections::HashMap;
@@ -36,7 +38,7 @@ pub fn num(x: f64) -> Value {
         serde_json::Number::from_f64(x).map(Value::Number).unwrap_or(Value::Null)
     }
 }
-fn num_o(x: Option<f64>) -> Value {
+pub fn num_o(x: Option<f64>) -> Value {
     x.map(num).unwrap_or(Value::Null)
 }
 
@@ -115,8 +117,41 @@ pub fn esegui(o: &Opzioni) -> Result<Esito, String> {
     let dir_cache = o.cache.clone().unwrap_or_else(|| dir_dati.join("cache"));
     log.scrivi(&format!("Radar kite {VERSIONE} ({DATA_VERSIONE}) di {AUTORE} - {}", adesso.format("%d/%m/%Y %H:%M")));
 
-    // Tutte le richieste partono insieme: previsioni Windguru, Open-Meteo e mare. (Stazioni: fase 2.)
+    let dir_calcoli = dir_dati.join("cache");
+    let _ = std::fs::create_dir_all(&dir_calcoli);
+    let link = o.link.clone().unwrap_or_default();
+    // Diario: un'uscita scritta nel modulo della pagina.
+    if link.starts_with("radarkite://uscita") {
+        match storico::salva_uscita(&dir_dati, &viaggi::parametri(&link)) {
+            Ok(x) => log.scrivi(&format!("Uscita salvata nel diario: {x}")),
+            Err(e) => log.scrivi(&format!("Uscita non salvata: {e}")),
+        }
+    }
+    let forza_storico = link.starts_with("radarkite://storico");
+    // Aggiornamento di un solo spot o di una sola stazione (pulsanti nella pagina).
+    let mut solo = String::new();
+    let q = viaggi::parametri(&link);
+    let id = q.get("id").cloned().unwrap_or_default();
+    if link.starts_with("radarkite://spot") && SPOT.iter().any(|s| s.id == id) {
+        solo = format!("spot:{id}");
+    }
+    if link.starts_with("radarkite://stazione") && STAZIONI.iter().any(|s| s.id == id) {
+        solo = format!("st:{id}");
+    }
+    let sx = solo.strip_prefix("spot:").and_then(|i| SPOT.iter().find(|s| s.id == i));
+
+    // Tutte le richieste partono insieme: previsioni Windguru, Open-Meteo, mare e stazioni.
     let mut rete = rete::Rete::new(dir_cache, o.solo_cache);
+    if let Some(s) = sx {
+        let mut f = vec![url_windguru(s), url_open_meteo(SPOT), url_acqua(SPOT)];
+        f.extend(STAZIONI.iter().filter(|st| s.stazioni.contains(&st.id)).map(|st| st.url.to_string()));
+        rete.solo(f);
+        log.scrivi(&format!("Aggiorno solo lo spot {}", s.nome));
+    } else if let Some(i) = solo.strip_prefix("st:") {
+        rete.solo(STAZIONI.iter().filter(|st| st.id == i).map(|st| st.url.to_string()).collect());
+        log.scrivi(&format!("Aggiorno solo la stazione {i}"));
+    }
+    let fasi: Vec<u8> = if solo.is_empty() { o.fasi.clone() } else { vec![2] };
     for s in SPOT {
         rete.parti(&url_windguru(s), "https://micro.windguru.cz/", false, false, 20, false);
     }
@@ -152,7 +187,24 @@ pub fn esegui(o: &Opzioni) -> Result<Esito, String> {
     // Impostazioni personali e pulsanti della pagina che le cambiano (partenza, indirizzi, tempi di viaggio).
     let file_imp = o.cartella.join("impostazioni.txt");
     let mut imp = viaggi::leggi_impostazioni(&file_imp);
-    let link = o.link.clone().unwrap_or_default();
+    // Copia per il telefono: cartella scelta nella pagina.
+    let cloud = copia::cartelle_cloud();
+    let mut errore_copia = String::new();
+    if link.starts_with("radarkite://copia") {
+        match copia::scegli(q.get("c").map(|s| s.as_str()).unwrap_or(""), &cloud) {
+            Ok(v) => {
+                viaggi::salva_impostazione(&file_imp, "copia_telefono", &v);
+                imp.insert("copia_telefono".into(), v.clone());
+                log.scrivi(&format!("  Copia per il telefono: {v}"));
+            }
+            Err(e) => {
+                log.scrivi(&format!("  Copia per il telefono: {e}"));
+                errore_copia = e;
+            }
+        }
+    }
+    let file_copia = dir_calcoli.join("copia-telefono.txt");
+    let mut pdf_ultimo = std::fs::read_to_string(&file_copia).map(|t| t.trim().to_string()).unwrap_or_default();
     let mut forza_viaggi = false;
     if link.starts_with("radarkite://partenza") {
         let q = viaggi::parametri(&link);
@@ -214,7 +266,7 @@ pub fn esegui(o: &Opzioni) -> Result<Esito, String> {
     let (mut errore_om, mut errore_mare) = (String::new(), String::new());
     let mut righe_firing = Vec::new();
 
-    for &fase in &o.fasi {
+    for &fase in &fasi {
         let mut st_res: HashMap<&str, Result<Lettura, String>> = HashMap::new();
         if fase == 1 {
             for st in STAZIONI {
@@ -267,6 +319,9 @@ pub fn esegui(o: &Opzioni) -> Result<Esito, String> {
                 st_res.insert(st.id, esito);
             }
             log.tempo("stazioni lette");
+            let wg: Vec<(&'static Spot, Option<&Vec<RigaWg>>)> = spot_res.iter().map(|r| (r.s, r.wg.as_ref().map(|w| &w.righe))).collect();
+            storico::scrivi(&dir_dati, &dir_calcoli, adesso, &st_res, &wg, &om);
+            log.tempo("storico");
             righe_firing = firing_testo(&spot_res, adesso);
             if righe_firing.is_empty() {
                 log.scrivi("Nessuna finestra di vento nei prossimi giorni.");
@@ -278,16 +333,40 @@ pub fn esegui(o: &Opzioni) -> Result<Esito, String> {
             }
         }
         let lente = tempi_stazioni(&dir_dati, &st_res, &rete, fase, adesso);
+        let (passati, passati_calcolati, diario) = giorni_passati(&dir_dati, &dir_calcoli, adesso, forza_storico, fase);
+        let meta = segna_aggiornati(&dir_calcoli, &solo, sx, adesso, fase);
         let cx = Contesto { st_res: &st_res, lente: &lente, viaggi: dati_viaggi.as_ref(), imp: &imp, errore_viaggi: &errore_viaggi };
-        let d = dati_pagina(&spot_res, &om, &acqua, onde.as_ref(), &errore_om, &errore_mare, adesso, fase, &cx);
+        let mut d = dati_pagina(&spot_res, &om, &acqua, onde.as_ref(), &errore_om, &errore_mare, adesso, fase, &cx);
+        d["copia"] = copia::dati_pagina(&imp["copia_telefono"], &cloud, &errore_copia, &pdf_ultimo);
+        d["passati"] = passati;
+        d["passatiCalcolati"] = json!(passati_calcolati);
+        d["diario"] = diario;
+        d["creato"] = meta["creato"].clone();
+        for x in d["spot"].as_array_mut().into_iter().flatten() {
+            x["aggiornato"] = meta["spot"][x["id"].as_str().unwrap_or("")].clone();
+        }
+        for x in d["stazioni"].as_array_mut().into_iter().flatten() {
+            x["aggiornato"] = meta["stazioni"][x["id"].as_str().unwrap_or("")].clone();
+        }
         let scrittura = d["scrittura"].as_i64().unwrap_or(0);
         let html = modello.replacen("/*DATI*/null", &json_per_pagina(&d), 1);
         let mut b = vec![0xEF, 0xBB, 0xBF];
         b.extend_from_slice(html.as_bytes());
         scrivi_sostituendo(&file_report, &b).map_err(|e| format!("report non scritto: {e}"))?;
         // stato.js dice alla pagina aperta che c'e' un report nuovo: la pagina lo controlla 3 volte al secondo e si ricarica.
-        let _ = scrivi_sostituendo(&o.cartella.join("stato.js"), format!("window.RK_SCRITTO = {scrittura}; window.RK_PDF = '';").as_bytes());
+        let stato = |pdf: &str| { let _ = scrivi_sostituendo(&o.cartella.join("stato.js"), format!("window.RK_SCRITTO = {scrittura}; window.RK_PDF = '{}';", pdf.replace(['\\', '\''], "")).as_bytes()); };
+        stato(&pdf_ultimo);
         log.tempo(if fase == 1 { "pagina aperta (fase 1)" } else { "pagina completa (fase 2)" });
+        // A pagina completa il PDF per il telefono (non per l'aggiornamento di un solo spot).
+        if fase == 2 && solo.is_empty() && !o.solo_cache {
+            if let Some(esito) = copia::salva_pdf(&file_report, copia::cartella_copia(&imp["copia_telefono"], &cloud), adesso) {
+                log.scrivi(&format!("  PDF per il telefono: {esito}"));
+                pdf_ultimo = esito;
+                let _ = std::fs::write(&file_copia, &pdf_ultimo);
+                stato(&pdf_ultimo);
+                log.tempo("PDF");
+            }
+        }
     }
     let _ = std::fs::write(dir_dati.join("ultimo-avvio.txt"), log.righe.lock().unwrap().join("\r\n") + "\r\n");
     Ok(Esito { report: file_report, firing: righe_firing })
@@ -348,6 +427,56 @@ fn tempi_stazioni(dir_dati: &Path, st_res: &HashMap<&str, Result<Lettura, String
         lente.insert(st.id, json!({ "media": media, "fallite": sue.len() - ok.len(), "prove": sue.len() }));
     }
     lente
+}
+
+/// Giorni passati e diario: non cambiano durante la giornata, si calcolano una volta al giorno (dati/cache/calcoli.json).
+/// Si rifanno il giorno dopo, quando cambia il diario o col pulsante "ricalcola".
+fn giorni_passati(dir_dati: &Path, dir_calcoli: &Path, adesso: NaiveDateTime, forza: bool, fase: u8) -> (Value, String, Value) {
+    let file_calc = dir_calcoli.join("calcoli.json");
+    let oggi = adesso.format("%Y-%m-%d").to_string();
+    let firma = std::fs::metadata(dir_dati.join("diario.csv")).and_then(|m| m.modified()).map(|t| format!("{:?}", t)).unwrap_or_default();
+    let calc: Value = if forza { Value::Null } else { std::fs::read_to_string(&file_calc).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or(Value::Null) };
+    let usa_passati = calc["giorno"] == json!(oggi) && calc["versione"] == json!(VERSIONE);
+    let usa_diario = usa_passati && calc["firmaDiario"] == json!(firma);
+    let (passati, calcolati) = if usa_passati { (calc["passati"].clone(), calc["calcolati"].as_str().unwrap_or("").to_string()) }
+        else { (Value::Array(storico::passati(dir_dati, adesso)), adesso.format("%Y-%m-%dT%H:%M:%S").to_string()) };
+    let diario = if usa_diario { calc["diario"].clone() } else { Value::Array(storico::diario(dir_dati)) };
+    if (!usa_passati || !usa_diario) && fase == 2 {
+        let _ = std::fs::write(&file_calc, serde_json::to_string(&json!({ "giorno": oggi, "versione": VERSIONE, "firmaDiario": firma, "calcolati": calcolati, "passati": passati, "diario": diario })).unwrap_or_default());
+    }
+    (passati, calcolati, diario)
+}
+
+/// Ora di aggiornamento di pagina, spot e stazioni (dati/cache/meta.json): con un solo spot cambiano solo i suoi.
+fn segna_aggiornati(dir_calcoli: &Path, solo: &str, sx: Option<&Spot>, adesso: NaiveDateTime, fase: u8) -> Value {
+    let file = dir_calcoli.join("meta.json");
+    let ora = adesso.format("%Y-%m-%dT%H:%M:%S").to_string();
+    let mut m: Value = std::fs::read_to_string(&file).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or(json!({}));
+    for k in ["spot", "stazioni"] {
+        if !m[k].is_object() {
+            m[k] = json!({});
+        }
+    }
+    if solo.is_empty() || m["creato"].as_str().unwrap_or("").is_empty() {
+        m["creato"] = json!(ora);
+        for s in SPOT {
+            m["spot"][s.id] = json!(ora);
+        }
+        for st in STAZIONI {
+            m["stazioni"][st.id] = json!(ora);
+        }
+    } else if let Some(s) = sx {
+        m["spot"][s.id] = json!(ora);
+        for sid in s.stazioni {
+            m["stazioni"][*sid] = json!(ora);
+        }
+    } else if let Some(i) = solo.strip_prefix("st:") {
+        m["stazioni"][i] = json!(ora);
+    }
+    if fase == 2 {
+        let _ = std::fs::write(&file, serde_json::to_string(&m).unwrap_or_default());
+    }
+    m
 }
 
 fn giorno_txt(d: NaiveDate) -> String {

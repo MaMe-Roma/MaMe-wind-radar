@@ -1,9 +1,9 @@
 """Confronto 3.4 / 4.0: legge l'oggetto D dai due report.html e controlla che i numeri della fase 1 siano uguali.
 
 Uso: python confronta.py report-3.4.html report-4.0.html
-Fasi 1 e 2: previsioni Windguru, firing, meteo e secondo modello, onde, acqua, stazioni, vento adesso, partenza e
-tempi di viaggio. Non si confrontano (fase 3) storico, diario, copia per il telefono, ne' i secondi di risposta delle
-stazioni. Degli errori conta che ci siano in tutte e due. Nel registro solo i nomi dei campi diversi, non i dati.
+Fasi 1-3: previsioni Windguru, firing, meteo e secondo modello, onde, acqua, stazioni, vento adesso, partenza,
+tempi di viaggio, giorni passati, diario e copia per il telefono. Non si confrontano i secondi di risposta delle
+stazioni, l'esito dell'ultimo PDF e le caselle nuove del diario 4.0 (muta, direzione), che la 3.4 non ha. Degli errori conta che ci siano in tutte e due. Nel registro solo i nomi dei campi diversi, non i dati.
 """
 import json
 import re
@@ -75,11 +75,21 @@ def main():
         uguale(pa.get(k), pb.get(k), f'partenza.{k}')
     if bool(pa.get('errore')) != bool(pb.get('errore')):
         diff.append('partenza.errore: tempi di viaggio calcolati solo da una delle due')
+    for k in ('passati', 'passatiCalcolati'):
+        uguale(a.get(k), b.get(k), k)
+    for i, (ua, ub) in enumerate(zip(a.get('diario', []), b.get('diario', []))):
+        uguale(ua, {k: v for k, v in ub.items() if k not in ('muta', 'direzione')}, f'diario[{i}]')
+    if len(a.get('diario', [])) != len(b.get('diario', [])):
+        diff.append('diario: numero di uscite diverso')
+    ca, cb = a.get('copia') or {}, b.get('copia') or {}
+    for k in ('scelta', 'cartella', 'candidati', 'errore'):
+        uguale(ca.get(k), cb.get(k), f'copia.{k}')
     stOk = sum(1 for x in a['stazioni'] if not x.get('errore'))
     letti = sum(1 for s in a['spot'] if not s.get('errore'))
     print(f'Spot con Windguru letto: {letti} di {len(a["spot"])}; giorni firing (3.4): {firing}; '
           f'Open-Meteo: {"errore" if a.get("omErrore") else "ok"}; mare: {"errore" if a.get("mareErrore") else "ok"}; '
-          f'stazioni lette: {stOk} di {len(a["stazioni"])}; tempi di viaggio: {"errore" if pa.get("errore") else "ok"}')
+          f'stazioni lette: {stOk} di {len(a["stazioni"])}; tempi di viaggio: {"errore" if pa.get("errore") else "ok"}; '
+          f'giorni passati: {len(a.get("passati", []))}; uscite nel diario: {len(a.get("diario", []))}')
     print(f'Valori confrontati: {contati[0]}; differenze: {len(diff)}')
     for d in diff[:60]:
         print('  - ' + d)

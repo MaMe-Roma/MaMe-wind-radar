@@ -27,6 +27,8 @@ pub struct Rete {
     /// Quando ha risposto ogni sito (per i tempi delle stazioni, come Update-Tempi).
     fatti: Arc<Mutex<HashMap<String, Instant>>>,
     t0: Instant,
+    /// Aggiornamento di un solo spot o stazione: questi si scaricano, il resto si prende dalla cache.
+    freschi: Option<Vec<String>>,
 }
 
 pub fn file_cache(dir: &Path, url: &str) -> PathBuf {
@@ -77,11 +79,21 @@ fn messaggio(m: &str, secondi: u64) -> String {
 impl Rete {
     pub fn new(cache: PathBuf, solo_cache: bool) -> Self {
         let _ = std::fs::create_dir_all(&cache);
-        Rete { cache, solo_cache, pre: HashMap::new(), fatti: Arc::new(Mutex::new(HashMap::new())), t0: Instant::now() }
+        Rete { cache, solo_cache, pre: HashMap::new(), fatti: Arc::new(Mutex::new(HashMap::new())), t0: Instant::now(), freschi: None }
     }
 
     /// Fa partire una richiesta (Start-Scarico). rigido = Open-Meteo, mare e stazioni.
+    pub fn solo(&mut self, freschi: Vec<String>) {
+        self.freschi = Some(freschi);
+    }
+
     pub fn parti(&mut self, url: &str, referer: &str, xhr: bool, rigido: bool, secondi: u64, stazione: bool) {
+        if self.freschi.as_ref().is_some_and(|f| !f.iter().any(|x| x == url)) {
+            if let Some(t) = leggi_cache(&self.cache, url) {
+                self.pre.insert(url.to_string(), Pre { rx: None, testo: Some(t), errore: None, rigido, secondi, stazione });
+                return;
+            }
+        }
         if self.solo_cache {
             let (testo, errore) = match leggi_cache(&self.cache, url) {
                 Some(t) => (Some(t), None),

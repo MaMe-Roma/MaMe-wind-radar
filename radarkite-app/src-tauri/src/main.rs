@@ -36,9 +36,12 @@ fn cartella_app() -> PathBuf {
 }
 
 /// Fa girare il motore in sottofondo (uno alla volta). link = il pulsante della pagina (radarkite://...).
-fn aggiorna(cartella: PathBuf, link: Option<String>) {
+/// automatico = giro di ogni ora: se il motore sta gia' lavorando si salta.
+fn aggiorna(cartella: PathBuf, link: Option<String>, automatico: bool) {
     if IN_CORSO.swap(true, Ordering::SeqCst) {
-        *IN_CODA.lock().unwrap() = Some(link);
+        if !automatico {
+            *IN_CODA.lock().unwrap() = Some(link);
+        }
         return;
     }
     std::thread::spawn(move || {
@@ -46,6 +49,10 @@ fn aggiorna(cartella: PathBuf, link: Option<String>) {
         loop {
             let mut o = motore::Opzioni::nuove(cartella.clone());
             o.link = link;
+            if automatico && o.link.is_none() {
+                o.fasi = vec![2];
+                o.automatico = true;
+            }
             let _ = motore::esegui(&o);
             match IN_CODA.lock().unwrap().take() {
                 Some(dopo) => link = dopo,
@@ -85,8 +92,29 @@ fn comando(url: &Url, cartella: &Path) {
                 }
             }
         }
-        _ => aggiorna(cartella.to_path_buf(), Some(url.as_str().to_string())),
+        _ => aggiorna(cartella.to_path_buf(), Some(url.as_str().to_string()), false),
     }
+}
+
+/// Giro ogni ora dalle 6:30 alle 19:30, solo mentre la finestra e' aperta (chiusa la finestra, l'app si chiude).
+/// Si spegne con avvio_automatico = no in impostazioni.txt.
+fn giro_orario(cartella: PathBuf) {
+    use chrono::Timelike;
+    std::thread::spawn(move || {
+        let mut ultimo = None;
+        loop {
+            std::thread::sleep(std::time::Duration::from_secs(30));
+            let t = chrono::Local::now().naive_local();
+            let chiave = (t.date(), t.hour());
+            if (30..35).contains(&t.minute()) && (6..=19).contains(&t.hour()) && ultimo != Some(chiave) {
+                ultimo = Some(chiave);
+                let imp = motore::viaggi::leggi_impostazioni(&cartella.join("impostazioni.txt"));
+                if imp["avvio_automatico"] != "no" {
+                    aggiorna(cartella.clone(), None, true);
+                }
+            }
+        }
+    });
 }
 
 fn main() {
@@ -104,7 +132,13 @@ fn main() {
             #[cfg(not(windows))]
             let base = "rk://localhost/";
             let url: Url = format!("{base}report.html#aggiorno-{ora}").parse().expect("indirizzo della pagina");
-            aggiorna(per_finestra.clone(), None);
+            // Primo avvio: uscite, storico e casa/lavoro dalla 3.4 sul Desktop, poi il primo aggiornamento.
+            let c0 = per_finestra.clone();
+            std::thread::spawn(move || {
+                let _ = motore::storico::importa_34(&c0);
+                aggiorna(c0, None, false);
+            });
+            giro_orario(per_finestra.clone());
             let c = per_finestra.clone();
             WebviewWindowBuilder::new(app, "principale", WebviewUrl::External(url))
                 .title("Radar kite")
